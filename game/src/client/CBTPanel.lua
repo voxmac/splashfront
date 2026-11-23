@@ -102,7 +102,7 @@ local function buildFeedback()
 	local send = button(feedbackFrame, "보내기", Color3.fromRGB(0, 170, 160), { Size = UDim2.fromOffset(140, 38), Position = UDim2.new(1, -158, 1, -52), ZIndex = 31 })
 	UI.CloseButton(feedbackFrame, function()
 		feedbackFrame.Visible = false
-		modalHandler(adminFrame.Visible)
+		modalHandler(adminFrame ~= nil and adminFrame.Visible)
 	end, 36).ZIndex = 35
 	send.MouseButton1Click:Connect(function()
 		if rating == 0 then
@@ -118,7 +118,7 @@ local function buildFeedback()
 				box.Text = ""
 				rating = 0
 				feedbackFrame.Visible = false
-				modalHandler(adminFrame.Visible)
+				modalHandler(adminFrame ~= nil and adminFrame.Visible)
 			end
 		end
 	end)
