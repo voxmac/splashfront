@@ -7,18 +7,27 @@ local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 
 local UI = {}
 
+-- SF 톤: 짙은 남색 강철 + 네온 포인트 (로비 격납고와 같은 색)
 UI.Colors = {
-	Bg = Color3.fromRGB(18, 16, 30),
-	Panel = Color3.fromRGB(30, 28, 48),
-	Panel2 = Color3.fromRGB(40, 38, 62),
+	Bg = Color3.fromRGB(12, 16, 30),
+	Panel = Color3.fromRGB(22, 28, 50),
+	Panel2 = Color3.fromRGB(34, 42, 72),
 	Pink = Color3.fromRGB(255, 46, 170),
 	Cyan = Color3.fromRGB(0, 200, 255),
 	Gold = Color3.fromRGB(255, 200, 50),
 	Green = Color3.fromRGB(0, 190, 150),
 	Text = Color3.fromRGB(245, 245, 255),
 	Sub = Color3.fromRGB(180, 178, 205),
-	Dim = Color3.fromRGB(70, 68, 96),
+	Dim = Color3.fromRGB(62, 74, 108),
+	Neon = Color3.fromRGB(240, 255, 40),
 }
+
+-- 글꼴: 제목·버튼·숫자는 두꺼운 이탤릭 (하이퍼 FPS 느낌), 본문은 Gotham Bold
+UI.Fonts = {
+	Heavy = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
+	Black = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic),
+}
+local ITALIC_FONTS = { [Enum.Font.GothamBlack] = true, [Enum.Font.FredokaOne] = true, [Enum.Font.LuckiestGuy] = true }
 local C = UI.Colors
 
 function UI.make(class, props, parent)
@@ -101,19 +110,47 @@ function UI.CloseButton(parent, onClose, size)
 	return b
 end
 
--- 제목 띠가 있는 패널
+-- 제목 띠가 있는 패널 (SF: 남색 강철 판 + 네온 테두리 + 사선 줄무늬 제목 띠)
 function UI.Panel(parent, title, size, accent)
 	accent = accent or C.Pink
 	local f = make("Frame", { Size = size, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg }, parent)
-	UI.corner(f, 18)
-	UI.stroke(f, accent, 3, 0.1)
-	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = accent, BorderSizePixel = 0 }, f)
-	UI.corner(head, 18)
+	UI.corner(f, 14)
+	UI.stroke(f, accent, 2, 0.05)
+	UI.gradient(f, Color3.fromRGB(26, 34, 60), Color3.fromRGB(10, 13, 26), 90)
+	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = accent, BorderSizePixel = 0, ClipsDescendants = true }, f)
+	UI.corner(head, 14)
 	make("Frame", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 1, -20), BackgroundColor3 = accent, BorderSizePixel = 0 }, head)
-	UI.gradient(head, Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 220), 90)
-	UI.label(head, { Text = title, Font = Enum.Font.FredokaOne, TextSize = 32, Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -90, 1, 0),
-		TextStrokeTransparency = 0.6 })
+	UI.gradient(head, Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 175), 90)
+	-- 사선 줄무늬 장식
+	for k = 0, 6 do
+		make("Frame", { Size = UDim2.fromOffset(14, 140), Position = UDim2.new(1, -60 - k * 26, 0, -30), Rotation = 28, BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.82, BorderSizePixel = 0 }, head)
+	end
+	-- 제목 아래 얇은 네온 선
+	make("Frame", { Size = UDim2.new(1, -28, 0, 2), Position = UDim2.fromOffset(14, 66), BackgroundColor3 = C.Neon, BackgroundTransparency = 0.3,
+		BorderSizePixel = 0 }, f)
+	UI.label(head, { Text = title, FontFace = UI.Fonts.Black, TextSize = 32, Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -90, 1, 0),
+		TextStrokeTransparency = 0.5 })
 	return f, head
+end
+
+-- 화면 전체 글꼴 정리: GothamBlack·FredokaOne(이전 카툰 글꼴)과 SFItalic 표시가 붙은 글자를 두꺼운 이탤릭으로
+local function styleText(o)
+	if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+		return
+	end
+	if o:GetAttribute("SFItalic") or ITALIC_FONTS[o.Font] then
+		o.FontFace = UI.Fonts.Heavy
+	end
+end
+function UI.AutoStyle(root)
+	for _, d in ipairs(root:GetDescendants()) do
+		styleText(d)
+	end
+	root.DescendantAdded:Connect(function(d)
+		-- 만든 직후 속성을 채우는 코드가 있으니 한 박자 뒤에 적용
+		task.defer(styleText, d)
+	end)
 end
 
 ------------------------------------------------------------------------

@@ -105,8 +105,37 @@ local function updateRide(dt)
 	root.AssemblyLinearVelocity = (riding.To - riding.From).Unit * ZIP_SPEED
 end
 
+-- 로비 진열대 총 회전 (Spin 속성 = 초당 각도). 서버는 그대로 두고 화면에서만 돌림
+local spinners = {}
+local function addSpinner(m)
+	if m:IsA("Model") and m:GetAttribute("Spin") and not spinners[m] then
+		spinners[m] = { Base = m:GetPivot(), Speed = m:GetAttribute("Spin"), T = math.random() * 10 }
+	end
+end
+local function startSpinners()
+	local lobby = workspace:WaitForChild("Lobby", 30)
+	if not lobby then
+		return
+	end
+	for _, d in ipairs(lobby:GetDescendants()) do
+		addSpinner(d)
+	end
+	lobby.DescendantAdded:Connect(addSpinner)
+	RunService.RenderStepped:Connect(function(dt)
+		for m, sp in pairs(spinners) do
+			if not m.Parent then
+				spinners[m] = nil
+			else
+				sp.T = sp.T + dt
+				m:PivotTo(sp.Base * CFrame.new(0, math.sin(sp.T * 1.6) * 0.35, 0) * CFrame.Angles(0, math.rad(sp.Speed * sp.T), 0))
+			end
+		end
+	end)
+end
+
 function MapInteract.Init(effects)
 	Effects = effects
+	task.spawn(startSpinners)
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
 		if who ~= player then
 			return

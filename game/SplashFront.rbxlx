@@ -3762,63 +3762,190 @@ function MapBuilder.BuildLobby()
 
 	local Y = 400
 	local W, D = 170, 130
-	-- 바닥 + 가운데 원형 광장
+	------------------------------------------------------------------
+	-- SF 격납고 로비: 짙은 남색 강철 벽 + 노랑/자홍 네온 칸, 유리 천장과 네온 갈비대,
+	-- 무지개 네온 통로, 떠 있는 육각 무기 진열대 (레퍼런스: 사이파이 하이퍼 FPS 로비)
+	------------------------------------------------------------------
+	local STEEL = Color3.fromRGB(30, 38, 62)
+	local STEEL2 = Color3.fromRGB(42, 52, 84)
+	local STEEL3 = Color3.fromRGB(22, 28, 46)
+	local NEON_Y = Color3.fromRGB(240, 255, 40)
+	local NEON_M = Color3.fromRGB(255, 40, 200)
+	local NEON_P = Color3.fromRGB(150, 70, 255)
+	local NEON_C = Color3.fromRGB(0, 230, 255)
+	local H = 46 -- 천장 높이
+
+	-- 바닥: 진한 강철판 + 10스터드 이음새
 	part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
-		Color = Color3.fromRGB(38, 36, 54), Material = Enum.Material.Slate })
-	for i, r in ipairs({ 44, 40, 26, 23 }) do
-		cyl({ Name = "PlazaRing", Parent = deco, Height = 0.06 + i * 0.01, Diameter = r * 2, Position = Vector3.new(0, Y + 0.03 + i * 0.005, 14),
-			Color = (i % 2 == 1) and Color3.fromRGB(60, 56, 84) or Color3.fromRGB(30, 28, 44), Material = Enum.Material.SmoothPlastic,
-			CanCollide = false, CanQuery = false })
+		Color = STEEL3, Material = Enum.Material.DiamondPlate })
+	for x = -W / 2 + 10, W / 2 - 10, 10 do
+		part({ Name = "Seam", Parent = deco, Size = Vector3.new(0.18, 0.04, D), Position = Vector3.new(x, Y + 0.02, 0),
+			Color = Color3.fromRGB(12, 14, 24), CanCollide = false, CanQuery = false })
 	end
-	-- 페인트 스플랫 (바닥에 흩뿌린 무지개 얼룩)
-	for i = 1, 30 do
-		local x = rng:NextNumber(-W / 2 + 8, W / 2 - 8)
-		local z = rng:NextNumber(-8, D / 2 - 8)
-		local c = LOBBY_COLORS[rng:NextInteger(1, #LOBBY_COLORS)]
-		local d = rng:NextNumber(3, 9)
-		local yy = Y + 0.12 + i * 0.002
-		cyl({ Name = "Splat", Parent = deco, Height = 0.05, Diameter = d, Position = Vector3.new(x, yy, z), Color = c,
-			Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
-		for k = 1, rng:NextInteger(2, 4) do
-			local a = rng:NextNumber() * math.pi * 2
-			local rr = d / 2 + rng:NextNumber(0.6, 2.2)
-			cyl({ Name = "Drop", Parent = deco, Height = 0.05, Diameter = rng:NextNumber(0.6, 1.6),
-				Position = Vector3.new(x + math.cos(a) * rr, yy, z + math.sin(a) * rr), Color = c,
-				Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+	for z = -D / 2 + 10, D / 2 - 10, 10 do
+		part({ Name = "Seam", Parent = deco, Size = Vector3.new(W, 0.04, 0.18), Position = Vector3.new(0, Y + 0.02, z),
+			Color = Color3.fromRGB(12, 14, 24), CanCollide = false, CanQuery = false })
+	end
+	-- 중앙 통로 (스폰 → 발판 무대): 밝은 패널 + 양옆 무지개 네온 줄
+	local pathZ1, pathZ2 = -12, D / 2 - 4
+	part({ Name = "Walkway", Parent = deco, Size = Vector3.new(26, 0.1, pathZ2 - pathZ1), Position = Vector3.new(0, Y + 0.05, (pathZ1 + pathZ2) / 2),
+		Color = STEEL2, Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+	local segs = 24
+	for i = 0, segs - 1 do
+		local z1 = pathZ1 + (pathZ2 - pathZ1) * i / segs
+		local len = (pathZ2 - pathZ1) / segs
+		local c = Color3.fromHSV((i / segs) * 0.85, 0.85, 1)
+		for _, sx in ipairs({ -1, 1 }) do
+			part({ Name = "RainbowLine", Parent = deco, Size = Vector3.new(0.7, 0.12, len + 0.02), Position = Vector3.new(sx * 13.4, Y + 0.08, z1 + len / 2),
+				Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+		end
+	end
+	-- 통로 가운데 화살표 표시
+	for z = pathZ2 - 12, pathZ1 + 8, -10 do
+		for _, sx in ipairs({ -1, 1 }) do
+			local w = part({ Name = "Chevron", Parent = deco, Size = Vector3.new(0.6, 0.06, 4), CFrame = CFrame.new(sx * 1.4, Y + 0.12, z)
+				* CFrame.Angles(0, math.rad(sx * 40), 0), Color = Color3.fromRGB(160, 175, 210), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+			w.Transparency = 0.45
 		end
 	end
 
-	-- 외곽: 유리 난간 + 네온 띠 + 조명 기둥
-	for _, s in ipairs({ -1, 1 }) do
-		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(W, 3, 0.6), Position = Vector3.new(0, Y + 1.5, s * (D / 2 - 0.3)),
-			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
-		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(0.6, 3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 1.5, 0),
-			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
-		part({ Name = "Trim", Parent = deco, Size = Vector3.new(W, 0.3, 0.7), Position = Vector3.new(0, Y + 3.1, s * (D / 2 - 0.3)),
-			Color = LOBBY_COLORS[s == -1 and 1 or 2], Material = Enum.Material.Neon, CanQuery = false })
-		part({ Name = "Trim", Parent = deco, Size = Vector3.new(0.7, 0.3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 3.1, 0),
-			Color = LOBBY_COLORS[s == -1 and 3 or 5], Material = Enum.Material.Neon, CanQuery = false })
-		-- 보이지 않는 높은 벽 (밖으로 떨어지지 않게)
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(W, 30, 1), Position = Vector3.new(0, Y + 15, s * (D / 2 + 0.5)), Transparency = 1 })
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(1, 30, D), Position = Vector3.new(s * (W / 2 + 0.5), Y + 15, 0), Transparency = 1 })
-	end
-	local pi = 0
-	for _, x in ipairs({ -W / 2 + 2, W / 2 - 2 }) do
-		for z = -D / 2 + 14, D / 2 - 10, 26 do
-			pi = pi + 1
-			local c = LOBBY_COLORS[(pi % #LOBBY_COLORS) + 1]
-			part({ Name = "Pillar", Parent = deco, Size = Vector3.new(2.4, 14, 2.4), Position = Vector3.new(x, Y + 7, z),
-				Color = Color3.fromRGB(44, 42, 62), Material = Enum.Material.Metal })
-			local cap = part({ Name = "PillarCap", Parent = deco, Size = Vector3.new(3, 1, 3), Position = Vector3.new(x, Y + 14.5, z), Color = c,
-				Material = Enum.Material.Neon, CanQuery = false })
-			part({ Name = "PillarStrip", Parent = deco, Size = Vector3.new(0.3, 10, 1.2), Position = Vector3.new(x + (x < 0 and 1.25 or -1.25), Y + 7, z),
-				Color = c, Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
-			local l = Instance.new("PointLight")
-			l.Color = c
-			l.Range = 22
-			l.Brightness = 1.6
-			l.Parent = cap
+	-- 벽: 14스터드 칸마다 안쪽 패널 + 칸 경계 기둥(노랑/자홍 네온) + 아래·위 시안 띠
+	local function wallSide(axis, sgn)
+		local len = axis == "X" and W or D
+		local function at(t, y, inset)
+			if axis == "X" then
+				return Vector3.new(t, y, sgn * (D / 2 - inset))
+			end
+			return Vector3.new(sgn * (W / 2 - inset), y, t)
 		end
+		local function size(along, h, thick)
+			if axis == "X" then
+				return Vector3.new(along, h, thick)
+			end
+			return Vector3.new(thick, h, along)
+		end
+		part({ Name = "HangarWall", Parent = lobby, Size = size(len, H, 2), Position = at(0, Y + H / 2, -1), Color = STEEL, Material = Enum.Material.Metal })
+		part({ Name = "WallSkirt", Parent = deco, Size = size(len, 0.5, 0.4), Position = at(0, Y + 4, 0.2), Color = NEON_C, Material = Enum.Material.Neon,
+			CanQuery = false, CanCollide = false })
+		part({ Name = "WallCrown", Parent = deco, Size = size(len, 0.5, 0.4), Position = at(0, Y + H - 8, 0.2), Color = NEON_P, Material = Enum.Material.Neon,
+			CanQuery = false, CanCollide = false })
+		local k = 0
+		for t = -len / 2 + 7, len / 2 - 7, 14 do
+			k = k + 1
+			-- 들어간 패널 (가운데 조금 밝게)
+			part({ Name = "WallPanel", Parent = deco, Size = size(11, H - 16, 0.6), Position = at(t, Y + 4 + (H - 12) / 2, 0.3), Color = STEEL2,
+				Material = Enum.Material.Metal, CanQuery = false })
+			part({ Name = "PanelSlit", Parent = deco, Size = size(8, 0.25, 0.7), Position = at(t, Y + 14, 0.35), Color = STEEL3, CanQuery = false })
+			part({ Name = "PanelSlit", Parent = deco, Size = size(8, 0.25, 0.7), Position = at(t, Y + 26, 0.35), Color = STEEL3, CanQuery = false })
+			-- 칸 경계 기둥 + 세로 네온
+			local edge = t + 7
+			if edge < len / 2 - 1 then
+				part({ Name = "WallRib", Parent = deco, Size = size(2.2, H, 1.6), Position = at(edge, Y + H / 2, 0.6), Color = STEEL3,
+					Material = Enum.Material.Metal, CanQuery = false })
+				local nc = (k % 2 == 0) and NEON_M or NEON_Y
+				local bar = part({ Name = "WallNeon", Parent = deco, Size = size(0.7, 14, 0.5), Position = at(edge, Y + 13, 1.5), Color = nc,
+					Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+				if k % 2 == 1 then
+					local l = Instance.new("PointLight")
+					l.Color = nc
+					l.Range = 18
+					l.Brightness = 1.4
+					l.Parent = bar
+				end
+			end
+		end
+	end
+	wallSide("X", -1)
+	wallSide("X", 1)
+	wallSide("Z", -1)
+	wallSide("Z", 1)
+
+	-- 유리 천장 + 자홍/보라 네온 갈비대 (하늘과 구름이 비침)
+	part({ Name = "CeilingGlass", Parent = deco, Size = Vector3.new(W, 0.4, D), Position = Vector3.new(0, Y + H, 0), Color = Color3.fromRGB(150, 200, 255),
+		Material = Enum.Material.Glass, Transparency = 0.6, CanQuery = false })
+	local ri = 0
+	for x = -W / 2, W / 2, 14 do
+		ri = ri + 1
+		part({ Name = "CeilingRib", Parent = deco, Size = Vector3.new(2, 2.4, D), Position = Vector3.new(x, Y + H - 1, 0), Color = STEEL3,
+			Material = Enum.Material.Metal, CanQuery = false })
+		part({ Name = "RibNeon", Parent = deco, Size = Vector3.new(0.6, 0.3, D - 2), Position = Vector3.new(x, Y + H - 2.3, 0),
+			Color = (ri % 2 == 0) and NEON_M or NEON_P, Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+	end
+	for z = -D / 2, D / 2, 26 do
+		part({ Name = "CeilingBeam", Parent = deco, Size = Vector3.new(W, 1.6, 1.6), Position = Vector3.new(0, Y + H - 1.2, z), Color = STEEL3,
+			Material = Enum.Material.Metal, CanQuery = false })
+	end
+	-- 천장에 매단 조명 (흰 사각 등)
+	for x = -56, 56, 28 do
+		for z = -30, 40, 35 do
+			local lamp = part({ Name = "CeilingLamp", Parent = deco, Size = Vector3.new(6, 0.4, 2), Position = Vector3.new(x, Y + H - 2.6, z),
+				Color = Color3.fromRGB(235, 245, 255), Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+			local sl = Instance.new("SurfaceLight")
+			sl.Face = Enum.NormalId.Bottom
+			sl.Range = 40
+			sl.Angle = 90
+			sl.Brightness = 1.2
+			sl.Color = Color3.fromRGB(210, 225, 255)
+			sl.Parent = lamp
+		end
+	end
+
+	-- 떠 있는 육각 무기 진열대 (총은 클라이언트에서 천천히 회전: Spin 속성)
+	local displays = { { -42, 30, "Sniper" }, { 42, 30, "Rifle" }, { -42, 4, "Launcher" }, { 42, 4, "Shotgun" } }
+	for i, dsp in ipairs(displays) do
+		local base = Vector3.new(dsp[1], Y + 3.2, dsp[2])
+		for k = 0, 2 do
+			part({ Name = "HexDeck", Parent = lobby, Size = Vector3.new(9.2, 1.2, 16), CFrame = CFrame.new(base) * CFrame.Angles(0, math.rad(60 * k), 0),
+				Color = Color3.fromRGB(225, 232, 245), Material = Enum.Material.SmoothPlastic })
+			part({ Name = "HexRim", Parent = deco, Size = Vector3.new(9.4, 0.3, 16.2), CFrame = CFrame.new(base + Vector3.new(0, -0.7, 0))
+				* CFrame.Angles(0, math.rad(60 * k), 0), Color = (i % 2 == 0) and NEON_C or NEON_M, Material = Enum.Material.Neon, CanQuery = false,
+				CanCollide = false })
+		end
+		-- 아래로 좁아지는 받침 (떠 있는 느낌)
+		part({ Name = "HexUnder", Parent = deco, Shape = Enum.PartType.Ball, Size = Vector3.new(8, 3, 8), Position = base + Vector3.new(0, -1.6, 0),
+			Color = Color3.fromRGB(70, 80, 110), Material = Enum.Material.Metal, CanQuery = false })
+		local glow = part({ Name = "HexGlow", Parent = deco, Size = Vector3.new(1, 1, 1), Position = base + Vector3.new(0, -3, 0), Transparency = 1,
+			CanQuery = false, CanCollide = false })
+		local gl = Instance.new("PointLight")
+		gl.Color = (i % 2 == 0) and NEON_C or NEON_M
+		gl.Range = 14
+		gl.Brightness = 2.5
+		gl.Parent = glow
+		local ok, gun = pcall(function()
+			local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+			local m = ModelKit.Gun(dsp[3], (i % 2 == 0) and NEON_C or NEON_M)
+			m:ScaleTo(m:GetScale() * 2.2)
+			return m
+		end)
+		if ok and gun then
+			gun.Name = "DisplayGun"
+			gun:PivotTo(CFrame.new(base + Vector3.new(0, 4.2, 0)) * CFrame.Angles(0, math.rad(90), 0))
+			gun:SetAttribute("Spin", 30)
+			gun.Parent = deco
+		end
+		-- 진열대 위 홀로 이름판
+		local board = part({ Name = "HoloSign", Parent = deco, Size = Vector3.new(7, 2, 0.2), Position = base + Vector3.new(0, 8.5, 0), Transparency = 1,
+			CanCollide = false, CanQuery = false })
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.new(7, 0, 1.6, 0)
+		bb.LightInfluence = 0
+		bb.MaxDistance = 90
+		bb.Parent = board
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.fromScale(1, 1)
+		t.BackgroundColor3 = Color3.fromRGB(14, 18, 34)
+		t.BackgroundTransparency = 0.2
+		t.TextScaled = true
+		t.TextColor3 = Color3.new(1, 1, 1)
+		t.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic)
+		local w = require(ReplicatedStorage.Shared.Weapons).Get(dsp[3])
+		t.Text = string.upper(w.Class) .. "  ·  " .. w.Name
+		t.Parent = bb
+		local st = Instance.new("UIStroke")
+		st.Color = (i % 2 == 0) and NEON_C or NEON_M
+		st.Thickness = 2
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Parent = t
 	end
 
 	local spawn = Instance.new("SpawnLocation")
@@ -3844,7 +3971,7 @@ function MapBuilder.BuildLobby()
 	-- 네온 테두리
 	for _, e in ipairs({ { 0, 12.4, 71.6, 0.8 }, { 0, -12.4, 71.6, 0.8 }, { -35.4, 0, 0.8, 25.6 }, { 35.4, 0, 0.8, 25.6 } }) do
 		part({ Name = "TitleFrame", Parent = deco, Size = Vector3.new(e[3], e[4], 1.8), Position = Vector3.new(e[1], TY + e[2], TZ),
-			Color = (e[2] ~= 0) and LOBBY_COLORS[1] or LOBBY_COLORS[2], Material = Enum.Material.Neon, CanQuery = false })
+			Color = (e[2] ~= 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40), Material = Enum.Material.Neon, CanQuery = false })
 	end
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Logo"
@@ -7974,6 +8101,8 @@ task.spawn(function()
 end)
 
 HUD.Build()
+-- 전체 UI 글꼴을 SF 이탤릭으로 (이후 만들어지는 창·킬피드·결과 화면 포함)
+require(script.Parent:WaitForChild("UIKit")).AutoStyle(player:WaitForChild("PlayerGui"))
 LobbyUI.Init(remotes, HUD)
 WeaponController.Init(remotes, HUD, Effects)
 CBTPanel.Init(remotes, HUD)
@@ -8191,8 +8320,36 @@ function Effects.Tracer(from, to, color, width)
 	Effects.Splash(to, color, 1)
 end
 
+-- 파티클 한 번 터뜨리기 (잉크 방울은 포물선으로 떨어지고, 연기는 퍼지며 사라짐)
+local function burst(pos, color, count, speed, size, life, gravity, lightEmission, transparency)
+	local holder = fxPart({ Size = Vector3.one * 0.1, Position = pos, Transparency = 1 })
+	local att = Instance.new("Attachment")
+	att.Parent = holder
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(color)
+	pe.LightEmission = lightEmission or 0.15
+	pe.LightInfluence = 0.6
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size), NumberSequenceKeypoint.new(1, size * 0.3) })
+	pe.Transparency = transparency or NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.8, 0.1),
+		NumberSequenceKeypoint.new(1, 1) })
+	pe.Lifetime = NumberRange.new(life * 0.6, life)
+	pe.Speed = NumberRange.new(speed * 0.5, speed)
+	pe.SpreadAngle = Vector2.new(180, 180)
+	pe.Acceleration = Vector3.new(0, -(gravity or 0), 0)
+	pe.Drag = 2
+	pe.Rate = 0
+	pe.Parent = att
+	pe:Emit(count)
+	Debris:AddItem(holder, life + 0.1)
+end
+Effects.Burst = burst
+
 function Effects.Splash(pos, color, scale)
 	scale = scale or 1
+	-- 잉크 방울 + 옅은 물보라
+	burst(pos, color, math.floor(10 * scale), 16 * scale, 0.32 * scale, 0.55, 45)
+	burst(pos, color:Lerp(Color3.new(1, 1, 1), 0.35), math.floor(4 * scale), 4, 1.4 * scale, 0.35, 0, 0.1,
+		NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) }))
 	local blob = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 0.6 * scale, Color = color, Position = pos })
 	TweenService:Create(blob, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{ Size = Vector3.one * 2.4 * scale, Transparency = 1 }):Play()
@@ -8214,6 +8371,17 @@ function Effects.Muzzle(cf, color)
 	light.Parent = p
 	TweenService:Create(p, TweenInfo.new(0.06), { Size = Vector3.one * 1.1, Transparency = 1 }):Play()
 	Debris:AddItem(p, 0.08)
+	-- 십자 섬광 + 옅은 총구 연기
+	for _, rot in ipairs({ 0, 90 }) do
+		local f = fxPart({ Size = Vector3.new(0.08, 1.2, 0.08), Color = Color3.fromRGB(255, 240, 200), Material = Enum.Material.Neon,
+			CFrame = cf * CFrame.Angles(0, 0, math.rad(rot + math.random(-20, 20))) })
+		TweenService:Create(f, TweenInfo.new(0.05), { Transparency = 1, Size = Vector3.new(0.02, 1.8, 0.02) }):Play()
+		Debris:AddItem(f, 0.07)
+	end
+	if math.random() < 0.5 then
+		burst(cf.Position, Color3.fromRGB(190, 190, 195), 2, 2, 0.6, 0.6, -2, 0,
+			NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 1) }))
+	end
 end
 
 function Effects.Bomb(from, to, color, radius)
@@ -10537,20 +10705,83 @@ function Lobby.Init(remoteFolder, hud)
 	profileLbl = label(card, { Size = UDim2.new(1, -28, 1, -14), Position = UDim2.fromOffset(14, 7), TextYAlignment = Enum.TextYAlignment.Top, TextSize = 18,
 		RichText = true })
 
-	-- 상점 · 랭킹 버튼
-	local shopBtn = button(gui, "상점", C.Pink, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(16, 128), TextSize = 18 })
-	shopBtn.MouseButton1Click:Connect(function()
-		toggleShop()
+	-- 아래 가운데 액션 독: [배틀 시작] [매치 선택] + 아이콘 타일 (무기·미션·상점·랭킹)
+	local dock = make("Frame", { Name = "Dock", Size = UDim2.fromOffset(470, 178), Position = UDim2.new(0.5, 0, 1, -14), AnchorPoint = Vector2.new(0.5, 1),
+		BackgroundTransparency = 1 }, gui)
+	local function bigButton(textStr, c1, c2, x)
+		local b = button(dock, textStr, c1, { Size = UDim2.fromOffset(226, 58), Position = UDim2.fromOffset(x, 0), TextSize = 26 })
+		UI.gradient(b, c1, c2, 90)
+		UI.stroke(b, Color3.new(1, 1, 1), 2, 0.35)
+		make("UIStroke", { Color = Color3.fromRGB(10, 10, 20), Thickness = 2, Transparency = 0.3, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, b)
+		b:SetAttribute("SFItalic", true)
+		return b
+	end
+	local battleBtn = bigButton("배틀 시작", Color3.fromRGB(235, 70, 255), Color3.fromRGB(150, 40, 220), 4)
+	local playBtn = bigButton("매치 선택", Color3.fromRGB(40, 235, 120), Color3.fromRGB(10, 170, 90), 240)
+	battleBtn.MouseButton1Click:Connect(function()
+		-- 빠른 참가: 자리가 남은 대기 중 팀전 → 없으면 3vs3
+		local st = lastState or {}
+		local counts = st.QueueCounts or {}
+		local info = st.QueueInfo or {}
+		local pick, best = nil, -1
+		for _, q in ipairs(Config.Queues) do
+			local n = counts[q.Id] or 0
+			local qi = info[q.Id] or {}
+			if q.Mode == "Turf" and n > best and not qi.Full then
+				pick, best = q.Id, n
+			end
+		end
+		if best <= 0 then
+			pick = "3v3"
+		end
+		remotes.Queue:FireServer(pick)
 	end)
-	local questBtn = button(gui, "미션", C.Green, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(118, 128), TextSize = 18 })
-	questBtn.MouseButton1Click:Connect(function()
-		openQuests()
+	playBtn.MouseButton1Click:Connect(function()
+		if matchFrame then
+			matchFrame.Visible = not matchFrame.Visible
+		end
 	end)
-	local rankBtn = button(gui, "랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(220, 128), TextSize = 18 })
-	rankBtn.MouseButton1Click:Connect(openBoard)
+	local tiles = {
+		{ "무기", "target", function()
+			currentTab = "Weapons"
+			toggleShop(true)
+		end, Color3.fromRGB(0, 200, 255) },
+		{ "미션", "quest", function()
+			openQuests()
+		end, Color3.fromRGB(40, 235, 120) },
+		{ "상점", "chest", function()
+			currentTab = "Crate"
+			toggleShop(true)
+		end, Color3.fromRGB(255, 60, 200) },
+		{ "랭킹", "trophy", function()
+			openBoard()
+		end, Color3.fromRGB(255, 200, 40) },
+	}
+	for i, t in ipairs(tiles) do
+		local tile = make("TextButton", { Size = UDim2.fromOffset(104, 104), Position = UDim2.fromOffset(4 + (i - 1) * 118, 70), BackgroundColor3 = C.Bg,
+			BackgroundTransparency = 0.15, Text = "", AutoButtonColor = false }, dock)
+		corner(tile, 14)
+		UI.stroke(tile, t[4], 2, 0.25)
+		UI.gradient(tile, Color3.fromRGB(40, 50, 84), Color3.fromRGB(14, 18, 34), 90)
+		UI.Icon(tile, t[2], "", { Size = UDim2.fromOffset(62, 62), Position = UDim2.new(0.5, -31, 0, 8) })
+		local tl = label(tile, { Text = t[1], TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.new(0, 0, 1, -32), Size = UDim2.new(1, 0, 0, 26),
+			TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.4 })
+		tl:SetAttribute("SFItalic", true)
+		local sc = make("UIScale", { Scale = 1 }, tile)
+		tile.MouseEnter:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.1), { Scale = 1.07 }):Play()
+		end)
+		tile.MouseLeave:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.1), { Scale = 1 }):Play()
+		end)
+		tile.MouseButton1Click:Connect(function()
+			SoundBank.Play("ui_click", nil, 0.4)
+			t[3]()
+		end)
+	end
 
 	-- 접속자 목록 (왼쪽, 채팅창 위)
-	local people = make("Frame", { Size = UDim2.new(0, 300, 1, -470), Position = UDim2.fromOffset(16, 184), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.15 }, gui)
+	local people = make("Frame", { Size = UDim2.new(0, 300, 1, -414), Position = UDim2.fromOffset(16, 128), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.15 }, gui)
 	corner(people, 14)
 	make("UISizeConstraint", { MinSize = Vector2.new(300, 120) }, people)
 	label(people, { Name = "Title", Text = "접속자", TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 0, 28) })
@@ -10559,8 +10790,9 @@ function Lobby.Init(remoteFolder, hud)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }, peopleList)
 
 	-- 매치 참가 (오른쪽 아래)
-	matchFrame = make("Frame", { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.new(1, -16, 1, -16),
-		AnchorPoint = Vector2.new(1, 1), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.08 }, gui)
+	-- 매치 패널: 오른쪽 가운데 (아래 가운데는 액션 독)
+	matchFrame = make("Frame", { Size = UDim2.fromOffset(420, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.new(1, -16, 0.5, 20),
+		AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.08 }, gui)
 	corner(matchFrame, 16)
 	UI.stroke(matchFrame, C.Cyan, 2, 0.3)
 	make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 14), PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }, matchFrame)
@@ -10795,8 +11027,37 @@ local function updateRide(dt)
 	root.AssemblyLinearVelocity = (riding.To - riding.From).Unit * ZIP_SPEED
 end
 
+-- 로비 진열대 총 회전 (Spin 속성 = 초당 각도). 서버는 그대로 두고 화면에서만 돌림
+local spinners = {}
+local function addSpinner(m)
+	if m:IsA("Model") and m:GetAttribute("Spin") and not spinners[m] then
+		spinners[m] = { Base = m:GetPivot(), Speed = m:GetAttribute("Spin"), T = math.random() * 10 }
+	end
+end
+local function startSpinners()
+	local lobby = workspace:WaitForChild("Lobby", 30)
+	if not lobby then
+		return
+	end
+	for _, d in ipairs(lobby:GetDescendants()) do
+		addSpinner(d)
+	end
+	lobby.DescendantAdded:Connect(addSpinner)
+	RunService.RenderStepped:Connect(function(dt)
+		for m, sp in pairs(spinners) do
+			if not m.Parent then
+				spinners[m] = nil
+			else
+				sp.T = sp.T + dt
+				m:PivotTo(sp.Base * CFrame.new(0, math.sin(sp.T * 1.6) * 0.35, 0) * CFrame.Angles(0, math.rad(sp.Speed * sp.T), 0))
+			end
+		end
+	end)
+end
+
 function MapInteract.Init(effects)
 	Effects = effects
+	task.spawn(startSpinners)
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
 		if who ~= player then
 			return
@@ -11233,18 +11494,27 @@ local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 
 local UI = {}
 
+-- SF 톤: 짙은 남색 강철 + 네온 포인트 (로비 격납고와 같은 색)
 UI.Colors = {
-	Bg = Color3.fromRGB(18, 16, 30),
-	Panel = Color3.fromRGB(30, 28, 48),
-	Panel2 = Color3.fromRGB(40, 38, 62),
+	Bg = Color3.fromRGB(12, 16, 30),
+	Panel = Color3.fromRGB(22, 28, 50),
+	Panel2 = Color3.fromRGB(34, 42, 72),
 	Pink = Color3.fromRGB(255, 46, 170),
 	Cyan = Color3.fromRGB(0, 200, 255),
 	Gold = Color3.fromRGB(255, 200, 50),
 	Green = Color3.fromRGB(0, 190, 150),
 	Text = Color3.fromRGB(245, 245, 255),
 	Sub = Color3.fromRGB(180, 178, 205),
-	Dim = Color3.fromRGB(70, 68, 96),
+	Dim = Color3.fromRGB(62, 74, 108),
+	Neon = Color3.fromRGB(240, 255, 40),
 }
+
+-- 글꼴: 제목·버튼·숫자는 두꺼운 이탤릭 (하이퍼 FPS 느낌), 본문은 Gotham Bold
+UI.Fonts = {
+	Heavy = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
+	Black = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic),
+}
+local ITALIC_FONTS = { [Enum.Font.GothamBlack] = true, [Enum.Font.FredokaOne] = true, [Enum.Font.LuckiestGuy] = true }
 local C = UI.Colors
 
 function UI.make(class, props, parent)
@@ -11327,19 +11597,47 @@ function UI.CloseButton(parent, onClose, size)
 	return b
 end
 
--- 제목 띠가 있는 패널
+-- 제목 띠가 있는 패널 (SF: 남색 강철 판 + 네온 테두리 + 사선 줄무늬 제목 띠)
 function UI.Panel(parent, title, size, accent)
 	accent = accent or C.Pink
 	local f = make("Frame", { Size = size, Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C.Bg }, parent)
-	UI.corner(f, 18)
-	UI.stroke(f, accent, 3, 0.1)
-	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = accent, BorderSizePixel = 0 }, f)
-	UI.corner(head, 18)
+	UI.corner(f, 14)
+	UI.stroke(f, accent, 2, 0.05)
+	UI.gradient(f, Color3.fromRGB(26, 34, 60), Color3.fromRGB(10, 13, 26), 90)
+	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 64), BackgroundColor3 = accent, BorderSizePixel = 0, ClipsDescendants = true }, f)
+	UI.corner(head, 14)
 	make("Frame", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 1, -20), BackgroundColor3 = accent, BorderSizePixel = 0 }, head)
-	UI.gradient(head, Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 220), 90)
-	UI.label(head, { Text = title, Font = Enum.Font.FredokaOne, TextSize = 32, Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -90, 1, 0),
-		TextStrokeTransparency = 0.6 })
+	UI.gradient(head, Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 175), 90)
+	-- 사선 줄무늬 장식
+	for k = 0, 6 do
+		make("Frame", { Size = UDim2.fromOffset(14, 140), Position = UDim2.new(1, -60 - k * 26, 0, -30), Rotation = 28, BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.82, BorderSizePixel = 0 }, head)
+	end
+	-- 제목 아래 얇은 네온 선
+	make("Frame", { Size = UDim2.new(1, -28, 0, 2), Position = UDim2.fromOffset(14, 66), BackgroundColor3 = C.Neon, BackgroundTransparency = 0.3,
+		BorderSizePixel = 0 }, f)
+	UI.label(head, { Text = title, FontFace = UI.Fonts.Black, TextSize = 32, Position = UDim2.fromOffset(22, 0), Size = UDim2.new(1, -90, 1, 0),
+		TextStrokeTransparency = 0.5 })
 	return f, head
+end
+
+-- 화면 전체 글꼴 정리: GothamBlack·FredokaOne(이전 카툰 글꼴)과 SFItalic 표시가 붙은 글자를 두꺼운 이탤릭으로
+local function styleText(o)
+	if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+		return
+	end
+	if o:GetAttribute("SFItalic") or ITALIC_FONTS[o.Font] then
+		o.FontFace = UI.Fonts.Heavy
+	end
+end
+function UI.AutoStyle(root)
+	for _, d in ipairs(root:GetDescendants()) do
+		styleText(d)
+	end
+	root.DescendantAdded:Connect(function(d)
+		-- 만든 직후 속성을 채우는 코드가 있으니 한 박자 뒤에 적용
+		task.defer(styleText, d)
+	end)
 end
 
 ------------------------------------------------------------------------

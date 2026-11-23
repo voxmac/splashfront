@@ -807,20 +807,83 @@ function Lobby.Init(remoteFolder, hud)
 	profileLbl = label(card, { Size = UDim2.new(1, -28, 1, -14), Position = UDim2.fromOffset(14, 7), TextYAlignment = Enum.TextYAlignment.Top, TextSize = 18,
 		RichText = true })
 
-	-- 상점 · 랭킹 버튼
-	local shopBtn = button(gui, "상점", C.Pink, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(16, 128), TextSize = 18 })
-	shopBtn.MouseButton1Click:Connect(function()
-		toggleShop()
+	-- 아래 가운데 액션 독: [배틀 시작] [매치 선택] + 아이콘 타일 (무기·미션·상점·랭킹)
+	local dock = make("Frame", { Name = "Dock", Size = UDim2.fromOffset(470, 178), Position = UDim2.new(0.5, 0, 1, -14), AnchorPoint = Vector2.new(0.5, 1),
+		BackgroundTransparency = 1 }, gui)
+	local function bigButton(textStr, c1, c2, x)
+		local b = button(dock, textStr, c1, { Size = UDim2.fromOffset(226, 58), Position = UDim2.fromOffset(x, 0), TextSize = 26 })
+		UI.gradient(b, c1, c2, 90)
+		UI.stroke(b, Color3.new(1, 1, 1), 2, 0.35)
+		make("UIStroke", { Color = Color3.fromRGB(10, 10, 20), Thickness = 2, Transparency = 0.3, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }, b)
+		b:SetAttribute("SFItalic", true)
+		return b
+	end
+	local battleBtn = bigButton("배틀 시작", Color3.fromRGB(235, 70, 255), Color3.fromRGB(150, 40, 220), 4)
+	local playBtn = bigButton("매치 선택", Color3.fromRGB(40, 235, 120), Color3.fromRGB(10, 170, 90), 240)
+	battleBtn.MouseButton1Click:Connect(function()
+		-- 빠른 참가: 자리가 남은 대기 중 팀전 → 없으면 3vs3
+		local st = lastState or {}
+		local counts = st.QueueCounts or {}
+		local info = st.QueueInfo or {}
+		local pick, best = nil, -1
+		for _, q in ipairs(Config.Queues) do
+			local n = counts[q.Id] or 0
+			local qi = info[q.Id] or {}
+			if q.Mode == "Turf" and n > best and not qi.Full then
+				pick, best = q.Id, n
+			end
+		end
+		if best <= 0 then
+			pick = "3v3"
+		end
+		remotes.Queue:FireServer(pick)
 	end)
-	local questBtn = button(gui, "미션", C.Green, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(118, 128), TextSize = 18 })
-	questBtn.MouseButton1Click:Connect(function()
-		openQuests()
+	playBtn.MouseButton1Click:Connect(function()
+		if matchFrame then
+			matchFrame.Visible = not matchFrame.Visible
+		end
 	end)
-	local rankBtn = button(gui, "랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(220, 128), TextSize = 18 })
-	rankBtn.MouseButton1Click:Connect(openBoard)
+	local tiles = {
+		{ "무기", "target", function()
+			currentTab = "Weapons"
+			toggleShop(true)
+		end, Color3.fromRGB(0, 200, 255) },
+		{ "미션", "quest", function()
+			openQuests()
+		end, Color3.fromRGB(40, 235, 120) },
+		{ "상점", "chest", function()
+			currentTab = "Crate"
+			toggleShop(true)
+		end, Color3.fromRGB(255, 60, 200) },
+		{ "랭킹", "trophy", function()
+			openBoard()
+		end, Color3.fromRGB(255, 200, 40) },
+	}
+	for i, t in ipairs(tiles) do
+		local tile = make("TextButton", { Size = UDim2.fromOffset(104, 104), Position = UDim2.fromOffset(4 + (i - 1) * 118, 70), BackgroundColor3 = C.Bg,
+			BackgroundTransparency = 0.15, Text = "", AutoButtonColor = false }, dock)
+		corner(tile, 14)
+		UI.stroke(tile, t[4], 2, 0.25)
+		UI.gradient(tile, Color3.fromRGB(40, 50, 84), Color3.fromRGB(14, 18, 34), 90)
+		UI.Icon(tile, t[2], "", { Size = UDim2.fromOffset(62, 62), Position = UDim2.new(0.5, -31, 0, 8) })
+		local tl = label(tile, { Text = t[1], TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.new(0, 0, 1, -32), Size = UDim2.new(1, 0, 0, 26),
+			TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.4 })
+		tl:SetAttribute("SFItalic", true)
+		local sc = make("UIScale", { Scale = 1 }, tile)
+		tile.MouseEnter:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.1), { Scale = 1.07 }):Play()
+		end)
+		tile.MouseLeave:Connect(function()
+			TweenService:Create(sc, TweenInfo.new(0.1), { Scale = 1 }):Play()
+		end)
+		tile.MouseButton1Click:Connect(function()
+			SoundBank.Play("ui_click", nil, 0.4)
+			t[3]()
+		end)
+	end
 
 	-- 접속자 목록 (왼쪽, 채팅창 위)
-	local people = make("Frame", { Size = UDim2.new(0, 300, 1, -470), Position = UDim2.fromOffset(16, 184), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.15 }, gui)
+	local people = make("Frame", { Size = UDim2.new(0, 300, 1, -414), Position = UDim2.fromOffset(16, 128), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.15 }, gui)
 	corner(people, 14)
 	make("UISizeConstraint", { MinSize = Vector2.new(300, 120) }, people)
 	label(people, { Name = "Title", Text = "접속자", TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 6), Size = UDim2.new(1, -28, 0, 28) })
@@ -829,8 +892,9 @@ function Lobby.Init(remoteFolder, hud)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5) }, peopleList)
 
 	-- 매치 참가 (오른쪽 아래)
-	matchFrame = make("Frame", { Size = UDim2.fromOffset(440, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.new(1, -16, 1, -16),
-		AnchorPoint = Vector2.new(1, 1), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.08 }, gui)
+	-- 매치 패널: 오른쪽 가운데 (아래 가운데는 액션 독)
+	matchFrame = make("Frame", { Size = UDim2.fromOffset(420, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.new(1, -16, 0.5, 20),
+		AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = C.Bg, BackgroundTransparency = 0.08 }, gui)
 	corner(matchFrame, 16)
 	UI.stroke(matchFrame, C.Cyan, 2, 0.3)
 	make("UIPadding", { PaddingTop = UDim.new(0, 12), PaddingBottom = UDim.new(0, 14), PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }, matchFrame)

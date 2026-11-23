@@ -383,63 +383,190 @@ function MapBuilder.BuildLobby()
 
 	local Y = 400
 	local W, D = 170, 130
-	-- 바닥 + 가운데 원형 광장
+	------------------------------------------------------------------
+	-- SF 격납고 로비: 짙은 남색 강철 벽 + 노랑/자홍 네온 칸, 유리 천장과 네온 갈비대,
+	-- 무지개 네온 통로, 떠 있는 육각 무기 진열대 (레퍼런스: 사이파이 하이퍼 FPS 로비)
+	------------------------------------------------------------------
+	local STEEL = Color3.fromRGB(30, 38, 62)
+	local STEEL2 = Color3.fromRGB(42, 52, 84)
+	local STEEL3 = Color3.fromRGB(22, 28, 46)
+	local NEON_Y = Color3.fromRGB(240, 255, 40)
+	local NEON_M = Color3.fromRGB(255, 40, 200)
+	local NEON_P = Color3.fromRGB(150, 70, 255)
+	local NEON_C = Color3.fromRGB(0, 230, 255)
+	local H = 46 -- 천장 높이
+
+	-- 바닥: 진한 강철판 + 10스터드 이음새
 	part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
-		Color = Color3.fromRGB(38, 36, 54), Material = Enum.Material.Slate })
-	for i, r in ipairs({ 44, 40, 26, 23 }) do
-		cyl({ Name = "PlazaRing", Parent = deco, Height = 0.06 + i * 0.01, Diameter = r * 2, Position = Vector3.new(0, Y + 0.03 + i * 0.005, 14),
-			Color = (i % 2 == 1) and Color3.fromRGB(60, 56, 84) or Color3.fromRGB(30, 28, 44), Material = Enum.Material.SmoothPlastic,
-			CanCollide = false, CanQuery = false })
+		Color = STEEL3, Material = Enum.Material.DiamondPlate })
+	for x = -W / 2 + 10, W / 2 - 10, 10 do
+		part({ Name = "Seam", Parent = deco, Size = Vector3.new(0.18, 0.04, D), Position = Vector3.new(x, Y + 0.02, 0),
+			Color = Color3.fromRGB(12, 14, 24), CanCollide = false, CanQuery = false })
 	end
-	-- 페인트 스플랫 (바닥에 흩뿌린 무지개 얼룩)
-	for i = 1, 30 do
-		local x = rng:NextNumber(-W / 2 + 8, W / 2 - 8)
-		local z = rng:NextNumber(-8, D / 2 - 8)
-		local c = LOBBY_COLORS[rng:NextInteger(1, #LOBBY_COLORS)]
-		local d = rng:NextNumber(3, 9)
-		local yy = Y + 0.12 + i * 0.002
-		cyl({ Name = "Splat", Parent = deco, Height = 0.05, Diameter = d, Position = Vector3.new(x, yy, z), Color = c,
-			Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
-		for k = 1, rng:NextInteger(2, 4) do
-			local a = rng:NextNumber() * math.pi * 2
-			local rr = d / 2 + rng:NextNumber(0.6, 2.2)
-			cyl({ Name = "Drop", Parent = deco, Height = 0.05, Diameter = rng:NextNumber(0.6, 1.6),
-				Position = Vector3.new(x + math.cos(a) * rr, yy, z + math.sin(a) * rr), Color = c,
-				Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+	for z = -D / 2 + 10, D / 2 - 10, 10 do
+		part({ Name = "Seam", Parent = deco, Size = Vector3.new(W, 0.04, 0.18), Position = Vector3.new(0, Y + 0.02, z),
+			Color = Color3.fromRGB(12, 14, 24), CanCollide = false, CanQuery = false })
+	end
+	-- 중앙 통로 (스폰 → 발판 무대): 밝은 패널 + 양옆 무지개 네온 줄
+	local pathZ1, pathZ2 = -12, D / 2 - 4
+	part({ Name = "Walkway", Parent = deco, Size = Vector3.new(26, 0.1, pathZ2 - pathZ1), Position = Vector3.new(0, Y + 0.05, (pathZ1 + pathZ2) / 2),
+		Color = STEEL2, Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+	local segs = 24
+	for i = 0, segs - 1 do
+		local z1 = pathZ1 + (pathZ2 - pathZ1) * i / segs
+		local len = (pathZ2 - pathZ1) / segs
+		local c = Color3.fromHSV((i / segs) * 0.85, 0.85, 1)
+		for _, sx in ipairs({ -1, 1 }) do
+			part({ Name = "RainbowLine", Parent = deco, Size = Vector3.new(0.7, 0.12, len + 0.02), Position = Vector3.new(sx * 13.4, Y + 0.08, z1 + len / 2),
+				Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+		end
+	end
+	-- 통로 가운데 화살표 표시
+	for z = pathZ2 - 12, pathZ1 + 8, -10 do
+		for _, sx in ipairs({ -1, 1 }) do
+			local w = part({ Name = "Chevron", Parent = deco, Size = Vector3.new(0.6, 0.06, 4), CFrame = CFrame.new(sx * 1.4, Y + 0.12, z)
+				* CFrame.Angles(0, math.rad(sx * 40), 0), Color = Color3.fromRGB(160, 175, 210), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+			w.Transparency = 0.45
 		end
 	end
 
-	-- 외곽: 유리 난간 + 네온 띠 + 조명 기둥
-	for _, s in ipairs({ -1, 1 }) do
-		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(W, 3, 0.6), Position = Vector3.new(0, Y + 1.5, s * (D / 2 - 0.3)),
-			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
-		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(0.6, 3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 1.5, 0),
-			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
-		part({ Name = "Trim", Parent = deco, Size = Vector3.new(W, 0.3, 0.7), Position = Vector3.new(0, Y + 3.1, s * (D / 2 - 0.3)),
-			Color = LOBBY_COLORS[s == -1 and 1 or 2], Material = Enum.Material.Neon, CanQuery = false })
-		part({ Name = "Trim", Parent = deco, Size = Vector3.new(0.7, 0.3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 3.1, 0),
-			Color = LOBBY_COLORS[s == -1 and 3 or 5], Material = Enum.Material.Neon, CanQuery = false })
-		-- 보이지 않는 높은 벽 (밖으로 떨어지지 않게)
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(W, 30, 1), Position = Vector3.new(0, Y + 15, s * (D / 2 + 0.5)), Transparency = 1 })
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(1, 30, D), Position = Vector3.new(s * (W / 2 + 0.5), Y + 15, 0), Transparency = 1 })
-	end
-	local pi = 0
-	for _, x in ipairs({ -W / 2 + 2, W / 2 - 2 }) do
-		for z = -D / 2 + 14, D / 2 - 10, 26 do
-			pi = pi + 1
-			local c = LOBBY_COLORS[(pi % #LOBBY_COLORS) + 1]
-			part({ Name = "Pillar", Parent = deco, Size = Vector3.new(2.4, 14, 2.4), Position = Vector3.new(x, Y + 7, z),
-				Color = Color3.fromRGB(44, 42, 62), Material = Enum.Material.Metal })
-			local cap = part({ Name = "PillarCap", Parent = deco, Size = Vector3.new(3, 1, 3), Position = Vector3.new(x, Y + 14.5, z), Color = c,
-				Material = Enum.Material.Neon, CanQuery = false })
-			part({ Name = "PillarStrip", Parent = deco, Size = Vector3.new(0.3, 10, 1.2), Position = Vector3.new(x + (x < 0 and 1.25 or -1.25), Y + 7, z),
-				Color = c, Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
-			local l = Instance.new("PointLight")
-			l.Color = c
-			l.Range = 22
-			l.Brightness = 1.6
-			l.Parent = cap
+	-- 벽: 14스터드 칸마다 안쪽 패널 + 칸 경계 기둥(노랑/자홍 네온) + 아래·위 시안 띠
+	local function wallSide(axis, sgn)
+		local len = axis == "X" and W or D
+		local function at(t, y, inset)
+			if axis == "X" then
+				return Vector3.new(t, y, sgn * (D / 2 - inset))
+			end
+			return Vector3.new(sgn * (W / 2 - inset), y, t)
 		end
+		local function size(along, h, thick)
+			if axis == "X" then
+				return Vector3.new(along, h, thick)
+			end
+			return Vector3.new(thick, h, along)
+		end
+		part({ Name = "HangarWall", Parent = lobby, Size = size(len, H, 2), Position = at(0, Y + H / 2, -1), Color = STEEL, Material = Enum.Material.Metal })
+		part({ Name = "WallSkirt", Parent = deco, Size = size(len, 0.5, 0.4), Position = at(0, Y + 4, 0.2), Color = NEON_C, Material = Enum.Material.Neon,
+			CanQuery = false, CanCollide = false })
+		part({ Name = "WallCrown", Parent = deco, Size = size(len, 0.5, 0.4), Position = at(0, Y + H - 8, 0.2), Color = NEON_P, Material = Enum.Material.Neon,
+			CanQuery = false, CanCollide = false })
+		local k = 0
+		for t = -len / 2 + 7, len / 2 - 7, 14 do
+			k = k + 1
+			-- 들어간 패널 (가운데 조금 밝게)
+			part({ Name = "WallPanel", Parent = deco, Size = size(11, H - 16, 0.6), Position = at(t, Y + 4 + (H - 12) / 2, 0.3), Color = STEEL2,
+				Material = Enum.Material.Metal, CanQuery = false })
+			part({ Name = "PanelSlit", Parent = deco, Size = size(8, 0.25, 0.7), Position = at(t, Y + 14, 0.35), Color = STEEL3, CanQuery = false })
+			part({ Name = "PanelSlit", Parent = deco, Size = size(8, 0.25, 0.7), Position = at(t, Y + 26, 0.35), Color = STEEL3, CanQuery = false })
+			-- 칸 경계 기둥 + 세로 네온
+			local edge = t + 7
+			if edge < len / 2 - 1 then
+				part({ Name = "WallRib", Parent = deco, Size = size(2.2, H, 1.6), Position = at(edge, Y + H / 2, 0.6), Color = STEEL3,
+					Material = Enum.Material.Metal, CanQuery = false })
+				local nc = (k % 2 == 0) and NEON_M or NEON_Y
+				local bar = part({ Name = "WallNeon", Parent = deco, Size = size(0.7, 14, 0.5), Position = at(edge, Y + 13, 1.5), Color = nc,
+					Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+				if k % 2 == 1 then
+					local l = Instance.new("PointLight")
+					l.Color = nc
+					l.Range = 18
+					l.Brightness = 1.4
+					l.Parent = bar
+				end
+			end
+		end
+	end
+	wallSide("X", -1)
+	wallSide("X", 1)
+	wallSide("Z", -1)
+	wallSide("Z", 1)
+
+	-- 유리 천장 + 자홍/보라 네온 갈비대 (하늘과 구름이 비침)
+	part({ Name = "CeilingGlass", Parent = deco, Size = Vector3.new(W, 0.4, D), Position = Vector3.new(0, Y + H, 0), Color = Color3.fromRGB(150, 200, 255),
+		Material = Enum.Material.Glass, Transparency = 0.6, CanQuery = false })
+	local ri = 0
+	for x = -W / 2, W / 2, 14 do
+		ri = ri + 1
+		part({ Name = "CeilingRib", Parent = deco, Size = Vector3.new(2, 2.4, D), Position = Vector3.new(x, Y + H - 1, 0), Color = STEEL3,
+			Material = Enum.Material.Metal, CanQuery = false })
+		part({ Name = "RibNeon", Parent = deco, Size = Vector3.new(0.6, 0.3, D - 2), Position = Vector3.new(x, Y + H - 2.3, 0),
+			Color = (ri % 2 == 0) and NEON_M or NEON_P, Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+	end
+	for z = -D / 2, D / 2, 26 do
+		part({ Name = "CeilingBeam", Parent = deco, Size = Vector3.new(W, 1.6, 1.6), Position = Vector3.new(0, Y + H - 1.2, z), Color = STEEL3,
+			Material = Enum.Material.Metal, CanQuery = false })
+	end
+	-- 천장에 매단 조명 (흰 사각 등)
+	for x = -56, 56, 28 do
+		for z = -30, 40, 35 do
+			local lamp = part({ Name = "CeilingLamp", Parent = deco, Size = Vector3.new(6, 0.4, 2), Position = Vector3.new(x, Y + H - 2.6, z),
+				Color = Color3.fromRGB(235, 245, 255), Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+			local sl = Instance.new("SurfaceLight")
+			sl.Face = Enum.NormalId.Bottom
+			sl.Range = 40
+			sl.Angle = 90
+			sl.Brightness = 1.2
+			sl.Color = Color3.fromRGB(210, 225, 255)
+			sl.Parent = lamp
+		end
+	end
+
+	-- 떠 있는 육각 무기 진열대 (총은 클라이언트에서 천천히 회전: Spin 속성)
+	local displays = { { -42, 30, "Sniper" }, { 42, 30, "Rifle" }, { -42, 4, "Launcher" }, { 42, 4, "Shotgun" } }
+	for i, dsp in ipairs(displays) do
+		local base = Vector3.new(dsp[1], Y + 3.2, dsp[2])
+		for k = 0, 2 do
+			part({ Name = "HexDeck", Parent = lobby, Size = Vector3.new(9.2, 1.2, 16), CFrame = CFrame.new(base) * CFrame.Angles(0, math.rad(60 * k), 0),
+				Color = Color3.fromRGB(225, 232, 245), Material = Enum.Material.SmoothPlastic })
+			part({ Name = "HexRim", Parent = deco, Size = Vector3.new(9.4, 0.3, 16.2), CFrame = CFrame.new(base + Vector3.new(0, -0.7, 0))
+				* CFrame.Angles(0, math.rad(60 * k), 0), Color = (i % 2 == 0) and NEON_C or NEON_M, Material = Enum.Material.Neon, CanQuery = false,
+				CanCollide = false })
+		end
+		-- 아래로 좁아지는 받침 (떠 있는 느낌)
+		part({ Name = "HexUnder", Parent = deco, Shape = Enum.PartType.Ball, Size = Vector3.new(8, 3, 8), Position = base + Vector3.new(0, -1.6, 0),
+			Color = Color3.fromRGB(70, 80, 110), Material = Enum.Material.Metal, CanQuery = false })
+		local glow = part({ Name = "HexGlow", Parent = deco, Size = Vector3.new(1, 1, 1), Position = base + Vector3.new(0, -3, 0), Transparency = 1,
+			CanQuery = false, CanCollide = false })
+		local gl = Instance.new("PointLight")
+		gl.Color = (i % 2 == 0) and NEON_C or NEON_M
+		gl.Range = 14
+		gl.Brightness = 2.5
+		gl.Parent = glow
+		local ok, gun = pcall(function()
+			local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+			local m = ModelKit.Gun(dsp[3], (i % 2 == 0) and NEON_C or NEON_M)
+			m:ScaleTo(m:GetScale() * 2.2)
+			return m
+		end)
+		if ok and gun then
+			gun.Name = "DisplayGun"
+			gun:PivotTo(CFrame.new(base + Vector3.new(0, 4.2, 0)) * CFrame.Angles(0, math.rad(90), 0))
+			gun:SetAttribute("Spin", 30)
+			gun.Parent = deco
+		end
+		-- 진열대 위 홀로 이름판
+		local board = part({ Name = "HoloSign", Parent = deco, Size = Vector3.new(7, 2, 0.2), Position = base + Vector3.new(0, 8.5, 0), Transparency = 1,
+			CanCollide = false, CanQuery = false })
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.new(7, 0, 1.6, 0)
+		bb.LightInfluence = 0
+		bb.MaxDistance = 90
+		bb.Parent = board
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.fromScale(1, 1)
+		t.BackgroundColor3 = Color3.fromRGB(14, 18, 34)
+		t.BackgroundTransparency = 0.2
+		t.TextScaled = true
+		t.TextColor3 = Color3.new(1, 1, 1)
+		t.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic)
+		local w = require(ReplicatedStorage.Shared.Weapons).Get(dsp[3])
+		t.Text = string.upper(w.Class) .. "  ·  " .. w.Name
+		t.Parent = bb
+		local st = Instance.new("UIStroke")
+		st.Color = (i % 2 == 0) and NEON_C or NEON_M
+		st.Thickness = 2
+		st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		st.Parent = t
 	end
 
 	local spawn = Instance.new("SpawnLocation")
@@ -465,7 +592,7 @@ function MapBuilder.BuildLobby()
 	-- 네온 테두리
 	for _, e in ipairs({ { 0, 12.4, 71.6, 0.8 }, { 0, -12.4, 71.6, 0.8 }, { -35.4, 0, 0.8, 25.6 }, { 35.4, 0, 0.8, 25.6 } }) do
 		part({ Name = "TitleFrame", Parent = deco, Size = Vector3.new(e[3], e[4], 1.8), Position = Vector3.new(e[1], TY + e[2], TZ),
-			Color = (e[2] ~= 0) and LOBBY_COLORS[1] or LOBBY_COLORS[2], Material = Enum.Material.Neon, CanQuery = false })
+			Color = (e[2] ~= 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40), Material = Enum.Material.Neon, CanQuery = false })
 	end
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Logo"

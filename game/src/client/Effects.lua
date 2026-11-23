@@ -71,8 +71,36 @@ function Effects.Tracer(from, to, color, width)
 	Effects.Splash(to, color, 1)
 end
 
+-- 파티클 한 번 터뜨리기 (잉크 방울은 포물선으로 떨어지고, 연기는 퍼지며 사라짐)
+local function burst(pos, color, count, speed, size, life, gravity, lightEmission, transparency)
+	local holder = fxPart({ Size = Vector3.one * 0.1, Position = pos, Transparency = 1 })
+	local att = Instance.new("Attachment")
+	att.Parent = holder
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(color)
+	pe.LightEmission = lightEmission or 0.15
+	pe.LightInfluence = 0.6
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size), NumberSequenceKeypoint.new(1, size * 0.3) })
+	pe.Transparency = transparency or NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.8, 0.1),
+		NumberSequenceKeypoint.new(1, 1) })
+	pe.Lifetime = NumberRange.new(life * 0.6, life)
+	pe.Speed = NumberRange.new(speed * 0.5, speed)
+	pe.SpreadAngle = Vector2.new(180, 180)
+	pe.Acceleration = Vector3.new(0, -(gravity or 0), 0)
+	pe.Drag = 2
+	pe.Rate = 0
+	pe.Parent = att
+	pe:Emit(count)
+	Debris:AddItem(holder, life + 0.1)
+end
+Effects.Burst = burst
+
 function Effects.Splash(pos, color, scale)
 	scale = scale or 1
+	-- 잉크 방울 + 옅은 물보라
+	burst(pos, color, math.floor(10 * scale), 16 * scale, 0.32 * scale, 0.55, 45)
+	burst(pos, color:Lerp(Color3.new(1, 1, 1), 0.35), math.floor(4 * scale), 4, 1.4 * scale, 0.35, 0, 0.1,
+		NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 1) }))
 	local blob = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 0.6 * scale, Color = color, Position = pos })
 	TweenService:Create(blob, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
 		{ Size = Vector3.one * 2.4 * scale, Transparency = 1 }):Play()
@@ -94,6 +122,17 @@ function Effects.Muzzle(cf, color)
 	light.Parent = p
 	TweenService:Create(p, TweenInfo.new(0.06), { Size = Vector3.one * 1.1, Transparency = 1 }):Play()
 	Debris:AddItem(p, 0.08)
+	-- 십자 섬광 + 옅은 총구 연기
+	for _, rot in ipairs({ 0, 90 }) do
+		local f = fxPart({ Size = Vector3.new(0.08, 1.2, 0.08), Color = Color3.fromRGB(255, 240, 200), Material = Enum.Material.Neon,
+			CFrame = cf * CFrame.Angles(0, 0, math.rad(rot + math.random(-20, 20))) })
+		TweenService:Create(f, TweenInfo.new(0.05), { Transparency = 1, Size = Vector3.new(0.02, 1.8, 0.02) }):Play()
+		Debris:AddItem(f, 0.07)
+	end
+	if math.random() < 0.5 then
+		burst(cf.Position, Color3.fromRGB(190, 190, 195), 2, 2, 0.6, 0.6, -2, 0,
+			NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 1) }))
+	end
 end
 
 function Effects.Bomb(from, to, color, radius)

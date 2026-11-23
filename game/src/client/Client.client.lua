@@ -38,6 +38,8 @@ task.spawn(function()
 end)
 
 HUD.Build()
+-- 전체 UI 글꼴을 SF 이탤릭으로 (이후 만들어지는 창·킬피드·결과 화면 포함)
+require(script.Parent:WaitForChild("UIKit")).AutoStyle(player:WaitForChild("PlayerGui"))
 LobbyUI.Init(remotes, HUD)
 WeaponController.Init(remotes, HUD, Effects)
 CBTPanel.Init(remotes, HUD)
