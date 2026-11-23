@@ -23,6 +23,28 @@ if CREATOR.isdigit():                       # just a number -> a user id
 for prefix in ("userid:", "userid=", "user=", "groupid:", "groupid=", "group="):
     if CREATOR.startswith(prefix):
         CREATOR = ("user:" if prefix.startswith("user") else "group:") + CREATOR[len(prefix):]
+def _resolve_name(kind, name):
+    """user:VOXCHOI -> user:<numeric id> (group names are resolved via search)."""
+    import json as _j, urllib.request as _u
+    try:
+        if kind == "user":
+            req = _u.Request("https://users.roblox.com/v1/usernames/users",
+                             data=_j.dumps({"usernames": [name], "excludeBannedUsers": False}).encode(),
+                             headers={"Content-Type": "application/json"})
+            data = _j.load(_u.urlopen(req, timeout=20)).get("data", [])
+            return str(data[0]["id"]) if data else ""
+        url = "https://groups.roblox.com/v1/groups/search/lookup?groupName=" + __import__("urllib.parse").parse.quote(name)
+        data = _j.load(_u.urlopen(url, timeout=20)).get("data", [])
+        return str(data[0]["id"]) if data else ""
+    except Exception as e:
+        print("name lookup failed:", e)
+        return ""
+if ":" in CREATOR and not CREATOR.split(":", 1)[1].isdigit() and CREATOR.split(":")[0] in ("user", "group"):
+    _k, _n = CREATOR.split(":", 1)
+    _id = _resolve_name(_k, _n)
+    if _id:
+        print(f"resolved {_k} name ({len(_n)} chars) -> id {_id}")
+        CREATOR = f"{_k}:{_id}"
 if not KEY or ":" not in CREATOR or not CREATOR.split(":", 1)[1].isdigit() or CREATOR.split(":")[0] not in ("user", "group"):
     sys.exit(f"Set ROBLOX_API_KEY and ROBLOX_CREATOR as user:<id> or group:<id> (got a {len(CREATOR)}-character value"
              f"{', no digits' if not any(c.isdigit() for c in CREATOR) else ''})")
