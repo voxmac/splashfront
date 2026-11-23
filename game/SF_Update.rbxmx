@@ -3579,9 +3579,9 @@ local PRESETS = {
 		Sat = 0.18, Con = 0.1, Tint = Color3.fromRGB(255, 242, 248), Bloom = 0.6, Thresh = 1.4,
 		Rays = 0.1, RaySpread = 0.8, Dof = 0.12, Clouds = { Cover = 0.5, Density = 0.55, Color = Color3.fromRGB(255, 214, 236) }, Sun = 18 },
 	-- 로비 격납고: 차가운 남색 실내, 네온이 번지도록 블룸 강하게, 바닥 반사
-	Lobby = { Clock = 14, Lat = 35, Bright = 1.6, Amb = Color3.fromRGB(46, 56, 92), Out = Color3.fromRGB(70, 84, 130), Spec = 1,
-		AtmDensity = 0.22, AtmOffset = 0.1, AtmColor = Color3.fromRGB(170, 190, 255), AtmDecay = Color3.fromRGB(80, 90, 160), Haze = 1, Glare = 0.2,
-		Sat = 0.22, Con = 0.16, Tint = Color3.fromRGB(236, 240, 255), Bloom = 0.9, Thresh = 0.95,
+	Lobby = { Clock = 14, Lat = 35, Bright = 1.1, Amb = Color3.fromRGB(34, 42, 72), Out = Color3.fromRGB(48, 58, 96), Spec = 0.6, Exposure = -0.35,
+		AtmDensity = 0.18, AtmOffset = 0.1, AtmColor = Color3.fromRGB(150, 170, 230), AtmDecay = Color3.fromRGB(70, 80, 140), Haze = 0.6, Glare = 0,
+		Sat = 0.18, Con = 0.18, Tint = Color3.fromRGB(230, 236, 255), Bloom = 0.5, Thresh = 1.35,
 		Rays = 0.05, RaySpread = 0.5, Dof = 0.06, Clouds = { Cover = 0.5, Density = 0.6, Color = Color3.fromRGB(230, 236, 255) }, Sun = 14 },
 	-- 시가전: 레퍼런스 1번처럼 지평선 가까운 해, 주황빛 먼지 안개, 햇살 번짐, 먼 건물은 실루엣
 	City = { Clock = 17.75, Lat = 25, Bright = 2.6, Amb = Color3.fromRGB(110, 86, 78), Out = Color3.fromRGB(150, 118, 100), Spec = 1,
@@ -3606,6 +3606,7 @@ function MapBuilder.ApplyLighting(name)
 	Lighting.Ambient = p.Amb
 	Lighting.OutdoorAmbient = p.Out
 	Lighting.EnvironmentSpecularScale = p.Spec
+	Lighting.ExposureCompensation = p.Exposure or 0
 	local a = ensure("Atmosphere", Lighting)
 	a.Density, a.Offset, a.Color, a.Decay, a.Haze, a.Glare = p.AtmDensity, p.AtmOffset or 0.15, p.AtmColor, p.AtmDecay, p.Haze, p.Glare
 	local cc = ensure("ColorCorrectionEffect", Lighting)
@@ -3876,7 +3877,7 @@ function MapBuilder.BuildLobby()
 	-- 바닥: 진한 강철판 + 10스터드 이음새
 	local floor = part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
 		Color = Color3.fromRGB(18, 22, 38), Material = Enum.Material.SmoothPlastic })
-	floor.Reflectance = 0.12 -- 네온이 바닥에 비치는 광택
+	floor.Reflectance = 0.05 -- 네온이 바닥에 비치는 광택
 	floor:SetAttribute("NoTexture", true)
 	for x = -W / 2 + 10, W / 2 - 10, 10 do
 		part({ Name = "Seam", Parent = deco, Size = Vector3.new(0.18, 0.04, D), Position = Vector3.new(x, Y + 0.02, 0),
@@ -3889,8 +3890,8 @@ function MapBuilder.BuildLobby()
 	-- 중앙 통로 (스폰 → 발판 무대): 밝은 패널 + 양옆 무지개 네온 줄
 	local pathZ1, pathZ2 = -12, D / 2 - 4
 	local walk = part({ Name = "Walkway", Parent = deco, Size = Vector3.new(26, 0.1, pathZ2 - pathZ1), Position = Vector3.new(0, Y + 0.05, (pathZ1 + pathZ2) / 2),
-		Color = Color3.fromRGB(34, 42, 70), Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
-	walk.Reflectance = 0.18
+		Color = Color3.fromRGB(28, 34, 58), Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+	walk.Reflectance = 0.04
 	local segs = 24
 	for i = 0, segs - 1 do
 		local z1 = pathZ1 + (pathZ2 - pathZ1) * i / segs
@@ -4038,7 +4039,7 @@ function MapBuilder.BuildLobby()
 			sl.Face = Enum.NormalId.Bottom
 			sl.Range = 40
 			sl.Angle = 90
-			sl.Brightness = 1.2
+			sl.Brightness = 0.7
 			sl.Color = Color3.fromRGB(210, 225, 255)
 			sl.Parent = lamp
 		end
