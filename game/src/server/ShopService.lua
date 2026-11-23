@@ -15,7 +15,29 @@ local function handle(player, action, weaponId)
 	if (action == "buy" or action == "buyCosmetic") and not DataService.IsSafe(player) then
 		return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
 	end
-	if action == "crateTest" then
+	if action == "crateCoins" then
+		-- 포인트(코인)로 크레이트 개봉
+		if not DataService.IsSafe(player) then
+			return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
+		end
+		local p = DataService.Get(player)
+		local price = Config.CrateCoinPrice or 5000
+		if not p then
+			return { ok = false, msg = "데이터 없음" }
+		end
+		if p.Coins < price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - price
+		Telemetry.Economy(player, false, price, p.Coins, "Shop", "CrateCoins")
+		local res = CrateService.Open(player) -- 저장·결과 연출까지 처리
+		if not res then
+			p.Coins = p.Coins + price
+			DataService.Publish(player)
+			return { ok = false, msg = "개봉에 실패해 코인을 돌려드렸어요" }
+		end
+		return { ok = true, msg = "크레이트 개봉!" }
+	elseif action == "crateTest" then
 		return CrateService.TestOpen(player)
 	elseif action == "equipCosmetic" then
 		return CrateService.Equip(player, weaponId)

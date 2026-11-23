@@ -201,6 +201,9 @@ Config.Tiers = {
 Config.Season = "S1"
 
 -- 수익화 (Creator Hub에서 만든 실제 ID로 교체. 0이면 비활성)
+-- 크로마 크레이트를 포인트(코인)로도 개봉
+Config.CrateCoinPrice = 5000
+
 Config.Monetization = {
 	VipGamePassId = 2096803140, -- VIP (코인 1.25배)
 	CrateProductId = 3735180315, -- 크로마 크레이트 79 R$

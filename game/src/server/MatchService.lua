@@ -357,7 +357,63 @@ local function attachGear(e, model)
 	end
 end
 
+-- 시작·부활 위치: 맵의 칠할 수 있는 바닥 중 무작위 (살아 있는 적과 35스터드 이상 떨어지고 머리 위가 트인 곳)
+local spawnUp = RaycastParams.new()
+spawnUp.FilterType = Enum.RaycastFilterType.Exclude
+local function randomSpawn(e)
+	local cells = arena.Cells and arena.Cells:GetChildren() or {}
+	if #cells == 0 then
+		return nil
+	end
+	local enemies = {}
+	for _, o in ipairs(Combatants.All()) do
+		if o ~= e and o.Alive and o.Model and o.OwnerId ~= e.OwnerId then
+			local r = o.Model:FindFirstChild("HumanoidRootPart")
+			if r then
+				table.insert(enemies, r.Position)
+			end
+		end
+	end
+	local ignore = { arena.Cells }
+	for _, o in ipairs(Combatants.All()) do
+		if o.Model then
+			table.insert(ignore, o.Model)
+		end
+	end
+	spawnUp.FilterDescendantsInstances = ignore
+	local best, bestD = nil, -1
+	for _ = 1, 30 do
+		local c = cells[math.random(1, #cells)]
+		local pos = c.Position + Vector3.new(0, 3.5, 0)
+		local near = math.huge
+		for _, ep in ipairs(enemies) do
+			near = math.min(near, (ep - pos).Magnitude)
+		end
+		local open = workspace:Raycast(c.Position + Vector3.new(0, 0.5, 0), Vector3.new(0, 7, 0), spawnUp) == nil
+		if open then
+			if near >= 35 then
+				best = pos
+				break
+			elseif near > bestD then
+				best, bestD = pos, near
+			end
+		end
+	end
+	if not best then
+		return nil
+	end
+	local look = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5)
+	if look.Magnitude < 0.1 then
+		look = Vector3.new(0, 0, -1)
+	end
+	return CFrame.lookAt(best, best + look.Unit)
+end
+
 local function spawnCFrame(e)
+	local cf = randomSpawn(e)
+	if cf then
+		return cf
+	end
 	if S.Mode == "Solo" then
 		return arena.SoloSpawns[((e.OwnerId - 1) % #arena.SoloSpawns) + 1]
 	end

@@ -113,7 +113,7 @@ end
 
 local function buildCrate(page)
 	clear(page)
-	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 150), BackgroundColor3 = C.Panel, LayoutOrder = 1 }, page)
+	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 196), BackgroundColor3 = C.Panel, LayoutOrder = 1 }, page)
 	corner(top, 14)
 	UI.gradient(top, Color3.fromRGB(90, 50, 140), Color3.fromRGB(30, 28, 48), 0)
 	label(top, { Text = "크로마 크레이트", TextSize = 30, Font = Enum.Font.FredokaOne, Position = UDim2.fromOffset(18, 12), Size = UDim2.new(0.62, 0, 0, 36) })
@@ -136,8 +136,20 @@ local function buildCrate(page)
 			end
 			MarketplaceService:PromptProductPurchase(player, id)
 		end)
+		-- 포인트(코인)로 개봉
+		local coinPrice = Config.CrateCoinPrice or 5000
+		local coins = player:GetAttribute("Coins") or 0
+		local cbuy = button(top, string.format("%d 코인  개봉", coinPrice), coins >= coinPrice and C.Cyan or C.Dim,
+			{ Size = UDim2.fromOffset(210, 52), Position = UDim2.new(1, -226, 0, 80), TextColor3 = Color3.fromRGB(10, 20, 40), TextSize = 21 })
+		cbuy.MouseButton1Click:Connect(function()
+			if (player:GetAttribute("Coins") or 0) < coinPrice then
+				HUD.Banner(string.format("코인이 부족해요 (%d 필요)", coinPrice), Color3.fromRGB(255, 180, 120))
+				return
+			end
+			shopCall("crateCoins")
+		end)
 		if RunService:IsStudio() then
-			local test = button(top, "Studio 테스트 개봉", C.Dim, { Size = UDim2.fromOffset(210, 42), Position = UDim2.new(1, -226, 0, 84), TextSize = 17 })
+			local test = button(top, "Studio 테스트 개봉", C.Dim, { Size = UDim2.fromOffset(210, 38), Position = UDim2.new(1, -226, 0, 142), TextSize = 16 })
 			test.MouseButton1Click:Connect(function()
 				shopCall("crateTest")
 			end)
