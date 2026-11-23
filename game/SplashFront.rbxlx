@@ -1131,7 +1131,189 @@ function Weapons.Get(id)
 end
 
 return Weapons
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX28"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ReplicatedFirst" referent="RBX9"><Properties><string name="Name">ReplicatedFirst</string></Properties><Item class="LocalScript" referent="RBX8"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
+-- 격납고 유리 천장 위에서 카메라가 떨어지듯 내려와 캐릭터 뒤에 붙으며 화면이 열림 (하늘·빈 공간이 보이지 않게)
+local Players = game:GetService("Players")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+pcall(function()
+	ReplicatedFirst:RemoveDefaultLoadingScreen()
+end)
+
+local HEAVY = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SF_Loading"
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 1000
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local bg = Instance.new("Frame")
+bg.Size = UDim2.fromScale(1, 1)
+bg.BackgroundColor3 = Color3.new(1, 1, 1)
+bg.BorderSizePixel = 0
+bg.Parent = gui
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(26, 34, 70)),
+	ColorSequenceKeypoint.new(0.6, Color3.fromRGB(10, 13, 28)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(4, 5, 12)),
+})
+grad.Rotation = 90
+grad.Parent = bg
+
+-- 네온 사선 줄
+local stripes = {}
+for i = 0, 5 do
+	local s = Instance.new("Frame")
+	s.AnchorPoint = Vector2.new(0.5, 0.5)
+	s.Size = UDim2.new(0, 10, 1.6, 0)
+	s.Position = UDim2.new(0.08 + i * 0.17, 0, 0.5, 0)
+	s.Rotation = 24
+	s.BorderSizePixel = 0
+	s.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40)
+	s.BackgroundTransparency = 0.86
+	s.Parent = bg
+	table.insert(stripes, s)
+end
+
+local function text(props)
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.FontFace = HEAVY
+	t.TextScaled = true
+	for k, v in pairs(props) do
+		t[k] = v
+	end
+	t.Parent = bg
+	return t
+end
+local t1 = text({ Text = "SPLASH", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.38), Size = UDim2.fromScale(0.6, 0.16),
+	TextColor3 = Color3.fromRGB(255, 70, 200) })
+local t2 = text({ Text = "FRONT", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.52), Size = UDim2.fromScale(0.42, 0.12),
+	TextColor3 = Color3.fromRGB(60, 220, 255) })
+for _, t in ipairs({ t1, t2 }) do
+	local st = Instance.new("UIStroke")
+	st.Thickness = 4
+	st.Color = Color3.fromRGB(10, 10, 24)
+	st.Parent = t
+end
+local status = text({ Text = "격납고에 연결하는 중", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.7), Size = UDim2.fromScale(0.5, 0.04),
+	TextColor3 = Color3.fromRGB(200, 210, 240) })
+local tips = {
+	"바닥을 더 많이 칠한 팀이 승리해요",
+	"같은 ZONE 발판에 선 친구끼리 한 팀",
+	"Shift 달리기 · C 앉기 · V 1·3인칭",
+	"일일·주간 미션을 깨고 코인으로 스킨을 사세요",
+}
+local tip = text({ Text = tips[math.random(1, #tips)], AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.9), Size = UDim2.fromScale(0.6, 0.032),
+	TextColor3 = Color3.fromRGB(150, 160, 200), FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold) })
+
+-- 진행 막대 (끝없이 흐르는 네온)
+local barBg = Instance.new("Frame")
+barBg.AnchorPoint = Vector2.new(0.5, 0.5)
+barBg.Position = UDim2.fromScale(0.5, 0.76)
+barBg.Size = UDim2.new(0.32, 0, 0, 6)
+barBg.BackgroundColor3 = Color3.fromRGB(30, 38, 70)
+barBg.BorderSizePixel = 0
+barBg.ClipsDescendants = true
+barBg.Parent = bg
+local bar = Instance.new("Frame")
+bar.Size = UDim2.fromScale(0.3, 1)
+bar.BackgroundColor3 = Color3.fromRGB(240, 255, 40)
+bar.BorderSizePixel = 0
+bar.Parent = barBg
+
+local done = false
+task.spawn(function()
+	local dots = 0
+	while not done do
+		local tw = TweenService:Create(bar, TweenInfo.new(0.9, Enum.EasingStyle.Sine), { Position = UDim2.fromScale(1, 0) })
+		bar.Position = UDim2.fromScale(-0.3, 0)
+		tw:Play()
+		dots = dots % 3 + 1
+		if status.Text:find("연결") or status.Text:find("불러") then
+			status.Text = status.Text:gsub("%.+$", "") .. string.rep(".", dots)
+		end
+		task.wait(0.9)
+	end
+end)
+
+-- 1) 게임 데이터 로드
+if not game:IsLoaded() then
+	game.Loaded:Wait()
+end
+status.Text = "프로필 불러오는 중"
+
+-- 2) 로비에 캐릭터가 생길 때까지
+local function lobbyCharacter()
+	local c = player.Character
+	local root = c and c:FindFirstChild("HumanoidRootPart")
+	if root and root.Position.Y > 300 then
+		return c, root
+	end
+	return nil
+end
+local char, root = lobbyCharacter()
+local t0 = os.clock()
+while not char and os.clock() - t0 < 60 do
+	task.wait(0.1)
+	char, root = lobbyCharacter()
+end
+task.wait(0.4) -- 로비 조명·UI가 자리 잡을 시간
+status.Text = "출격!"
+
+-- 3) 낙하 연출: 유리 천장 위 → 캐릭터 뒤 (1.9초), 화면은 밝게 열림
+local cam = workspace.CurrentCamera
+if char and root and cam then
+	local target = root.CFrame
+	local endCf = CFrame.lookAt(target.Position + target.LookVector * -11 + Vector3.new(0, 5, 0), target.Position + Vector3.new(0, 2, 0))
+	local startPos = target.Position + Vector3.new(0, 95, 18)
+	local startCf = CFrame.lookAt(startPos, target.Position)
+	cam.CameraType = Enum.CameraType.Scriptable
+	cam.CFrame = startCf
+	local fov0 = cam.FieldOfView
+	cam.FieldOfView = 95
+	local fade = TweenService:Create(bg, TweenInfo.new(0.5), { BackgroundTransparency = 1 })
+	fade:Play()
+	for _, d in ipairs(bg:GetDescendants()) do
+		if d:IsA("TextLabel") then
+			TweenService:Create(d, TweenInfo.new(0.35), { TextTransparency = 1 }):Play()
+			local st = d:FindFirstChildOfClass("UIStroke")
+			if st then
+				TweenService:Create(st, TweenInfo.new(0.35), { Transparency = 1 }):Play()
+			end
+		elseif d:IsA("Frame") then
+			TweenService:Create(d, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
+		end
+	end
+	local dur = 1.9
+	local start = os.clock()
+	while true do
+		local a = math.clamp((os.clock() - start) / dur, 0, 1)
+		local e = 1 - (1 - a) ^ 3 -- 처음 빠르게 떨어지고 끝에서 부드럽게 멈춤
+		cam.CFrame = startCf:Lerp(endCf, e)
+		cam.FieldOfView = fov0 + (95 - fov0) * (1 - e)
+		if a >= 1 then
+			break
+		end
+		RunService.RenderStepped:Wait()
+	end
+	cam.FieldOfView = fov0
+	cam.CameraType = Enum.CameraType.Custom
+	cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+else
+	TweenService:Create(bg, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+end
+done = true
+task.wait(0.5)
+gui:Destroy()
+]]></ProtectedString></Properties></Item></Item><Item class="ServerScriptService" referent="RBX30"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX10"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1324,7 +1506,7 @@ function AdminService.Gate(player)
 end
 
 return AdminService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX9"><Properties><string name="Name">BotService</string><ProtectedString name="Source"><![CDATA[-- 인원이 부족할 때 자리를 채우는 간단한 AI 봇
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX11"><Properties><string name="Name">BotService</string><ProtectedString name="Source"><![CDATA[-- 인원이 부족할 때 자리를 채우는 간단한 AI 봇
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1654,7 +1836,7 @@ function BotService.Stop()
 end
 
 return BotService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX10"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 시가전 (Big City)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX12"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 시가전 (Big City)
 -- Studio 인벤토리에서 넣은 "BigCity" 모델(ServerStorage 또는 ServerStorage.Maps 안)을 복제해 전장으로 씀.
 -- 모델 안의 스크립트는 안전을 위해 모두 지우고, 도로·광장처럼 평평한 바닥을 위에서 쏘아 찾아 페인트 셀을 깐다.
 -- 카툰 외곽선·흰색 팔레트·표면 텍스처는 적용하지 않음 (원본 질감 + 사실적인 흐린 오후 조명)
@@ -1954,7 +2136,7 @@ function CityMap.Build()
 end
 
 return CityMap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX11"><Properties><string name="Name">CombatService</string><ProtectedString name="Source"><![CDATA[-- 사격·피해·스페셜·잉크/체력 회복 (서버 권한 판정)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX13"><Properties><string name="Name">CombatService</string><ProtectedString name="Source"><![CDATA[-- 사격·피해·스페셜·잉크/체력 회복 (서버 권한 판정)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
@@ -2408,7 +2590,7 @@ function CombatService.Tick(dt)
 end
 
 return CombatService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX12"><Properties><string name="Name">Combatants</string><ProtectedString name="Source"><![CDATA[-- 매치 참가자(플레이어 + 봇) 레지스트리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX14"><Properties><string name="Name">Combatants</string><ProtectedString name="Source"><![CDATA[-- 매치 참가자(플레이어 + 봇) 레지스트리
 -- entity = { Id, Name, IsBot, Player, Model, OwnerId, TeamId, WeaponId,
 --            Ink, Special, Kills, Deaths, Cells, LastFire, LastDamaged,
 --            ProtectedUntil, Spread, Alive }
@@ -2514,7 +2696,7 @@ function Combatants.Sync(e)
 end
 
 return Combatants
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX13"><Properties><string name="Name">CrateService</string><ProtectedString name="Source"><![CDATA[-- 크로마 크레이트(랜덤 상자) 개봉 + 외형 장착
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX15"><Properties><string name="Name">CrateService</string><ProtectedString name="Source"><![CDATA[-- 크로마 크레이트(랜덤 상자) 개봉 + 외형 장착
 -- 실제 판매: Creator Hub에서 79 R$ 개발자 상품을 만들고 Config.Monetization.CrateProductId에 ID 입력
 -- Studio에서는 상품 ID 없이 "테스트 개봉" 버튼으로 확률·연출 확인 가능
 local RunService = game:GetService("RunService")
@@ -2600,7 +2782,7 @@ function CrateService.Init(remoteFolder)
 end
 
 return CrateService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX14"><Properties><string name="Name">DataService</string><ProtectedString name="Source"><![CDATA[-- 플레이어 저장 데이터 (코인, 보유 무기, 장착 무기, 레이팅, 통계)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">DataService</string><ProtectedString name="Source"><![CDATA[-- 플레이어 저장 데이터 (코인, 보유 무기, 장착 무기, 레이팅, 통계)
 -- Studio에서 저장하려면: 게임 설정 > 보안 > "Studio의 API 서비스 액세스 사용" 켜기
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -2867,7 +3049,7 @@ function DataService.Start()
 end
 
 return DataService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX15"><Properties><string name="Name">ImageService</string><ProtectedString name="Source"><![CDATA[-- 업로드한 이미지(데칼)를 게임에 적용
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">ImageService</string><ProtectedString name="Source"><![CDATA[-- 업로드한 이미지(데칼)를 게임에 적용
 -- 1) 데칼 ID → 실제 이미지 주소 (InsertService로 데칼을 불러와 Texture 속성을 읽음)
 -- 2) ReplicatedStorage.Images 폴더 속성으로 공유 (클라이언트 HUD 아이콘: "icon_coin" 등)
 -- 3) 맵 표면에 Texture(타일 반복) 입히기 — 판정용 모양은 그대로
@@ -2992,7 +3174,7 @@ ImageService.LobbyRules = {
 }
 
 return ImageService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">ItemService</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템: 보관(최대 3개) · 사용(F) · 순서 바꾸기(G) · 효과 시간 관리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">ItemService</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템: 보관(최대 3개) · 사용(F) · 순서 바꾸기(G) · 효과 시간 관리
 -- 보관함은 플레이어 속성 "Items"(쉼표 목록)로 클라이언트에 보임
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
@@ -3302,7 +3484,7 @@ function ItemService.OnSpawn(e)
 end
 
 return ItemService
-]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX17"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
+]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX19"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -3473,7 +3655,7 @@ end
 
 MatchService.Run()
 print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") — 로비의 발판을 밟아 매치에 참가하세요")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
 -- 새 맵은 BuildXXX 함수를 추가하고 같은 형태의 info 테이블을 돌려주면 됨
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
@@ -5173,7 +5355,7 @@ function MapBuilder.BuildSkyRooftop()
 end
 
 return MapBuilder
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -6676,7 +6858,7 @@ Combatants.Killed:Connect(function(killer)
 end)
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
 -- 새 미션 추가: MISSIONS 테이블에 { Id, Name, Desc, Duration, Bonus, Begin, Finish } 하나 추가
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -6927,7 +7109,7 @@ function MissionService.Stop()
 end
 
 return MissionService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
 -- Studio 3D 가져오기로 직접 넣은 모델이 이미 SplashModels에 있으면 그대로 씀
 local InsertService = game:GetService("InsertService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -6977,7 +7159,7 @@ function ModelService.Load()
 end
 
 return ModelService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Combatants = require(script.Parent.Combatants)
@@ -7113,7 +7295,7 @@ function PaintService.GetCoverage()
 end
 
 return PaintService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
 -- 진행도는 프로필(p.Quests)에 저장, 달성하면 자동으로 코인·경험치 지급
 -- 클라이언트에는 속성 "Quests"(JSON)로 보냄
 local HttpService = game:GetService("HttpService")
@@ -7255,7 +7437,7 @@ function QuestService.Init(remoteFolder)
 end
 
 return QuestService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7485,7 +7667,7 @@ function RankService.StartBoard(textLabel)
 end
 
 return RankService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -7649,7 +7831,7 @@ function ShopService.Init(remotes)
 end
 
 return ShopService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
 local Signal = {}
 Signal.__index = Signal
 
@@ -7679,7 +7861,7 @@ function Signal:Fire(...)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
 -- 1) Roblox AnalyticsService: 온보딩 퍼널 / 경제 / 커스텀 이벤트 → Creator Hub > 분석 에서 확인
 -- 2) 무기별 밸런스 통계 (자체 DataStore) → 관리자 패널 "밸런스 리포트"
 -- 3) 게임 내 피드백 (자체 DataStore) → 관리자 패널 "피드백 보기"
@@ -7948,7 +8130,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX43"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX42"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX45"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX44"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8205,7 +8387,7 @@ function CBT.OnResults()
 end
 
 return CBT
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
 --  · 조준: 총을 앞으로 겨누고 상체·머리·팔이 조준 각도(AimPitch)를 나눠서 따라감
 --  · 달리기: 상체를 숙이고 총을 비스듬히 내려 듦 · 걷기: 몸을 낮추고 조심스럽게 · 앉기: 무릎을 굽힌 자세 (움직이면 종종걸음)
 --  · 사격 반동: 팔이 위로 튀었다가 돌아옴
@@ -8381,7 +8563,7 @@ function Pose.Init()
 end
 
 return Pose
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX31"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX33"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -8567,7 +8749,7 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 end)
 
 print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -8950,7 +9132,7 @@ function Effects.OnFX(kind, d)
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10096,7 +10278,7 @@ function HUD.ItemToast(id)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -10216,7 +10398,7 @@ function ItemClient.Init(remoteFolder, hud)
 end
 
 return ItemClient
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -11271,7 +11453,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11443,7 +11625,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -11536,7 +11718,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -11759,7 +11941,7 @@ function PV.Init()
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -11836,7 +12018,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -12098,7 +12280,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")

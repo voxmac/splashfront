@@ -3,7 +3,7 @@
 import os, json
 root = 'game/src'
 out = {}
-for folder, dest in (('shared', 'Shared'), ('server', 'Server'), ('client', 'Client')):
+for folder, dest in (('shared', 'Shared'), ('server', 'Server'), ('client', 'Client'), ('first', 'First')):
     for f in sorted(os.listdir(f'{root}/{folder}')):
         if not f.endswith('.lua'):
             continue

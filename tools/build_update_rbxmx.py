@@ -14,7 +14,8 @@ x = '<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://w
 x += item('Folder', 'SF_Update',
           item('Folder', 'Shared', children(f'{root}/src/shared')) +
           item('Folder', 'Server', children(f'{root}/src/server')) +
-          item('Folder', 'Client', children(f'{root}/src/client')))
+          item('Folder', 'Client', children(f'{root}/src/client')) +
+          item('Folder', 'First', children(f'{root}/src/first')))
 x += '</roblox>'
 open(out, 'w', encoding='utf-8').write(x)
 print('wrote', out, len(x))
