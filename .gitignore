@@ -2,3 +2,5 @@ build/
 __pycache__/
 dl/
 out/
+assets/marketing/raw_*.png
+assets/marketing/_tmp_models/
