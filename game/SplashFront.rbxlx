@@ -2968,7 +2968,7 @@ function ImageService.ApplyTextures(root, overrides)
 		return
 	end
 	for _, p in ipairs(root:GetDescendants()) do
-		if p:IsA("BasePart") and p.Name ~= "Cell" and p.Transparency < 0.5 then
+		if p:IsA("BasePart") and p.Name ~= "Cell" and p.Transparency < 0.5 and not p:GetAttribute("NoTexture") then
 			local rule = (overrides and overrides[p.Name]) or RULES[p.Name]
 			if rule then
 				if type(rule[1]) == "table" then
