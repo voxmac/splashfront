@@ -1,0 +1,30 @@
+name: publish-place
+# Publishes game/SplashFront.rbxlx straight to the live place with the Open Cloud Place Publishing API
+# (no Studio needed). Needs repo secret ROBLOX_API_KEY with the "universe-places" write permission for this
+# experience. Universe ID / Place ID: Creator Hub -> the experience -> "..." -> Copy Universe ID / Copy Start Place ID.
+on:
+  workflow_dispatch:
+    inputs:
+      universe_id: {description: "Universe ID (Experience ID)", required: true}
+      place_id: {description: "Start Place ID", required: true}
+      version_type: {description: "Published (live) or Saved (save only)", required: false, default: "Published"}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      ROBLOX_API_KEY: ${{ secrets.ROBLOX_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build place file
+        run: python3 tools/build_rbxlx.py game game/SplashFront.rbxlx
+      - name: Publish
+        run: |
+          [ -n "$ROBLOX_API_KEY" ] || { echo "::error::Add repo secret ROBLOX_API_KEY"; exit 1; }
+          url="https://apis.roblox.com/universes/v1/${{ inputs.universe_id }}/places/${{ inputs.place_id }}/versions?versionType=${{ inputs.version_type }}"
+          code=$(curl -s -o resp.json -w '%{http_code}' -X POST "$url" \
+            -H "x-api-key: $ROBLOX_API_KEY" -H "Content-Type: application/xml" \
+            --data-binary @game/SplashFront.rbxlx)
+          echo "HTTP $code"; cat resp.json; echo
+          [ "$code" = "200" ] || { echo "::error::Publish failed (401/403 = API key lacks universe-places write for this experience, 404 = wrong IDs)"; exit 1; }
+          echo "::notice::Published version $(python3 -c 'import json;print(json.load(open("resp.json")).get("versionNumber"))')"
