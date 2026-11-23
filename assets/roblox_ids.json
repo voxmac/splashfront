@@ -31,6 +31,7 @@
  "icon/target": 136172548631977,
  "icon/trophy": 114160714362389,
  "icon/scope": 117533216271432,
+ "icon/splat": 100690865730328,
  "_sha1": {
   "music/lobby": "afeeea847fbf1d82dd205a78f443fc6f24d31dcc",
   "music/chroma": "7c69173ba532e0cf0725c95b393728e1d837fb86",
@@ -63,6 +64,7 @@
   "icon/skull": "4dc3a6f1febea6ff503b4536a4e2c28825b6d6e6",
   "icon/target": "d873657bc29b42e5257d84a5372d359fa94699d0",
   "icon/trophy": "8c480fb9807fd13d957563d7b1dc32f1a1be638e",
-  "icon/scope": "d9d193094aec21fa3686246ee6361ad6fcc7c311"
+  "icon/scope": "d9d193094aec21fa3686246ee6361ad6fcc7c311",
+  "icon/splat": "fd4288f6757eee69889d538b6ad4153ff71becfd"
  }
 }
