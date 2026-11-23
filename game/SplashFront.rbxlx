@@ -2,13 +2,13 @@
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
-		lobby = 0,
-		chroma = 0,
-		sky = 0,
-		victory = 0,
-		defeat = 0,
+		lobby = 137125830506009,
+		chroma = 125224859846133,
+		sky = 89517556123577,
+		victory = 91809035108902,
+		defeat = 87734150667942,
 	},
-	SfxAtlas = 0,
+	SfxAtlas = 125014700826708,
 	SfxRegions = {
 		fire_pistol = { 0.0, 0.401 },
 		fire_rifle = { 0.901, 1.254 },
@@ -49,21 +49,21 @@ return {
 		crate_legendary = { 44.403, 46.603 },
 	},
 	Models = {
-		Gun_Pistol = 0,
-		Gun_Rifle = 0,
-		Gun_SMG = 0,
-		Gun_Shotgun = 0,
-		Gun_Sniper = 0,
-		Gun_Launcher = 0,
-		Gear_Helmet = 0,
-		Gear_Backpack = 0,
+		Gun_Pistol = 121488403845338,
+		Gun_Rifle = 98041543097715,
+		Gun_SMG = 105791746298340,
+		Gun_Shotgun = 128271152521611,
+		Gun_Sniper = 110549596852450,
+		Gun_Launcher = 137165459471276,
+		Gear_Helmet = 99158892556934,
+		Gear_Backpack = 107109456395512,
 	},
 }
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX2"><Properties><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT : 전역 설정값 (밸런스 조정은 이 파일과 Weapons.lua에서)
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.3-CBT"
+Config.Build = "0.4-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -182,11 +182,9 @@ Config.Monetization = {
 	},
 }
 
--- 배경음악 (기획서 3장: 힙합·신스팝 루프, 마지막 30초 템포 상승)
--- Creator Store의 라이선스 음원 ID를 "rbxassetid://숫자" 형식으로 넣으면 재생됨 (비어 있으면 무음)
+-- 배경음악 (기획서 3장: 맵별 루프, 마지막 30초 템포 상승)
+-- 음원은 Kaggle(ACE-Step 1.5)로 만들어 Open Cloud로 업로드 → AssetIds.Music 에 자동 기록 (MusicPlayer가 재생)
 Config.Music = {
-	Lobby = "",
-	Match = "",
 	Volume = 0.35,
 	FinalSplashSpeed = 1.12, -- 파이널 스플래시 구간 재생 속도
 }

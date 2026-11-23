@@ -2,13 +2,13 @@
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
-		lobby = 0,
-		chroma = 0,
-		sky = 0,
-		victory = 0,
-		defeat = 0,
+		lobby = 137125830506009,
+		chroma = 125224859846133,
+		sky = 89517556123577,
+		victory = 91809035108902,
+		defeat = 87734150667942,
 	},
-	SfxAtlas = 0,
+	SfxAtlas = 125014700826708,
 	SfxRegions = {
 		fire_pistol = { 0.0, 0.401 },
 		fire_rifle = { 0.901, 1.254 },
@@ -49,13 +49,13 @@ return {
 		crate_legendary = { 44.403, 46.603 },
 	},
 	Models = {
-		Gun_Pistol = 0,
-		Gun_Rifle = 0,
-		Gun_SMG = 0,
-		Gun_Shotgun = 0,
-		Gun_Sniper = 0,
-		Gun_Launcher = 0,
-		Gear_Helmet = 0,
-		Gear_Backpack = 0,
+		Gun_Pistol = 121488403845338,
+		Gun_Rifle = 98041543097715,
+		Gun_SMG = 105791746298340,
+		Gun_Shotgun = 128271152521611,
+		Gun_Sniper = 110549596852450,
+		Gun_Launcher = 137165459471276,
+		Gear_Helmet = 99158892556934,
+		Gear_Backpack = 107109456395512,
 	},
 }

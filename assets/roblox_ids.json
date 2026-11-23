@@ -1,0 +1,32 @@
+{
+ "music/lobby": 137125830506009,
+ "music/chroma": 125224859846133,
+ "music/sky": 89517556123577,
+ "music/victory": 91809035108902,
+ "music/defeat": 87734150667942,
+ "sfx/atlas": 125014700826708,
+ "model/Gear_Backpack": 107109456395512,
+ "model/Gear_Helmet": 99158892556934,
+ "model/Gun_Launcher": 137165459471276,
+ "model/Gun_Pistol": 121488403845338,
+ "model/Gun_Rifle": 98041543097715,
+ "model/Gun_SMG": 105791746298340,
+ "model/Gun_Shotgun": 128271152521611,
+ "model/Gun_Sniper": 110549596852450,
+ "_sha1": {
+  "music/lobby": "afeeea847fbf1d82dd205a78f443fc6f24d31dcc",
+  "music/chroma": "7c69173ba532e0cf0725c95b393728e1d837fb86",
+  "music/sky": "7864be7cd686b9b7051b979746665b9edb3f8d6a",
+  "music/victory": "0f3c868f6dd76185d6beec48d8c4b750ace9cc7f",
+  "music/defeat": "a73e3f7e2662e31250cb88d3a5da902f24fea2af",
+  "sfx/atlas": "af4c844d5f84eaed074a7b31028bd81807f5d63f",
+  "model/Gear_Backpack": "c7540f40c9ed59b679c512f352e37f8ec2a9b453",
+  "model/Gear_Helmet": "355d51830b5cac2668436c301913ab9ac82ca164",
+  "model/Gun_Launcher": "d3c528159619dad9cce2396b388645e6744bf4ab",
+  "model/Gun_Pistol": "8e5ed3e2b33941b4d9a1ecce1ce72a4e94c0c6f4",
+  "model/Gun_Rifle": "dcdf49e143848118b462f043c49e9748335a9884",
+  "model/Gun_SMG": "d6f5cac1ca1b301ca2abab3d2669c0f8bf93f3e9",
+  "model/Gun_Shotgun": "0e9829c23627af16987a8fd5c1607b4500ecf32b",
+  "model/Gun_Sniper": "fbf8897f6a2b0f77f42bc1c2439bb92048dfc831"
+ }
+}
