@@ -1,0 +1,141 @@
+{
+ "job": "SF01",
+ "tracks": {
+  "lobby": {
+   "kind": "loop",
+   "seconds": 80.0,
+   "picked": 2,
+   "picked_by": "auto",
+   "takes": [
+    {
+     "version": 1,
+     "file": "lobby_v1.wav",
+     "score": -1.039,
+     "loudness_variation": 0.311,
+     "silent_share": 0.01,
+     "tail_level": 0.33
+    },
+    {
+     "version": 2,
+     "file": "lobby_v2.wav",
+     "score": -0.564,
+     "loudness_variation": 0.231,
+     "silent_share": 0.02,
+     "tail_level": 0.75
+    }
+   ]
+  },
+  "chroma": {
+   "kind": "loop",
+   "seconds": 108.39,
+   "picked": 2,
+   "picked_by": "auto",
+   "takes": [
+    {
+     "version": 1,
+     "file": "chroma_v1.wav",
+     "score": -0.797,
+     "loudness_variation": 0.356,
+     "silent_share": 0.017,
+     "tail_level": 1.19
+    },
+    {
+     "version": 2,
+     "file": "chroma_v2.wav",
+     "score": -0.489,
+     "loudness_variation": 0.2,
+     "silent_share": 0.017,
+     "tail_level": 0.7
+    },
+    {
+     "version": 3,
+     "file": "chroma_v3.wav",
+     "score": -0.712,
+     "loudness_variation": 0.335,
+     "silent_share": 0.008,
+     "tail_level": 0.89
+    }
+   ]
+  },
+  "sky": {
+   "kind": "loop",
+   "seconds": 104.35,
+   "picked": 3,
+   "picked_by": "auto",
+   "takes": [
+    {
+     "version": 1,
+     "file": "sky_v1.wav",
+     "score": -1.932,
+     "loudness_variation": 0.531,
+     "silent_share": 0.05,
+     "tail_level": 0.08
+    },
+    {
+     "version": 2,
+     "file": "sky_v2.wav",
+     "score": -0.922,
+     "loudness_variation": 0.295,
+     "silent_share": 0.034,
+     "tail_level": 0.54
+    },
+    {
+     "version": 3,
+     "file": "sky_v3.wav",
+     "score": -0.673,
+     "loudness_variation": 0.295,
+     "silent_share": 0.017,
+     "tail_level": 0.78
+    }
+   ]
+  },
+  "victory": {
+   "kind": "jingle",
+   "seconds": 8.81,
+   "picked": 2,
+   "picked_by": "auto",
+   "takes": [
+    {
+     "version": 1,
+     "file": "victory_v1.wav",
+     "score": -3.843,
+     "loudness_variation": 0.855,
+     "silent_share": 0.385,
+     "tail_level": 0.49
+    },
+    {
+     "version": 2,
+     "file": "victory_v2.wav",
+     "score": -2.692,
+     "loudness_variation": 0.542,
+     "silent_share": 0.308,
+     "tail_level": 0.63
+    }
+   ]
+  },
+  "defeat": {
+   "kind": "jingle",
+   "seconds": 5.58,
+   "picked": 1,
+   "picked_by": "auto",
+   "takes": [
+    {
+     "version": 1,
+     "file": "defeat_v1.wav",
+     "score": -2.726,
+     "loudness_variation": 0.53,
+     "silent_share": 0.333,
+     "tail_level": 1.0
+    },
+    {
+     "version": 2,
+     "file": "defeat_v2.wav",
+     "score": -3.055,
+     "loudness_variation": 0.694,
+     "silent_share": 0.333,
+     "tail_level": 1.0
+    }
+   ]
+  }
+ }
+}
