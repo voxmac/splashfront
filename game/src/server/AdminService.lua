@@ -68,7 +68,7 @@ ACTIONS.coins = function(player, n)
 	n = math.clamp(tonumber(n) or 5000, -1000000, 1000000)
 	p.Coins = math.max(0, p.Coins + n)
 	DataService.Publish(player)
-	return string.format("코인 %+d → %d", n, p.Coins)
+	return string.format("코인 %+d -> %d", n, p.Coins)
 end
 
 ACTIONS.unlockAll = function(player)
@@ -163,7 +163,7 @@ function AdminService.Init(remotes)
 			return { ok = false, msg = "알 수 없는 명령" }
 		end
 		local ok, result = pcall(fn, player, arg)
-		print(string.format("[SplashFront][관리자] %s → %s(%s): %s", player.Name, tostring(action), tostring(arg), tostring(result)))
+		print(string.format("[SplashFront][관리자] %s -> %s(%s): %s", player.Name, tostring(action), tostring(arg), tostring(result)))
 		if not ok then
 			return { ok = false, msg = "오류: " .. tostring(result) }
 		end

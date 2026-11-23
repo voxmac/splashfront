@@ -298,9 +298,38 @@ def trophy():
     save_icon(im, "trophy")
 
 
+def scope_overlay():
+    """스코프 화면: 가운데 원은 투명(표적이 보임), 바깥은 검정, 얇은 십자선·눈금·빨간 점"""
+    S = 1024 * 2
+    im = Image.new("RGBA", (S, S), (6, 6, 10, 255))
+    d = ImageDraw.Draw(im)
+    r = int(S * 0.48)
+    c = S // 2
+    d.ellipse([c - r, c - r, c + r, c + r], fill=(0, 0, 0, 0))
+    # 렌즈 가장자리 그늘(안쪽으로 살짝 어두운 띠)
+    for k in range(18):
+        rr = r - k * 3
+        d.ellipse([c - rr, c - rr, c + rr, c + rr], outline=(0, 0, 0, max(0, 150 - k * 9)), width=4)
+    lw = 4
+    d.line([(c - r, c), (c - 70, c)], fill=(10, 10, 14, 255), width=lw)
+    d.line([(c + 70, c), (c + r, c)], fill=(10, 10, 14, 255), width=lw)
+    d.line([(c, c - r), (c, c - 70)], fill=(10, 10, 14, 255), width=lw)
+    d.line([(c, c + 70), (c, c + r)], fill=(10, 10, 14, 255), width=lw)
+    d.line([(c - 70, c), (c + 70, c)], fill=(10, 10, 14, 230), width=2)
+    d.line([(c, c - 70), (c, c + 70)], fill=(10, 10, 14, 230), width=2)
+    for k in range(1, 9):
+        o = k * 70
+        L = 14 if k % 2 == 0 else 8
+        for sgn in (-1, 1):
+            d.line([(c + sgn * o, c - L), (c + sgn * o, c + L)], fill=(10, 10, 14, 255), width=3)
+            d.line([(c - L, c + sgn * o), (c + L, c + sgn * o)], fill=(10, 10, 14, 255), width=3)
+    d.ellipse([c - 7, c - 7, c + 7, c + 7], fill=(255, 40, 60, 255))
+    im.resize((1024, 1024), Image.LANCZOS).save(os.path.join(ICO, "scope.png"))
+
+
 for f in (floor_tile, wall_panel, crate_wood, container_rib, ramp_plate, hazard):
     f()
-for f in (coin, flame, skull, crown, hourglass, quest, check, bomb, target, chest, trophy):
+for f in (coin, flame, skull, crown, hourglass, quest, check, bomb, target, chest, trophy, scope_overlay):
     f()
 
 # 미리보기 한 장

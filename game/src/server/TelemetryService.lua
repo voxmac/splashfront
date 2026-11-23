@@ -181,7 +181,7 @@ function Telemetry.SubmitFeedback(player, rating, category, text)
 		b = Config.Build, phase = player:GetAttribute("InMatch") and "match" or "lobby",
 	}
 	Telemetry.Custom(player, "Feedback", entry.r, category, Config.Build)
-	print(string.format("[SplashFront][피드백] %s ★%d [%s] %s", player.Name, entry.r, CATEGORIES[category], text))
+	print(string.format("[SplashFront][피드백] %s *%d [%s] %s", player.Name, entry.r, CATEGORIES[category], text))
 	if feedbackStore then
 		local key = "day_" .. os.date("!%Y%m%d", now)
 		task.spawn(function()
@@ -227,12 +227,12 @@ function Telemetry.FeedbackList()
 	if n == 0 then
 		return "최근 2일 피드백 없음 (DataStore가 꺼져 있으면 서버 출력창에만 기록됩니다)"
 	end
-	table.insert(lines, string.format("최근 2일 피드백 %d건 · 평균 ★%.1f", n, sum / n))
+	table.insert(lines, string.format("최근 2일 피드백 %d건 · 평균 *%.1f", n, sum / n))
 	for i, e in ipairs(list) do
 		if i > 20 then
 			break
 		end
-		table.insert(lines, string.format("%s  ★%d [%s] %s: %s", os.date("!%m/%d %H:%M", e.t + 9 * 3600), e.r,
+		table.insert(lines, string.format("%s  *%d [%s] %s: %s", os.date("!%m/%d %H:%M", e.t + 9 * 3600), e.r,
 			CATEGORIES[e.c] or e.c, e.n, e.m))
 	end
 	return table.concat(lines, "\n")

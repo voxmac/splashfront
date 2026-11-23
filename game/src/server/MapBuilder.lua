@@ -588,7 +588,7 @@ function MapBuilder.BuildLobby()
 	hint.TextColor3 = Color3.fromRGB(30, 20, 0)
 	hint.Font = Enum.Font.GothamBlack
 	hint.TextScaled = true
-	hint.Text = "🏆 클릭해서 TOP 50 보기"
+	hint.Text = "클릭해서 TOP 50 보기"
 	hint.Parent = bgui
 	local cd = Instance.new("ClickDetector")
 	cd.Name = "OpenBoard"

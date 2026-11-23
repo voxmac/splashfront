@@ -120,7 +120,7 @@ end
 function RankService.StartBoard(textLabel)
 	task.spawn(function()
 		while true do
-			local lines = { "  🏆 시즌 " .. Config.Season .. " 랭킹 TOP 10", "" }
+			local lines = { "  시즌 " .. Config.Season .. " 랭킹 TOP 10", "" }
 			local ok = false
 			if ordered then
 				ok = pcall(function()

@@ -168,7 +168,6 @@ function UI.GunImage(parent, weaponId, accent, skin, size)
 	return viewportModel(parent, model, size, math.rad(90))
 end
 
-local EFFECT_ICON = { Confetti = "🎉", Smoke = "💨", Starburst = "✴️", Rainbow = "🌈" }
 function UI.ItemImage(parent, item, size)
 	if item.Kind == "Skin" then
 		return UI.GunImage(parent, "Rifle", Color3.fromRGB(255, 255, 255), item, size)
@@ -192,8 +191,33 @@ function UI.ItemImage(parent, item, size)
 		local vp = viewportModel(holder, m, UDim2.fromScale(1, 1), 0)
 		vp.CurrentCamera.CFrame = CFrame.lookAt(Vector3.new(0, 3.2, 2.4), Vector3.zero)
 	else
-		UI.label(holder, { Text = EFFECT_ICON[item.Effect] or "✨", TextScaled = true, Size = UDim2.fromScale(1, 1),
-			TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBlack })
+		-- 처치 이펙트: 가운데 빛나는 구 + 사방으로 튀는 색 구슬
+		local m = Instance.new("Model")
+		local palette = (item.Effect == "Rainbow") and { Color3.fromRGB(255, 70, 70), Color3.fromRGB(255, 170, 40), Color3.fromRGB(255, 230, 60),
+			Color3.fromRGB(80, 220, 90), Color3.fromRGB(60, 140, 255), Color3.fromRGB(170, 80, 255) }
+			or (item.Effect == "Smoke") and { Color3.fromRGB(220, 222, 230), Color3.fromRGB(180, 184, 196) }
+			or { C.Pink, C.Cyan, C.Gold }
+		local core = Instance.new("Part")
+		core.Shape = Enum.PartType.Ball
+		core.Anchored = true
+		core.Size = Vector3.one * ((item.Effect == "Smoke") and 1.6 or 0.9)
+		core.Material = (item.Effect == "Smoke") and Enum.Material.SmoothPlastic or Enum.Material.Neon
+		core.Color = palette[1]
+		core.Parent = m
+		for k = 1, 10 do
+			local a = k / 10 * math.pi * 2
+			local b = Instance.new("Part")
+			b.Shape = Enum.PartType.Ball
+			b.Anchored = true
+			local r = (k % 2 == 0) and 1.5 or 1.05
+			b.Size = Vector3.one * ((k % 2 == 0) and 0.35 or 0.5)
+			b.Position = Vector3.new(math.cos(a) * r, math.sin(a) * r, 0)
+			b.Color = palette[(k % #palette) + 1]
+			b.Material = (item.Effect == "Smoke") and Enum.Material.SmoothPlastic or Enum.Material.Neon
+			b.Parent = m
+		end
+		local vp = viewportModel(holder, m, UDim2.fromScale(1, 1), 0)
+		vp.CurrentCamera.CFrame = CFrame.lookAt(Vector3.new(0, 0, 6), Vector3.zero)
 	end
 	return holder
 end

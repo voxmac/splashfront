@@ -24,6 +24,7 @@ local crouched = false
 local running = false      -- Shift 누르는 동안
 local walking = false      -- Z로 켜고 끔
 local runBlockedUntil = 0  -- 쏜 직후 잠깐은 달리기 속도 안 붙음
+local touchRun = false     -- 모바일 달리기 버튼
 local lastFire = 0
 local spreadExtra = 0
 local localInk = Config.InkMax
@@ -381,6 +382,9 @@ local function updateSpeed()
 	elseif owner ~= 0 then
 		speed = Config.WalkSpeedEnemy
 	end
+	-- Shift를 누르고 있으면 달리기 (입력 이벤트를 놓쳐도 키 상태로 한 번 더 확인)
+	running = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonL3) or touchRun
 	local mode = "일반"
 	if crouched then
 		speed = speed * Config.CrouchSpeedMul
@@ -540,6 +544,7 @@ local function onAction(name, inputState)
 			running = false
 		end
 	elseif name == "SF_Run" then
+		touchRun = (inputState == Enum.UserInputState.Begin) and UserInputService.TouchEnabled
 		running = (inputState == Enum.UserInputState.Begin)
 		if running and crouched then
 			setCrouch(false)
@@ -547,7 +552,7 @@ local function onAction(name, inputState)
 		updateSpeed()
 	elseif name == "SF_Walk" and began then
 		walking = not walking
-		HUD.Banner(walking and "🚶 걷기 (조용히 · 정밀 사격) [Z]" or "일반 이동", Color3.fromRGB(200, 220, 255))
+		HUD.Banner(walking and "걷기 (조용히 · 정밀 사격) [Z]" or "일반 이동", Color3.fromRGB(200, 220, 255))
 		updateSpeed()
 	elseif name == "SF_View" and began then
 		WC.ToggleView()
@@ -624,7 +629,7 @@ function WC.Init(remoteFolder, hud, effects)
 	player:GetAttributeChangedSignal("Golden"):Connect(function()
 		if player:GetAttribute("Golden") then
 			goldenSpent = false
-			HUD.Banner("✨ 황금총 장전! 다음 1발은 맞으면 즉사", Color3.fromRGB(255, 210, 60))
+			HUD.Banner("황금총 장전! 다음 1발은 맞으면 즉사", Color3.fromRGB(255, 210, 60))
 		end
 		if enabled then
 			buildViewmodel()
@@ -739,7 +744,7 @@ function WC.Init(remoteFolder, hud, effects)
 		-- 1인칭: 내 헬멧·가방·손에 든 총이 화면을 가리지 않게 숨김
 		if char then
 			local hide = tpActive() and 0 or 1
-			for _, n in ipairs({ "SF_Helmet", "SF_Backpack", "SF_Gun", "SF_Armor" }) do
+			for _, n in ipairs({ "SF_Helmet", "SF_Backpack", "SF_Gun", "SF_Armor", "SF_Jetpack" }) do
 				local g = char:FindFirstChild(n)
 				if g then
 					for _, p in ipairs(g:GetDescendants()) do
@@ -786,6 +791,12 @@ function WC.Init(remoteFolder, hud, effects)
 			spreadExtra = math.max(0, spreadExtra - dt * 8)
 		end
 		placeViewmodel(dt)
+		-- 달릴 때 시야가 살짝 넓어져 속도감 (조준 중엔 조준 배율 유지)
+		if not aiming then
+			local cam = camera()
+			local target = (currentStance == "Run") and 78 or 70
+			cam.FieldOfView = cam.FieldOfView + (target - cam.FieldOfView) * (1 - math.exp(-8 * dt))
+		end
 		-- 내 조준 각도·자세를 다른 사람에게 공유 (상체가 조준 방향을 따라 움직이게)
 		local t = os.clock()
 		if t - lastPoseSent > 0.12 and remotes:FindFirstChild("Pose") then

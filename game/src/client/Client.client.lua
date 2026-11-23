@@ -70,7 +70,7 @@ player:GetAttributeChangedSignal("LevelUp"):Connect(function()
 	local v = player:GetAttribute("LevelUp") or ""
 	local lv, coins = string.match(v, "^(%d+):(%d+)")
 	if lv then
-		HUD.Banner(string.format("⭐ 레벨 %s 달성!  🪙 +%s 코인", lv, coins), Color3.fromRGB(255, 210, 80))
+		HUD.Banner(string.format("레벨 %s 달성!  +%s 코인", lv, coins), Color3.fromRGB(255, 210, 80))
 		SoundBank.Play("crate_epic", nil, 0.6)
 	end
 end)
@@ -104,6 +104,16 @@ remotes.State.OnClientEvent:Connect(function(s)
 end)
 
 remotes.Results.OnClientEvent:Connect(function(r)
+	-- 이번 판에 참가한 사람만 결과창을 봄 (중간에 나간 사람·로비 사람은 제외)
+	local joined = false
+	for _, row in ipairs(r.Rows) do
+		if row.Player == player then
+			joined = true
+		end
+	end
+	if not joined then
+		return
+	end
 	HUD.ShowResults(r)
 	CBTPanel.OnResults()
 	for _, row in ipairs(r.Rows) do

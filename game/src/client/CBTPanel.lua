@@ -76,7 +76,7 @@ local function buildFeedback()
 	label(feedbackFrame, { Text = "이번 판 어땠나요?", Position = UDim2.fromOffset(18, 48), Size = UDim2.new(1, -36, 0, 20), ZIndex = 31,
 		TextColor3 = Color3.fromRGB(190, 190, 210), Font = Enum.Font.Gotham })
 	for i = 1, 5 do
-		local b = make("TextButton", { Text = "★", TextSize = 34, Font = Enum.Font.GothamBlack, BackgroundTransparency = 1,
+		local b = make("TextButton", { Text = tostring(i), TextSize = 30, Font = Enum.Font.GothamBlack, BackgroundTransparency = 1,
 			Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(14 + (i - 1) * 42, 70), ZIndex = 31 }, feedbackFrame)
 		b.MouseButton1Click:Connect(function()
 			rating = i
@@ -154,7 +154,7 @@ local function buildAdmin()
 	local argBox = make("TextBox", { Size = UDim2.fromOffset(120, 30), Position = UDim2.fromOffset(14, 40), BackgroundColor3 = Color3.fromRGB(36, 36, 50),
 		TextColor3 = Color3.new(1, 1, 1), PlaceholderText = "숫자 입력", Text = "", Font = Enum.Font.Code, TextSize = 15, ZIndex = 41 }, adminFrame)
 	corner(argBox, 6)
-	label(adminFrame, { Text = "← 시간/코인/개봉 수/레이팅 값", Position = UDim2.fromOffset(142, 40), Size = UDim2.fromOffset(300, 30), ZIndex = 41,
+	label(adminFrame, { Text = "<- 시간/코인/개봉 수/레이팅 값", Position = UDim2.fromOffset(142, 40), Size = UDim2.fromOffset(300, 30), ZIndex = 41,
 		TextSize = 13, Font = Enum.Font.Gotham, TextColor3 = Color3.fromRGB(170, 170, 190) })
 	local cmds = {
 		{ "time", "남은 시간 설정" }, { "endMatch", "경기 즉시 종료" }, { "coins", "코인 지급" }, { "unlockAll", "무기 전부 해금" },
@@ -222,7 +222,7 @@ end
 
 -- 결과 화면이 뜰 때 피드백 유도
 function CBT.OnResults()
-	HUD.Banner("이번 판 어땠나요? 💬 피드백 [F4]", Color3.fromRGB(0, 214, 200))
+	HUD.Banner("이번 판 어땠나요? 피드백 [F4]", Color3.fromRGB(0, 214, 200))
 end
 
 return CBT

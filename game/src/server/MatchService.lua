@@ -92,7 +92,7 @@ local missionApi = {
 				DataService.AddXP(e.Player, Config.XP.Mission)
 				local it = ItemService.GrantRandom(e.Player)
 				if it then
-					remotes.Notify:FireClient(e.Player, "🎁 미션 보상: " .. it.Name .. " 획득! [F] 사용", Color3.fromRGB(255, 220, 90))
+					remotes.Notify:FireClient(e.Player, "미션 보상: " .. it.Name .. " 획득! [F] 사용", Color3.fromRGB(255, 220, 90))
 				end
 			end
 		end
@@ -1009,25 +1009,42 @@ end
 
 -- 경기 도중 로비로 나가기 (보상 없음, 자리는 남은 인원으로 계속)
 function MatchService.LeaveMatch(player)
-	if not player:GetAttribute("InMatch") or S.Phase ~= "Playing" then
+	if not player:GetAttribute("InMatch") then
 		return
 	end
+	-- 어떤 단계(경기·결과)에서든 확실히 로비로: 각 정리 단계가 실패해도 다음 단계는 계속
 	local e = Combatants.FromPlayer(player)
-	if e then
-		e.Alive = false
-		Combatants.Remove(e)
-	end
-	if player.Character then
-		player.Character:Destroy()
-	end
+	pcall(function()
+		if e then
+			e.Alive = false
+			Combatants.Remove(e)
+		end
+	end)
 	for _, a in ipairs({ "Queue", "QueueTime", "OwnerId", "TeamId", "TeamColor" }) do
 		player:SetAttribute(a, nil)
 	end
 	player:SetAttribute("SpawnZone", false)
 	player:SetAttribute("InMatch", false)
-	ItemService.Clear(player)
+	pcall(ItemService.Clear, player)
+	pcall(function()
+		if player.Character then
+			player.Character:Destroy()
+		end
+	end)
+	local ok, err = pcall(function()
+		player:LoadCharacter()
+	end)
+	if not ok then
+		warn("[SplashFront] 로비 부활 실패:", err)
+		task.delay(1, function()
+			if player.Parent then
+				pcall(function()
+					player:LoadCharacter()
+				end)
+			end
+		end)
+	end
 	Telemetry.Custom(player, "LeftMatch", 1, S.Mode or "", tostring(S.QueueId), "")
-	player:LoadCharacter()
 	remotes.Notify:FireClient(player, "경기에서 나와 로비로 돌아왔어요", Color3.fromRGB(200, 220, 255))
 end
 

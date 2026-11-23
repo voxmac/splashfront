@@ -23,13 +23,31 @@ local HttpService = game:GetService("HttpService")
 local TextChatService = game:GetService("TextChatService")
 local DARKP = Color3.fromRGB(14, 12, 24)
 local leaveConfirm, moveLbl
-local MOVE_ICON = { ["일반"] = "🧍 일반", ["달리기"] = "🏃 달리기", ["걷기"] = "🚶 걷기", ["앉기"] = "🧎 앉기" }
+local MOVE_ICON = { ["일반"] = "일반", ["달리기"] = "달리기", ["걷기"] = "걷기", ["앉기"] = "앉기" }
 local MOVE_COLOR = { ["일반"] = Color3.fromRGB(230, 230, 240), ["달리기"] = Color3.fromRGB(255, 200, 80), ["걷기"] = Color3.fromRGB(140, 220, 255),
 	["앉기"] = Color3.fromRGB(170, 255, 170) }
+local keyChips = {}
+local STANCE_OF = { ["달리기"] = "Run", ["걷기"] = "Walk", ["앉기"] = "Crouch" }
 function HUD.SetMove(mode)
-	if moveLbl then
-		moveLbl.Text = MOVE_ICON[mode] or mode
-		moveLbl.TextColor3 = MOVE_COLOR[mode] or Color3.new(1, 1, 1)
+	local active = STANCE_OF[mode]
+	for st, c in pairs(keyChips) do
+		local on = (st == active)
+		c.Chip.BackgroundColor3 = on and Color3.fromRGB(255, 200, 50) or DARKP
+		c.Chip.BackgroundTransparency = on and 0.05 or 0.35
+		c.Label.TextColor3 = on and Color3.fromRGB(30, 20, 0) or Color3.new(1, 1, 1)
+	end
+end
+
+-- 경기에서 나오면 즉시 경기 화면을 닫음 (서버 상태 방송을 기다리지 않음)
+function HUD.ForceHide()
+	if gui then
+		gui.Enabled = false
+	end
+	if results then
+		results.Visible = false
+	end
+	if leaveConfirm then
+		leaveConfirm.Visible = false
 	end
 end
 local leaveModal = function() end
@@ -86,7 +104,7 @@ function HUD.Build()
 	local pill = make("Frame", { Size = UDim2.fromOffset(190, 46), Position = UDim2.new(0.5, -95, 0, 0), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2 }, top)
 	corner(pill, 23)
 	make("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Transparency = 0.75 }, pill)
-	UI.Icon(pill, "hourglass", "⌛", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(12, 6) })
+	UI.Icon(pill, "hourglass", "", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(12, 6) })
 	timerLbl = text(pill, { Size = UDim2.new(1, -60, 1, -8), Position = UDim2.fromOffset(50, 4), Text = "5:00", Font = Enum.Font.FredokaOne,
 		TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.6 })
 	modeLbl = text(top, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 48), Font = Enum.Font.GothamBold,
@@ -104,8 +122,11 @@ function HUD.Build()
 	local leaveBtn = make("TextButton", { Size = UDim2.fromOffset(120, 36), Position = UDim2.new(1, -136, 0, 12), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2,
 		Text = "", AutoButtonColor = true }, gui)
 	corner(leaveBtn, 18)
-	text(leaveBtn, { Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5), Text = "⎋ 로비  [L]", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 1 })
+	text(leaveBtn, { Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5), Text = "로비  [L]", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 1 })
 	leaveBtn.MouseButton1Click:Connect(function()
+		if not player:GetAttribute("InMatch") then
+			return
+		end
 		HUD.AskLeave()
 	end)
 	leaveConfirm = make("Frame", { Size = UDim2.fromOffset(420, 170), Position = UDim2.new(0.5, -210, 0.4, -85), BackgroundColor3 = Color3.fromRGB(20, 18, 34),
@@ -124,6 +145,7 @@ function HUD.Build()
 			leaveModal(false)
 			if o[3] then
 				leaveConfirmFn()
+				HUD.ForceHide() -- 서버 응답 전에 경기 화면부터 닫음
 			end
 		end)
 	end
@@ -139,23 +161,30 @@ function HUD.Build()
 
 	-- 왼쪽: 연속 처치 불꽃
 	streakFrame = make("Frame", { Size = UDim2.fromOffset(120, 120), Position = UDim2.new(0, 20, 0.62, 0), BackgroundTransparency = 1, Visible = false }, gui)
-	UI.Icon(streakFrame, "flame", "🔥", { Size = UDim2.fromScale(1, 1) })
+	UI.Icon(streakFrame, "flame", "", { Size = UDim2.fromScale(1, 1) })
 	streakLbl = text(streakFrame, { Size = UDim2.new(1, 0, 0.46, 0), Position = UDim2.new(0, 0, 0.5, 0), Text = "x2", Font = Enum.Font.FredokaOne,
 		TextStrokeTransparency = 1 })
 	make("UIStroke", { Thickness = 4, Color = Color3.fromRGB(150, 20, 40) }, streakLbl)
 
 	-- 왼쪽 아래: 조작키 안내
-	local keys = make("Frame", { Size = UDim2.new(0, 0, 0, 36), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0, 16, 1, -16),
+	-- 작은 칩 5개 (지금 이동 상태 칩은 노랗게 켜짐 → 따로 상태 글자를 두지 않음)
+	local keys = make("Frame", { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0, 12, 1, -10),
 		AnchorPoint = Vector2.new(0, 1), BackgroundTransparency = 1 }, gui)
-	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, keys)
-	for i, k in ipairs({ { "⇧", "달리기" }, { "Z", "걷기" }, { "C", "앉기" }, { "Q", "스페셜" }, { "🖱", "조준" }, { "F", "아이템" }, { "V", "시점" } }) do
-		local chip = make("Frame", { Size = UDim2.fromOffset(92, 34), BackgroundColor3 = DARKP, BackgroundTransparency = 0.3, LayoutOrder = i }, keys)
-		corner(chip, 8)
-		local key = make("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(5, 5), BackgroundColor3 = Color3.fromRGB(240, 240, 248) }, chip)
-		corner(key, 5)
-		text(key, { Size = UDim2.fromScale(1, 1), Text = k[1], TextColor3 = Color3.fromRGB(20, 20, 30), TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack })
-		text(chip, { Size = UDim2.new(1, -38, 1, -12), Position = UDim2.fromOffset(34, 6), Text = k[2], TextXAlignment = Enum.TextXAlignment.Left,
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, keys)
+	keyChips = {}
+	for i, k in ipairs({ { "Shift", "달리기", "Run" }, { "Z", "걷기", "Walk" }, { "C", "앉기", "Crouch" }, { "F", "아이템" }, { "V", "시점" } }) do
+		local kw = (#k[1] > 1) and 32 or 18
+		local chip = make("Frame", { Size = UDim2.fromOffset(42 + kw, 24), BackgroundColor3 = DARKP, BackgroundTransparency = 0.35, LayoutOrder = i }, keys)
+		corner(chip, 6)
+		local key = make("Frame", { Size = UDim2.fromOffset(kw, 18), Position = UDim2.fromOffset(3, 3), BackgroundColor3 = Color3.fromRGB(240, 240, 248) }, chip)
+		corner(key, 4)
+		text(key, { Size = UDim2.new(1, -4, 1, -4), Position = UDim2.fromOffset(2, 2), Text = k[1], TextColor3 = Color3.fromRGB(20, 20, 30), TextStrokeTransparency = 1,
+			Font = Enum.Font.GothamBlack })
+		local lbl = text(chip, { Size = UDim2.new(1, -(kw + 8), 1, -8), Position = UDim2.fromOffset(kw + 6, 4), Text = k[2], TextXAlignment = Enum.TextXAlignment.Left,
 			Font = Enum.Font.GothamBold, TextStrokeTransparency = 1 })
+		if k[3] then
+			keyChips[k[3]] = { Chip = chip, Label = lbl }
+		end
 	end
 
 	-- 미션
@@ -183,9 +212,6 @@ function HUD.Build()
 		f.Position = UDim2.new(0.5, math.cos(a) * 10, 0.5, math.sin(a) * 10)
 	end
 
-	-- 이동 상태 (일반 / 달리기 / 걷기 / 앉기)
-	moveLbl = text(gui, { Size = UDim2.fromOffset(120, 22), Position = UDim2.new(0.5, 160, 1, -80), Text = "🧍 일반", Font = Enum.Font.GothamBlack,
-		TextXAlignment = Enum.TextXAlignment.Left, TextScaled = false, TextSize = 16 })
 
 	-- 하단 가운데: 체력 + 레벨 경험치 막대
 	local hb = make("Frame", { Size = UDim2.fromOffset(300, 12), Position = UDim2.new(0.5, -150, 1, -72), BackgroundColor3 = DARKP, BackgroundTransparency = 0.25 }, gui)
@@ -204,7 +230,7 @@ function HUD.Build()
 		Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.5, ZIndex = 2 })
 	xpLbl = text(xb, { Size = UDim2.new(0.45, 0, 1, -10), Position = UDim2.new(0.55, -46, 0, 5), Text = "0 / 100 XP", TextXAlignment = Enum.TextXAlignment.Right,
 		Font = Enum.Font.GothamBold, TextStrokeTransparency = 0.5, ZIndex = 2 })
-	UI.Icon(xb, "chest", "🧰", { Size = UDim2.fromOffset(44, 44), Position = UDim2.new(1, -30, 0.5, -22), ZIndex = 3 })
+	UI.Icon(xb, "chest", "", { Size = UDim2.fromOffset(44, 44), Position = UDim2.new(1, -30, 0.5, -22), ZIndex = 3 })
 
 	-- 오른쪽 아래: 잉크(탄) 칸 + 숫자, 슬롯 카드 [1 무기] [Q 스페셜] [F 아이템]
 	local ammo = make("Frame", { Size = UDim2.fromOffset(300, 44), Position = UDim2.new(1, -16, 1, -128), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
@@ -239,7 +265,7 @@ function HUD.Build()
 	weaponCard = { Frame = wc, Pic = wpic, Name = wname }
 	weaponLbl = wname
 	local sc, spic, sname = card(2, "Q")
-	UI.Icon(spic, "bomb", "💣", { Size = UDim2.fromScale(1, 1) })
+	UI.Icon(spic, "bomb", "", { Size = UDim2.fromScale(1, 1) })
 	local sb = make("Frame", { Size = UDim2.new(1, -16, 0, 6), Position = UDim2.new(0, 8, 1, -30), BackgroundColor3 = DARKP, ZIndex = 3 }, sc)
 	corner(sb, 3)
 	specialFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 220, 60), BorderSizePixel = 0, ZIndex = 3 }, sb)
@@ -269,32 +295,35 @@ function HUD.Build()
 	grad.Name = "Grad"
 
 	-- 저격 조준경
-	-- 스코프: 원 바깥을 검게 가리고(굵은 테두리), 가운데 십자선·눈금·빨간 점
-	scope = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 5, ClipsDescendants = true }, gui)
-	local ring = make("Frame", { Size = UDim2.new(0, 0, 0.86, 0), SizeConstraint = Enum.SizeConstraint.RelativeYY,
-		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 5 }, scope)
-	make("UIAspectRatioConstraint", { AspectRatio = 1 }, ring)
-	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, ring)
-	make("UIStroke", { Thickness = 2400, Color = Color3.fromRGB(4, 4, 8), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
-	local inner = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 6 }, ring)
-	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, inner)
-	make("UIStroke", { Thickness = 5, Color = Color3.fromRGB(20, 20, 26) }, inner)
-	make("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromScale(0, 0.5), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(0, 0, 0),
-		BorderSizePixel = 0, ZIndex = 6 }, ring)
-	make("Frame", { Size = UDim2.new(0, 2, 1, 0), Position = UDim2.fromScale(0.5, 0), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(0, 0, 0),
-		BorderSizePixel = 0, ZIndex = 6 }, ring)
-	for k = 1, 4 do
-		for _, sgn in ipairs({ -1, 1 }) do
-			make("Frame", { Size = UDim2.fromOffset(10, 2), Position = UDim2.new(0.5, 0, 0.5, sgn * k * 22), AnchorPoint = Vector2.new(0.5, 0.5),
-				BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 6 }, ring)
-			make("Frame", { Size = UDim2.fromOffset(2, 10), Position = UDim2.new(0.5, sgn * k * 22, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
-				BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 6 }, ring)
-		end
-	end
+	-- 스코프: 화면 높이만 한 정사각 스코프 이미지(가운데 투명 원) + 좌우 검은 띠. 이미지가 아직 없으면 얇은 십자선만
+	scope = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 5 }, gui)
+	local sq = make("Frame", { Size = UDim2.fromScale(1, 1), SizeConstraint = Enum.SizeConstraint.RelativeYY, Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 5 }, scope)
+	make("Frame", { Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(-1, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(6, 6, 10), BorderSizePixel = 0, ZIndex = 5 }, sq)
+	make("Frame", { Size = UDim2.new(1, 0, 1, 0), Position = UDim2.new(1, 0, 0, 0), BackgroundColor3 = Color3.fromRGB(6, 6, 10), BorderSizePixel = 0, ZIndex = 5 }, sq)
+	local scopeImg = UI.Icon(sq, "scope", "", { Size = UDim2.fromScale(1, 1), ZIndex = 5 })
+	local fallback = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 6 }, sq)
+	make("Frame", { Size = UDim2.new(0.9, 0, 0, 2), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0, ZIndex = 6 }, fallback)
+	make("Frame", { Size = UDim2.new(0, 2, 0.9, 0), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0, ZIndex = 6 }, fallback)
+	local ringF = make("Frame", { Size = UDim2.fromScale(0.94, 0.94), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1, ZIndex = 6 }, fallback)
+	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, ringF)
+	make("UIStroke", { Thickness = 4, Color = Color3.new(0, 0, 0) }, ringF)
 	local rd = make("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = Color3.fromRGB(255, 40, 60), BorderSizePixel = 0, ZIndex = 7 }, ring)
+		BackgroundColor3 = Color3.fromRGB(255, 40, 60), BorderSizePixel = 0, ZIndex = 7 }, fallback)
 	make("UICorner", { CornerRadius = UDim.new(1, 0) }, rd)
-	scopeZoomLbl = text(scope, { Size = UDim2.fromOffset(120, 30), Position = UDim2.new(0.5, 40, 0.5, 40), Text = "", Font = Enum.Font.GothamBlack, ZIndex = 8,
+	local imgs = ReplicatedStorage:FindFirstChild("Images")
+	local function scopeRefresh()
+		fallback.Visible = not (imgs and imgs:GetAttribute("icon_scope"))
+	end
+	scopeRefresh()
+	if imgs then
+		imgs:GetAttributeChangedSignal("icon_scope"):Connect(scopeRefresh)
+	end
+	local ring = sq
+	scopeZoomLbl = text(scope, { Size = UDim2.fromOffset(120, 30), Position = UDim2.new(0.5, 60, 0.5, 60), Text = "", Font = Enum.Font.GothamBlack, ZIndex = 8,
 		TextColor3 = Color3.fromRGB(255, 220, 80), TextXAlignment = Enum.TextXAlignment.Left })
 
 	-- 레드닷(점) / 홀로(원 + 점) 조준점: 우클릭 조준 시
@@ -385,7 +414,7 @@ function HUD.OnState(s)
 	-- 미션
 	if s.Mission then
 		missionFrame.Visible = true
-		missionLbl.Text = "⚡ " .. s.Mission.Name .. " — " .. s.Mission.Desc .. " (+" .. s.Mission.Bonus .. ")"
+		missionLbl.Text = "미션! " .. s.Mission.Name .. " — " .. s.Mission.Desc .. " (+" .. s.Mission.Bonus .. ")"
 	else
 		missionFrame.Visible = false
 	end
@@ -426,16 +455,16 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 	local parts = {}
 	local ju, su, zu = player:GetAttribute("JetpackUntil"), player:GetAttribute("ShieldUntil"), player:GetAttribute("ZoomUntil")
 	if ju and ju > now then
-		table.insert(parts, string.format('<font color="#FFB050">🚀 제트팩 %d초 (Space)</font>', math.ceil(ju - now)))
+		table.insert(parts, string.format('<font color="#FFB050"> 제트팩 %d초 (Space)</font>', math.ceil(ju - now)))
 	end
 	if su and su > now then
-		table.insert(parts, string.format('<font color="#70C8FF">🛡 무적 %d초</font>', math.ceil(su - now)))
+		table.insert(parts, string.format('<font color="#70C8FF"> 무적 %d초</font>', math.ceil(su - now)))
 	end
 	if zu and zu > now then
-		table.insert(parts, string.format('<font color="#90FF90">🔭 %d배 줌 %d초</font>', player:GetAttribute("ZoomBuff") or 1, math.ceil(zu - now)))
+		table.insert(parts, string.format('<font color="#90FF90"> %d배 줌 %d초</font>', player:GetAttribute("ZoomBuff") or 1, math.ceil(zu - now)))
 	end
 	if player:GetAttribute("Golden") then
-		table.insert(parts, '<font color="#FFD040">✨ 황금총 장전 — 다음 1발 즉사</font>')
+		table.insert(parts, '<font color="#FFD040"> 황금총 장전 — 다음 1발 즉사</font>')
 	end
 	buffLbl.Text = table.concat(parts, "   ")
 
@@ -454,7 +483,7 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 	specialLbl.Text = sp >= 1 and "준비 완료!" or string.format("크로마 봄 %d%%", math.floor(sp * 100))
 	specialLbl.TextColor3 = sp >= 1 and Color3.fromRGB(255, 225, 80) or Color3.new(1, 1, 1)
 	local w = Weapons.Get(weaponId)
-	weaponLbl.Text = player:GetAttribute("Golden") and "✨ 황금총" or w.Class
+	weaponLbl.Text = player:GetAttribute("Golden") and "황금총" or w.Class
 	-- 경험치
 	local lv, xp, need = player:GetAttribute("Level") or 1, player:GetAttribute("XP") or 0, player:GetAttribute("XPNeed") or 100
 	levelLbl.Text = "레벨 " .. lv
@@ -534,7 +563,7 @@ function HUD.KillFeed(d)
 	if d.Killer then
 		if (d.KillerStreak or 0) >= 2 then
 			local sc = chip(row, "    x" .. d.KillerStreak, Color3.fromRGB(255, 200, 40), Color3.fromRGB(120, 20, 10), 64, 1)
-			UI.Icon(sc, "flame", "🔥", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(4, 3), ZIndex = 3 })
+			UI.Icon(sc, "flame", "", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(4, 3), ZIndex = 3 })
 		end
 		local kc = chip(row, d.Killer, d.KillerColor or Color3.fromRGB(80, 80, 100), Color3.new(1, 1, 1), 140, 2)
 		make("UIStroke", { Thickness = 1.5, Color = Color3.new(1, 1, 1), Transparency = (d.KillerPlayer == player) and 0 or 1 }, kc)
@@ -544,7 +573,7 @@ function HUD.KillFeed(d)
 			UI.GunImage(gun, d.WeaponId, Color3.fromRGB(60, 60, 70))
 		end
 		if d.Head then
-			UI.Icon(gun, "target", "🎯", { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0, 0), ZIndex = 3 })
+			UI.Icon(gun, "target", "", { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0, 0), ZIndex = 3 })
 		end
 	end
 	local vc = chip(row, d.Victim, Color3.fromRGB(40, 38, 58), d.VictimColor, 140, 4)
@@ -584,7 +613,7 @@ function HUD.DeathCard(d)
 	deathCard = c
 	corner(c, 16)
 	make("UIStroke", { Thickness = 3, Color = d.KillerColor or Color3.fromRGB(255, 80, 110) }, c)
-	UI.Icon(c, "skull", "💀", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(16, 7) })
+	UI.Icon(c, "skull", "", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(16, 7) })
 	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래시 당했다!", Font = Enum.Font.FredokaOne,
 		TextColor3 = Color3.fromRGB(255, 120, 150), TextXAlignment = Enum.TextXAlignment.Left })
 	local who = make("Frame", { Size = UDim2.fromOffset(170, 36), Position = UDim2.fromOffset(16, 46), BackgroundColor3 = d.KillerColor or Color3.fromRGB(90, 90, 110) }, c)
@@ -597,12 +626,12 @@ function HUD.DeathCard(d)
 	if d.WeaponId then
 		UI.GunImage(pic, d.WeaponId, d.KillerColor or Color3.fromRGB(60, 60, 70))
 	else
-		text(pic, { Size = UDim2.fromScale(1, 1), Text = "🕳", TextStrokeTransparency = 1 })
+		text(pic, { Size = UDim2.fromScale(1, 1), Text = "", TextStrokeTransparency = 1 })
 	end
 	if d.Head then
 		local hb = make("Frame", { Size = UDim2.fromOffset(84, 26), Position = UDim2.new(1, -90, 0, 4), BackgroundColor3 = Color3.fromRGB(255, 200, 40), ZIndex = 3 }, pic)
 		corner(hb, 8)
-		UI.Icon(hb, "target", "🎯", { Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(4, 3), ZIndex = 4 })
+		UI.Icon(hb, "target", "", { Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(4, 3), ZIndex = 4 })
 		text(hb, { Size = UDim2.new(1, -30, 1, -6), Position = UDim2.fromOffset(26, 3), Text = "헤드샷", TextColor3 = Color3.fromRGB(60, 30, 0),
 			TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack, ZIndex = 4 })
 	end
@@ -644,7 +673,7 @@ function HUD.Elim(d)
 		text(elimFrame, { Size = UDim2.fromOffset(70, 44), Position = UDim2.new(0.5, side * 150 - 35, 0, y + 8), Text = "///", Font = Enum.Font.GothamBlack,
 			TextColor3 = Color3.fromRGB(255, 70, 120), TextStrokeTransparency = 1 })
 	end
-	text(elimFrame, { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, y + 60), Text = "💀 " .. tostring(d.Victim), Font = Enum.Font.GothamBlack,
+	text(elimFrame, { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, y + 60), Text = "" .. tostring(d.Victim), Font = Enum.Font.GothamBlack,
 		TextColor3 = d.VictimColor or Color3.fromRGB(255, 120, 160), TextStrokeTransparency = 0.6 })
 	local scale = make("UIScale", { Scale = 1.35 }, elimFrame)
 	TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back), { Scale = 1 }):Play()
@@ -660,10 +689,10 @@ function HUD.Elim(d)
 		LayoutOrder = -math.floor(os.clock() * 100) }, rewardList)
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center,
 		SortOrder = Enum.SortOrder.LayoutOrder }, line)
-	UI.Icon(line, d.Head and "target" or "skull", d.Head and "🎯" or "💀", { Size = UDim2.fromOffset(24, 24), LayoutOrder = 1 })
+	UI.Icon(line, d.Head and "target" or "skull", d.Head and "" or "", { Size = UDim2.fromOffset(24, 24), LayoutOrder = 1 })
 	local lt = text(line, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = string.format("%s%s 제거", d.Head and "헤드샷! " or "",
 		tostring(d.Victim)), Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, LayoutOrder = 2 })
-	UI.Icon(line, "coin", "🪙", { Size = UDim2.fromOffset(22, 22), LayoutOrder = 3 })
+	UI.Icon(line, "coin", "", { Size = UDim2.fromOffset(22, 22), LayoutOrder = 3 })
 	text(line, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = string.format("+%d  ·  +%d XP", d.Coins or 0, d.XP or 0),
 		Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, TextColor3 = Color3.fromRGB(255, 220, 90), LayoutOrder = 4 })
 	task.delay(3, function()
@@ -750,10 +779,11 @@ function HUD.RenderBoard(board)
 		text(cardF, { Size = UDim2.fromOffset(34, 22), Position = UDim2.new(1, -30, 1, -20), Text = "#" .. i, Font = Enum.Font.FredokaOne, ZIndex = 3,
 			TextColor3 = (i == 1) and Color3.fromRGB(255, 220, 80) or Color3.new(1, 1, 1) })
 		if i == 1 then
-			UI.Icon(cardF, "crown", "👑", { Size = UDim2.fromOffset(32, 30), Position = UDim2.fromOffset(-10, 12), ZIndex = 3, Rotation = -20 })
+			UI.Icon(cardF, "crown", "", { Size = UDim2.fromOffset(32, 30), Position = UDim2.fromOffset(-10, 12), ZIndex = 3, Rotation = -20 })
 		end
 		if (b.Streak or 0) >= 3 then
-			text(cardF, { Size = UDim2.fromOffset(40, 22), Position = UDim2.new(0, -6, 1, -20), Text = "🔥" .. b.Streak, ZIndex = 3, Font = Enum.Font.GothamBlack })
+			UI.Icon(cardF, "flame", "", { Size = UDim2.fromOffset(20, 20), Position = UDim2.new(0, -6, 1, -22), ZIndex = 3 })
+			text(cardF, { Size = UDim2.fromOffset(24, 20), Position = UDim2.new(0, 12, 1, -22), Text = tostring(b.Streak), ZIndex = 3, Font = Enum.Font.GothamBlack })
 		end
 	end
 end
@@ -787,7 +817,7 @@ function HUD.UpdateQuests()
 		local q = list[i]
 		local cardF = make("Frame", { Size = UDim2.fromOffset(380, 58), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2, LayoutOrder = i }, questBox)
 		corner(cardF, 10)
-		UI.Icon(cardF, q.Done and "check" or "quest", q.Done and "✅" or "📅", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(8, 9) })
+		UI.Icon(cardF, q.Done and "check" or "quest", q.Done and "" or "", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(8, 9) })
 		text(cardF, { Size = UDim2.new(1, -170, 0, 20), Position = UDim2.fromOffset(54, 8), Text = string.format("[%s] %s", q.Period == "Daily" and "일일" or "주간", q.Name),
 			Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 1 })
 		text(cardF, { Size = UDim2.fromOffset(100, 18), Position = UDim2.new(1, -184, 0, 9), Text = string.format("%d / %d", q.P, q.Goal), TextScaled = false,
@@ -797,7 +827,7 @@ function HUD.UpdateQuests()
 		local fill = make("Frame", { Size = UDim2.fromScale(math.clamp(q.P / math.max(1, q.Goal), 0, 1), 1),
 			BackgroundColor3 = q.Done and Color3.fromRGB(120, 255, 170) or Color3.fromRGB(80, 210, 255), BorderSizePixel = 0 }, bar)
 		corner(fill, 4)
-		UI.Icon(cardF, "coin", "🪙", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, -90, 0.5, -12) })
+		UI.Icon(cardF, "coin", "", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, -90, 0.5, -12) })
 		text(cardF, { Size = UDim2.fromOffset(56, 26), Position = UDim2.new(1, -62, 0.5, -13), Text = "+" .. q.Reward, Font = Enum.Font.GothamBlack,
 			TextColor3 = Color3.fromRGB(255, 220, 90), TextXAlignment = Enum.TextXAlignment.Left })
 	end
@@ -832,9 +862,11 @@ player:GetAttributeChangedSignal("InMatch"):Connect(function()
 	if cfg then
 		cfg.VerticalAlignment = player:GetAttribute("InMatch") and Enum.VerticalAlignment.Center or Enum.VerticalAlignment.Bottom
 	end
-	if not player:GetAttribute("InMatch") and leaveConfirm and leaveConfirm.Visible then
-		leaveConfirm.Visible = false
-		leaveModal(false)
+	if not player:GetAttribute("InMatch") then
+		if leaveConfirm and leaveConfirm.Visible then
+			leaveModal(false)
+		end
+		HUD.ForceHide()
 	end
 	if player:GetAttribute("InMatch") then
 		myStreak = 0
@@ -848,12 +880,12 @@ end)
 
 -- 첫 경기 안내 (온보딩)
 local TIPS = {
-	"🎨 바닥을 우리 색으로 칠하세요 — 칠한 면적이 곧 점수!",
-	"⚡ 우리 색 위에서는 빨라지고 잉크가 빨리 차요. 적 색 위에서는 느려져요",
-	"🧱 상자 뒤에서 C로 앉으면 숨을 수 있어요 · 우클릭 조준",
-	"👀 V 키로 1인칭 ↔ 3인칭(어깨 시점) 전환",
-	"💥 많이 칠하면 스페셜이 차요 — Q로 크로마 봄 투척!",
-	"⏱ 노란 미션이 뜨면 팀 보너스 기회! 마지막 30초는 페인트 1.5배",
+	"바닥을 우리 색으로 칠하세요 — 칠한 면적이 곧 점수!",
+	"우리 색 위에서는 빨라지고 잉크가 빨리 차요. 적 색 위에서는 느려져요",
+	"상자 뒤에서 C로 앉으면 숨을 수 있어요 · 우클릭 조준",
+	"V 키로 1인칭 <-> 3인칭(어깨 시점) 전환",
+	"많이 칠하면 스페셜이 차요 — Q로 크로마 봄 투척!",
+	"노란 미션이 뜨면 팀 보너스 기회! 마지막 30초는 페인트 1.5배",
 }
 function HUD.ShowTips()
 	local card = make("Frame", { Size = UDim2.new(0, 560, 0, 46), Position = UDim2.new(0.5, -280, 1, -150), BackgroundColor3 = Color3.fromRGB(10, 10, 16),
@@ -926,7 +958,7 @@ local function teamTable(parent, x, width, title, color, scoreText, rows)
 			corner(hl, 6)
 		end
 		local rating = row.RatingDelta and string.format("%+d", row.RatingDelta) or "-"
-		local name = (i == 1 and "★ " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
+		local name = (i == 1 and "MVP " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
 		resultRow(box, y, { tostring(i), name, tostring(row.Kills), tostring(row.Deaths), tostring(row.Score or row.Cells), tostring(row.Coins), rating },
 			(row.Player == player) and Color3.new(1, 1, 1) or Color3.fromRGB(225, 225, 240), row.Player == player, width)
 	end
@@ -950,7 +982,7 @@ function HUD.ShowResults(r)
 	end
 	text(results, { Size = UDim2.new(1, -40, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
 		TextColor3 = r.WinnerColor or Color3.new(1, 1, 1), ZIndex = 11 })
-	text(results, { Size = UDim2.new(1, -40, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "🏆 VICTORY" or "다음 판엔 이길 수 있어요!",
+	text(results, { Size = UDim2.new(1, -40, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
 		Font = Enum.Font.GothamBold, TextColor3 = won and Color3.fromRGB(255, 215, 60) or Color3.fromRGB(200, 200, 220), ZIndex = 11 })
 	local unit = (r.Mode == "Flag") and "점" or "%"
 	if r.Mode == "Solo" then
@@ -1004,7 +1036,7 @@ function HUD.UpdateSwitch()
 			c:Destroy()
 		end
 	end
-	text(switchBar, { Size = UDim2.fromOffset(150, 40), Text = "🔁 무기 교체", Font = Enum.Font.GothamBlack, LayoutOrder = 0, TextScaled = false, TextSize = 18 })
+	text(switchBar, { Size = UDim2.fromOffset(150, 40), Text = "무기 교체", Font = Enum.Font.GothamBlack, LayoutOrder = 0, TextScaled = false, TextSize = 18 })
 	local ownedStr = "," .. (player:GetAttribute("Owned") or "") .. ","
 	local cur = player:GetAttribute("Weapon")
 	for i, w in ipairs(Weapons.List) do
@@ -1039,7 +1071,7 @@ function HUD.UpdateItems()
 		itemCard.Name.Text = ((ITEM_DEF[id] and ITEM_DEF[id].Name) or id) .. ((#list > 1) and ("  +" .. (#list - 1)) or "")
 		itemCard.Name.TextColor3 = Color3.fromRGB(255, 225, 100)
 	else
-		text(itemCard.Pic, { Size = UDim2.fromScale(1, 1), Text = "🎁", TextTransparency = 0.6, TextStrokeTransparency = 1 })
+		text(itemCard.Pic, { Size = UDim2.fromScale(1, 1), Text = "", TextTransparency = 0.6, TextStrokeTransparency = 1 })
 		itemCard.Name.Text = "미션 보상"
 		itemCard.Name.TextColor3 = Color3.fromRGB(170, 170, 190)
 	end

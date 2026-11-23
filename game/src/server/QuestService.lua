@@ -114,7 +114,7 @@ function QuestService.Add(player, stat, n)
 					DataService.AddCoins(player, d.Reward)
 					DataService.AddXP(player, Config.XP.Quest)
 					if remotes then
-						remotes.Notify:FireClient(player, string.format("✅ [%s] %s 완료! +%d 코인", period == "Daily" and "일일" or "주간", d.Name, d.Reward),
+						remotes.Notify:FireClient(player, string.format("[%s] %s 완료! +%d 코인", period == "Daily" and "일일" or "주간", d.Name, d.Reward),
 							Color3.fromRGB(120, 255, 170))
 					end
 				end
