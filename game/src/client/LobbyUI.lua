@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local MarketplaceService = game:GetService("MarketplaceService")
+local ModelKit = require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("ModelKit"))
 local PolicyService = game:GetService("PolicyService")
 local UserInputService = game:GetService("UserInputService")
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -72,6 +73,7 @@ local function buildWeapons(page)
 	local coins = player:GetAttribute("Coins") or 0
 	local equipped = player:GetAttribute("Weapon")
 	for i, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then -- 상점 총 모델이 없으면 표시 안 함
 		local row = make("Frame", { Size = UDim2.new(1, -10, 0, 112), BackgroundColor3 = C.Panel, LayoutOrder = i }, page)
 		corner(row, 14)
 		if equipped == w.Id then
@@ -105,6 +107,7 @@ local function buildWeapons(page)
 			task.wait(0.2)
 			buildWeapons(page)
 		end)
+		end
 	end
 end
 
@@ -605,10 +608,12 @@ local function rebuildMatch()
 	local mine = player:GetAttribute("Queue")
 	local counts = (s and s.QueueCounts) or {}
 	local info = (s and s.QueueInfo) or {}
-	local sig = tostring(mine) .. "|" .. (s and s.Phase or "")
+	local mySide = player:GetAttribute("QueueSide")
+	local sig = tostring(mine) .. tostring(mySide) .. "|" .. (s and s.Phase or "")
 	for _, q in ipairs(Config.Queues) do
 		local qi = info[q.Id] or {}
-		sig = sig .. q.Id .. (counts[q.Id] or 0) .. tostring(qi.Host) .. tostring(qi.Map)
+		local sd = qi.Sides or {}
+		sig = sig .. q.Id .. (counts[q.Id] or 0) .. tostring(qi.Host) .. tostring(qi.Map) .. tostring(sd[1]) .. tostring(sd[2])
 	end
 	if sig == matchSig then
 		return
@@ -631,16 +636,22 @@ local function rebuildMatch()
 			local joined = mine == q.Id
 			local b = button(matchBody, "", joined and C.Pink or C.Panel2, { Size = UDim2.new(1, 0, 0, 62), LayoutOrder = nextOrder(), Text = "" })
 			label(b, { Text = queueTitle(q) .. (q.Ranked and "  [랭크]" or ""), Font = Enum.Font.GothamBlack, TextSize = 20, Position = UDim2.fromOffset(14, 6),
-				Size = UDim2.new(1, -130, 0, 26) })
+				Size = UDim2.new(1, -160, 0, 26) })
 			label(b, { Text = string.format("%s  ·  %s", qi.Host or "-", qi.Map or "-"), TextSize = 15, TextColor3 = joined and Color3.new(1, 1, 1) or C.Sub,
-				Position = UDim2.fromOffset(14, 34), Size = UDim2.new(1, -130, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
-			label(b, { Text = string.format("%d명 대기", n), TextSize = 18, TextColor3 = C.Gold, Position = UDim2.new(1, -120, 0, 6), Size = UDim2.fromOffset(106, 24),
+				Position = UDim2.fromOffset(14, 34), Size = UDim2.new(1, -160, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
+			local sd = qi.Sides
+			local countText = sd and string.format("A %d/%d · B %d/%d", sd[1] or 0, q.TeamSize, sd[2] or 0, q.TeamSize) or string.format("%d명 대기", n)
+			label(b, { Text = countText, TextSize = 17, TextColor3 = C.Gold, Position = UDim2.new(1, -150, 0, 6), Size = UDim2.fromOffset(136, 24),
 				TextXAlignment = Enum.TextXAlignment.Right })
-			label(b, { Text = joined and "나가기 X" or "참가 >", TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -120, 0, 34),
-				Size = UDim2.fromOffset(106, 20), TextXAlignment = Enum.TextXAlignment.Right })
-			b.MouseButton1Click:Connect(function()
-				remotes.Queue:FireServer(joined and nil or q.Id)
-			end)
+			-- 대기 취소는 발판에서 내려오면 됨 (나가기 버튼 없음)
+			local status = joined and ((mySide == 1 and "A존 대기 중") or (mySide == 2 and "B존 대기 중") or "대기 중") or "참가 >"
+			label(b, { Text = status, TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -150, 0, 34),
+				Size = UDim2.fromOffset(136, 20), TextXAlignment = Enum.TextXAlignment.Right })
+			if not joined then
+				b.MouseButton1Click:Connect(function()
+					remotes.Queue:FireServer(q.Id)
+				end)
+			end
 		end
 	end
 	if not any then
@@ -916,6 +927,10 @@ function Lobby.Init(remoteFolder, hud)
 		if questPanel.Visible then
 			Lobby.UpdateQuests()
 		end
+	end)
+	player:GetAttributeChangedSignal("QueueSide"):Connect(function()
+		matchSig = nil
+		rebuildMatch()
 	end)
 	player:GetAttributeChangedSignal("Vip"):Connect(function()
 		if shop.Visible and currentTab == "Robux" then

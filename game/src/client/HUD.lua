@@ -529,6 +529,37 @@ function HUD.Hitmarker(head, killed)
 	end
 end
 
+-- 맞으면 화면 가장자리에 공격자 색 잉크가 튀었다 흘러내리며 사라짐 (레퍼런스 3번)
+local splatCount = 0
+function HUD.ScreenSplat(color, amount)
+	local imgs = ReplicatedStorage:FindFirstChild("Images")
+	local url = imgs and imgs:GetAttribute("icon_splat")
+	if not url or not gui or splatCount > 8 then
+		return
+	end
+	local n = math.clamp(math.floor((amount or 20) / 25) + 1, 1, 3)
+	for _ = 1, n do
+		splatCount = splatCount + 1
+		local size = math.random(140, 260)
+		-- 가운데(조준점)는 피해서 가장자리 쪽에
+		local x = (math.random() < 0.5) and math.random(2, 28) / 100 or math.random(72, 98) / 100
+		local y = math.random(8, 85) / 100
+		local img = make("ImageLabel", { Image = url, ImageColor3 = color or Color3.fromRGB(255, 60, 60), BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(x, y), Size = UDim2.fromOffset(size * 0.6, size * 0.6),
+			Rotation = math.random(-40, 40), ImageTransparency = 0.12, ZIndex = 0 }, gui)
+		TweenService:Create(img, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = UDim2.fromOffset(size, size) }):Play()
+		task.delay(0.5, function()
+			local t = TweenService:Create(img, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+				{ ImageTransparency = 1, Position = UDim2.fromScale(x, y + 0.06) })
+			t:Play()
+			t.Completed:Connect(function()
+				img:Destroy()
+				splatCount = splatCount - 1
+			end)
+		end)
+	end
+end
+
 function HUD.DamageFlash(color)
 	vignette.BackgroundColor3 = color or Color3.fromRGB(255, 40, 40)
 	vignette.BackgroundTransparency = 0.25
@@ -1041,13 +1072,15 @@ function HUD.UpdateSwitch()
 	text(switchBar, { Size = UDim2.fromOffset(150, 40), Text = "무기 교체", Font = Enum.Font.GothamBlack, LayoutOrder = 0, TextScaled = false, TextSize = 18 })
 	local ownedStr = "," .. (player:GetAttribute("Owned") or "") .. ","
 	local cur = player:GetAttribute("Weapon")
+	local k = 0
 	for i, w in ipairs(Weapons.List) do
-		if string.find(ownedStr, "," .. w.Id .. ",", 1, true) then
+		if string.find(ownedStr, "," .. w.Id .. ",", 1, true) and ModelKit.HasStoreModel(w.Id) and k < 9 then
+			k = k + 1
 			local on = (w.Id == cur)
 			local chip = make("Frame", { Size = UDim2.fromOffset(112, 40), BackgroundColor3 = on and (player:GetAttribute("TeamColor") or Color3.new(1, 1, 1))
 				or Color3.fromRGB(44, 42, 62), LayoutOrder = i }, switchBar)
 			corner(chip, 8)
-			text(chip, { Size = UDim2.new(1, -8, 1, -6), Position = UDim2.fromOffset(4, 3), Text = string.format("[%d] %s", i, w.Class), TextScaled = false,
+			text(chip, { Size = UDim2.new(1, -8, 1, -6), Position = UDim2.fromOffset(4, 3), Text = string.format("[%d] %s", k, w.StoreModel and w.Name or w.Class), TextScaled = false,
 				TextSize = 16, Font = Enum.Font.GothamBold, TextColor3 = on and Color3.fromRGB(16, 14, 24) or Color3.new(1, 1, 1), TextStrokeTransparency = 1 })
 		end
 	end

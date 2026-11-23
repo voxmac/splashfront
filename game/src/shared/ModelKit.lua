@@ -132,6 +132,116 @@ local function source(name)
 	return m, true
 end
 
+-- 크리에이터 상점 총 (ReplicatedStorage.StoreGuns.<StoreModel>): Tool이든 Model이든 메시만 쓰고
+-- 손잡이(Handle) 위치를 잡는 점(_Anchor)으로, 손잡이에서 가장 먼 앞쪽 끝을 총구(_Muzzle)로 자동 지정. 원래 질감·색은 그대로
+local MUZZLE_HINTS = { "muzzle", "firepoint", "flash", "shoot", "barrel", "tip" }
+local function storeSource(w)
+	local folder = ReplicatedStorage:FindFirstChild("StoreGuns")
+	local src = folder and w.StoreModel and folder:FindFirstChild(w.StoreModel)
+	if not src then
+		return nil
+	end
+	local m = Instance.new("Model")
+	m.Name = "Gun_" .. w.Id
+	local copy = src:Clone()
+	for _, d in ipairs(copy:GetDescendants()) do
+		if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("Weld") or d:IsA("WeldConstraint") or d:IsA("Motor6D")
+			or d:IsA("ParticleEmitter") or d:IsA("Light") or d:IsA("BillboardGui") or d:IsA("ClickDetector") then
+			d:Destroy()
+		end
+	end
+	local handle, muzzleHint
+	for _, d in ipairs(copy:GetDescendants()) do
+		if d:IsA("BasePart") then
+			local n = string.lower(d.Name)
+			if n == "handle" and not handle then
+				handle = d
+			end
+			for _, h in ipairs(MUZZLE_HINTS) do
+				if string.find(n, h, 1, true) and not muzzleHint then
+					muzzleHint = d
+				end
+			end
+		end
+	end
+	for _, d in ipairs(copy:GetChildren()) do
+		d.Parent = m
+	end
+	copy:Destroy()
+	local parts = {}
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("BasePart") then
+			table.insert(parts, d)
+		end
+	end
+	if #parts == 0 then
+		m:Destroy()
+		return nil
+	end
+	m.PrimaryPart = handle or parts[1]
+	-- 크기 맞춤 (가장 긴 변 = 무기 기대 길이)
+	pcall(function()
+		local size = m:GetExtentsSize()
+		local longest = math.max(size.X, size.Y, size.Z)
+		local want = w.ModelLength or w.Size.Z
+		if longest > 0 then
+			m:ScaleTo(m:GetScale() * (want / longest))
+		end
+	end)
+	-- 앞뒤 축: 바운딩 박스의 가장 긴 축, 총구 쪽 = 손잡이에서 먼 끝 (이름 힌트가 있으면 그쪽)
+	local bcf, bsize = m:GetBoundingBox()
+	local axes = { { bcf.RightVector, bsize.X }, { bcf.UpVector, bsize.Y }, { bcf.LookVector, bsize.Z } }
+	table.sort(axes, function(a, b)
+		return a[2] > b[2]
+	end)
+	local fwd, len = axes[1][1], axes[1][2]
+	local gripPos = (handle or m.PrimaryPart).Position
+	local endA = bcf.Position + fwd * len / 2
+	local endB = bcf.Position - fwd * len / 2
+	local muzzlePos
+	if muzzleHint then
+		muzzlePos = muzzleHint.Position
+		if (muzzlePos - endA).Magnitude > (muzzlePos - endB).Magnitude then
+			fwd = -fwd
+		end
+		muzzlePos = bcf.Position + fwd * len / 2
+	else
+		if (gripPos - endA).Magnitude < (gripPos - endB).Magnitude then
+			fwd = -fwd
+		end
+		muzzlePos = bcf.Position + fwd * len / 2
+	end
+	-- 위쪽: 두 번째로 긴 축 중 원래 모델에서 위를 향한 쪽
+	local up = axes[2][1]
+	local worldUp = (handle and handle.CFrame.UpVector) or Vector3.yAxis
+	if up:Dot(worldUp) < 0 then
+		up = -up
+	end
+	if math.abs(up:Dot(fwd)) > 0.9 then
+		up = axes[3][1]
+	end
+	-- 손잡이 위치는 총 아래쪽 뒤편으로 살짝 (Handle이 없으면 총 길이의 뒤 1/3 지점)
+	if not handle then
+		gripPos = bcf.Position - fwd * len * 0.18
+	end
+	local anchorCf = CFrame.lookAt(gripPos, gripPos + fwd, up)
+	local anchor = Instance.new("Part")
+	anchor.Name = m.Name .. "_Anchor"
+	anchor.Size = Vector3.new(0.05, 0.05, 0.05)
+	anchor.CFrame = anchorCf
+	anchor.Parent = m
+	local muzzle = Instance.new("Part")
+	muzzle.Name = m.Name .. "_Muzzle"
+	muzzle.Size = Vector3.new(0.05, 0.05, 0.05)
+	muzzle.CFrame = CFrame.new(muzzlePos)
+	muzzle.Parent = m
+	for _, p in ipairs(parts) do
+		p:SetAttribute("KeepLook", true)
+	end
+	m.PrimaryPart = anchor
+	return m
+end
+
 -- 모델을 Anchor 기준으로 정리: PrimaryPart = Anchor, 표식 숨김, 색 입히기
 local function finish(model, accentColor, bodyColor, bodyMaterial)
 	local anchor, muzzle
@@ -145,7 +255,13 @@ local function finish(model, accentColor, bodyColor, bodyMaterial)
 			p.CastShadow = false
 			p.Massless = true
 			p:SetAttribute("Kind", k)
-			if k == "Anchor" or k == "Muzzle" then
+			if p:GetAttribute("KeepLook") then
+				-- 상점 총: 원래 색·재질 유지 (스킨은 Body만 바꾸지 않음)
+				if k == "Anchor" or k == "Muzzle" then
+					p.Transparency = 1
+				end
+				p:SetAttribute("Kind", "Store")
+			elseif k == "Anchor" or k == "Muzzle" then
 				p.Transparency = 1
 				if k == "Anchor" then
 					anchor = p
@@ -180,12 +296,31 @@ end
 
 -- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택)
 function ModelKit.Gun(weaponId, accent, skin, skinMaterial)
+	local w = Weapons.Get(weaponId)
+	if w.StoreModel then
+		local sm = storeSource(w)
+		if sm then
+			sm:SetAttribute("Imported", true)
+			sm:SetAttribute("StoreGun", true)
+			return finish(sm, accent, nil, nil)
+		end
+	end
 	local model, imported = source("Gun_" .. weaponId)
 	if not model then
 		model = fallbackGun(weaponId)
 	end
 	model:SetAttribute("Imported", imported)
 	return finish(model, accent, skin and skin.Color or nil, skinMaterial)
+end
+
+-- 상점 총 모델이 실제로 들어 있는지 (없으면 상점에 표시 안 함)
+function ModelKit.HasStoreModel(weaponId)
+	local w = Weapons.ById[weaponId]
+	if not w or not w.StoreModel then
+		return true
+	end
+	local folder = ReplicatedStorage:FindFirstChild("StoreGuns")
+	return folder ~= nil and folder:FindFirstChild(w.StoreModel) ~= nil
 end
 
 function ModelKit.Helmet(accent)

@@ -95,33 +95,61 @@ local function ramp(parent, x1, x2, z, width, baseY, height)
 	})
 end
 
--- 맵별 조명: Day(크로마 스퀘어·로비) / Sunset(스카이 루프탑, 처음 버전의 노을 네온)
+-- 맵별 조명 (레퍼런스: 낮게 뜬 해 + 눈부심, 햇살 줄기, 따뜻한 대기 안개, 입체 구름, 먼 곳 살짝 흐림)
+-- Day(크로마 스퀘어·로비) / Sunset(스카이 루프탑 노을 네온) / City(시가전 골든 아워)
 local PRESETS = {
-	Day = { Clock = 14.2, Bright = 3, Amb = Color3.fromRGB(140, 146, 165), Out = Color3.fromRGB(165, 172, 192), Spec = 0.6,
-		AtmDensity = 0.27, AtmColor = Color3.fromRGB(199, 222, 255), AtmDecay = Color3.fromRGB(110, 150, 215), Haze = 1.1, Glare = 0.2,
-		Sat = 0.22, Con = 0.06, Tint = Color3.fromRGB(255, 252, 248), Bloom = 0.35, Thresh = 1.7 },
-	Sunset = { Clock = 17.6, Bright = 2.2, Amb = Color3.fromRGB(90, 90, 110), Out = Color3.fromRGB(140, 140, 160), Spec = 1,
-		AtmDensity = 0.25, AtmColor = Color3.fromRGB(220, 200, 255), AtmDecay = Color3.fromRGB(120, 80, 160), Haze = 0, Glare = 0,
-		Sat = 0.18, Con = 0.08, Tint = Color3.fromRGB(255, 244, 250), Bloom = 0.6, Thresh = 1.4 },
+	Day = { Clock = 14.6, Lat = 35, Bright = 3, Amb = Color3.fromRGB(140, 146, 165), Out = Color3.fromRGB(165, 172, 192), Spec = 0.6,
+		AtmDensity = 0.3, AtmOffset = 0.2, AtmColor = Color3.fromRGB(205, 225, 255), AtmDecay = Color3.fromRGB(110, 150, 215), Haze = 1.4, Glare = 0.5,
+		Sat = 0.2, Con = 0.08, Tint = Color3.fromRGB(255, 252, 246), Bloom = 0.4, Thresh = 1.6,
+		Rays = 0.08, RaySpread = 0.7, Dof = 0.12, Clouds = { Cover = 0.55, Density = 0.65, Color = Color3.fromRGB(255, 255, 255) }, Sun = 16 },
+	Sunset = { Clock = 17.6, Lat = 35, Bright = 2.2, Amb = Color3.fromRGB(90, 90, 110), Out = Color3.fromRGB(140, 140, 160), Spec = 1,
+		AtmDensity = 0.27, AtmOffset = 0.15, AtmColor = Color3.fromRGB(225, 200, 255), AtmDecay = Color3.fromRGB(120, 80, 160), Haze = 0.8, Glare = 0.6,
+		Sat = 0.18, Con = 0.1, Tint = Color3.fromRGB(255, 242, 248), Bloom = 0.6, Thresh = 1.4,
+		Rays = 0.1, RaySpread = 0.8, Dof = 0.12, Clouds = { Cover = 0.5, Density = 0.55, Color = Color3.fromRGB(255, 214, 236) }, Sun = 18 },
+	-- 시가전: 레퍼런스 1번처럼 지평선 가까운 해, 주황빛 먼지 안개, 햇살 번짐, 먼 건물은 실루엣
+	City = { Clock = 17.75, Lat = 25, Bright = 2.6, Amb = Color3.fromRGB(110, 86, 78), Out = Color3.fromRGB(150, 118, 100), Spec = 1,
+		AtmDensity = 0.42, AtmOffset = 0.25, AtmColor = Color3.fromRGB(255, 196, 150), AtmDecay = Color3.fromRGB(176, 104, 74), Haze = 2.6, Glare = 1.6,
+		Sat = 0.06, Con = 0.14, Tint = Color3.fromRGB(255, 232, 208), Bloom = 0.7, Thresh = 1.15,
+		Rays = 0.16, RaySpread = 0.85, Dof = 0.28, Clouds = { Cover = 0.62, Density = 0.7, Color = Color3.fromRGB(255, 196, 160) }, Sun = 22 },
 }
+local function ensure(class, parent)
+	local o = parent:FindFirstChildOfClass(class)
+	if not o then
+		o = Instance.new(class)
+		o.Parent = parent
+	end
+	return o
+end
+
 function MapBuilder.ApplyLighting(name)
 	local p = PRESETS[name] or PRESETS.Day
 	Lighting.ClockTime = p.Clock
+	Lighting.GeographicLatitude = p.Lat or 35
 	Lighting.Brightness = p.Bright
 	Lighting.Ambient = p.Amb
 	Lighting.OutdoorAmbient = p.Out
 	Lighting.EnvironmentSpecularScale = p.Spec
-	local a = Lighting:FindFirstChildOfClass("Atmosphere")
-	if a then
-		a.Density, a.Color, a.Decay, a.Haze, a.Glare = p.AtmDensity, p.AtmColor, p.AtmDecay, p.Haze, p.Glare
-	end
-	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
-	if cc then
-		cc.Saturation, cc.Contrast, cc.TintColor = p.Sat, p.Con, p.Tint
-	end
-	local b = Lighting:FindFirstChildOfClass("BloomEffect")
-	if b then
-		b.Intensity, b.Threshold = p.Bloom, p.Thresh
+	local a = ensure("Atmosphere", Lighting)
+	a.Density, a.Offset, a.Color, a.Decay, a.Haze, a.Glare = p.AtmDensity, p.AtmOffset or 0.15, p.AtmColor, p.AtmDecay, p.Haze, p.Glare
+	local cc = ensure("ColorCorrectionEffect", Lighting)
+	cc.Saturation, cc.Contrast, cc.TintColor = p.Sat, p.Con, p.Tint
+	local b = ensure("BloomEffect", Lighting)
+	b.Intensity, b.Threshold, b.Size = p.Bloom, p.Thresh, 28
+	local rays = ensure("SunRaysEffect", Lighting)
+	rays.Intensity, rays.Spread = p.Rays or 0.06, p.RaySpread or 0.6
+	local dof = ensure("DepthOfFieldEffect", Lighting)
+	dof.FarIntensity = p.Dof or 0.1
+	dof.NearIntensity = 0
+	dof.FocusDistance = 40
+	dof.InFocusRadius = 90
+	local sky = ensure("Sky", Lighting)
+	sky.SunAngularSize = p.Sun or 14
+	local clouds = ensure("Clouds", workspace.Terrain)
+	if p.Clouds then
+		clouds.Enabled = true
+		clouds.Cover, clouds.Density, clouds.Color = p.Clouds.Cover, p.Clouds.Density, p.Clouds.Color
+	else
+		clouds.Enabled = false
 	end
 end
 
@@ -169,7 +197,8 @@ function MapBuilder.SetupLighting()
 		b.Intensity = 0.35
 		b.Threshold = 1.7
 		b.Parent = Lighting
-	end
+	end	Lighting.ShadowSoftness = 0.18
+	MapBuilder.ApplyLighting("Day")
 end
 
 -- 기획서 3장: 엄폐물은 어두운 외곽선으로 바닥과 구분
@@ -492,28 +521,28 @@ function MapBuilder.BuildLobby()
 	------------------------------------------------------------------
 	-- 매치 대기 발판 무대 (부채꼴 배치)
 	------------------------------------------------------------------
-	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(124, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
+	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(146, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
 		Color = Color3.fromRGB(28, 26, 42), Material = Enum.Material.DiamondPlate })
-	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(124, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
+	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(146, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
 		Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })
-	local pads, labels = {}, {}
+	-- 팀전은 A존 / B존 발판 두 개: 같은 존에 선 사람끼리 한 팀으로 시작
+	local ZONE_COLORS = { Color3.fromRGB(0, 170, 255), Color3.fromRGB(255, 120, 40) }
+	local ZONE_NAMES = { "A", "B" }
+	local pads, labels, padList = {}, {}, {}
 	local n = #Config.Queues
 	local PAD_COLORS = { LOBBY_COLORS[2], LOBBY_COLORS[4], LOBBY_COLORS[1], LOBBY_COLORS[6], LOBBY_COLORS[5] }
-	for i, q in ipairs(Config.Queues) do
-		local t = (i - (n + 1) / 2)
-		local x = t * 23
-		local z = -26 - (2 - math.abs(t)) * 2.5
-		local c = PAD_COLORS[((i - 1) % #PAD_COLORS) + 1]
-		local base = Vector3.new(x, Y + 0.6, z)
-		cyl({ Name = "PadRim", Parent = deco, Height = 0.5, Diameter = 15.5, Position = base + Vector3.new(0, 0.25, 0), Color = c,
+
+	local function makePad(q, side, base, diameter, c)
+		cyl({ Name = "PadRim", Parent = deco, Height = 0.5, Diameter = diameter + 1.2, Position = base + Vector3.new(0, 0.25, 0), Color = c,
 			Material = Enum.Material.Neon, CanQuery = false }).Transparency = 0.15
-		cyl({ Name = "PadBase", Parent = lobby, Height = 0.9, Diameter = 14, Position = base + Vector3.new(0, 0.45, 0),
+		cyl({ Name = "PadBase", Parent = lobby, Height = 0.9, Diameter = diameter + 0.4, Position = base + Vector3.new(0, 0.45, 0),
 			Color = Color3.fromRGB(36, 34, 52), Material = Enum.Material.Metal })
-		local pad = cyl({ Name = "QueuePad_" .. q.Id, Parent = lobby, Height = 0.2, Diameter = 12, Position = base + Vector3.new(0, 1.0, 0),
-			Color = c, Material = Enum.Material.Neon })
+		local pad = cyl({ Name = "QueuePad_" .. q.Id .. (side > 0 and ("_" .. ZONE_NAMES[side]) or ""), Parent = lobby, Height = 0.2,
+			Diameter = diameter - 1.6, Position = base + Vector3.new(0, 1.0, 0), Color = c, Material = Enum.Material.Neon })
 		pad.Transparency = 0.3
 		pad:SetAttribute("QueueId", q.Id)
-		local beam = cyl({ Name = "Holo", Parent = deco, Height = 12, Diameter = 12.4, Position = base + Vector3.new(0, 7, 0), Color = c,
+		pad:SetAttribute("Side", side)
+		local beam = cyl({ Name = "Holo", Parent = deco, Height = 10, Diameter = diameter - 1.2, Position = base + Vector3.new(0, 6, 0), Color = c,
 			Material = Enum.Material.ForceField, CanCollide = false, CanQuery = false })
 		beam.CanTouch = false
 		beam.Transparency = 0.2
@@ -522,10 +551,10 @@ function MapBuilder.BuildLobby()
 		local pe = Instance.new("ParticleEmitter")
 		pe.Color = ColorSequence.new(c)
 		pe.LightEmission = 0.8
-		pe.Size = NumberSequence.new(0.35, 0)
+		pe.Size = NumberSequence.new(0.3, 0)
 		pe.Lifetime = NumberRange.new(1.4, 2.2)
 		pe.Speed = NumberRange.new(3, 6)
-		pe.Rate = 10
+		pe.Rate = 8
 		pe.SpreadAngle = Vector2.new(20, 20)
 		pe.EmissionDirection = Enum.NormalId.Right -- 원기둥을 눕혔으므로 Right = 위쪽
 		pe.Shape = Enum.ParticleEmitterShape.Disc
@@ -533,20 +562,67 @@ function MapBuilder.BuildLobby()
 		pe.Parent = att
 		local light = Instance.new("PointLight")
 		light.Color = c
-		light.Range = 16
+		light.Range = 14
 		light.Brightness = 2
 		light.Parent = pad
+		if side > 0 then
+			-- 발판 바로 위 작은 존 표시 (A / B + 인원)
+			local zb = Instance.new("BillboardGui")
+			zb.Name = "ZoneTag"
+			zb.Size = UDim2.new(4.2, 0, 1.5, 0)
+			zb.StudsOffset = Vector3.new(0, 3.2, 0)
+			zb.MaxDistance = 90
+			zb.LightInfluence = 0
+			zb.Adornee = pad
+			zb.Parent = pad
+			local zt = Instance.new("TextLabel")
+			zt.Name = "Text"
+			zt.Size = UDim2.fromScale(1, 1)
+			zt.BackgroundColor3 = c
+			zt.BackgroundTransparency = 0.1
+			zt.Font = Enum.Font.GothamBlack
+			zt.TextScaled = true
+			zt.TextColor3 = Color3.new(1, 1, 1)
+			zt.Text = ZONE_NAMES[side] .. "존 0/" .. q.TeamSize
+			zt.Parent = zb
+			local zc = Instance.new("UICorner")
+			zc.CornerRadius = UDim.new(0.3, 0)
+			zc.Parent = zt
+			pad:SetAttribute("ZoneLabel", true)
+		end
+		table.insert(padList, { Pad = pad, Queue = q.Id, Side = side })
+		return pad
+	end
+
+	for i, q in ipairs(Config.Queues) do
+		local t = (i - (n + 1) / 2)
+		local x = t * 28
+		local z = -26 - (2 - math.abs(t)) * 2.5
+		local c = PAD_COLORS[((i - 1) % #PAD_COLORS) + 1]
+		local base = Vector3.new(x, Y + 0.6, z)
+		local anchor
+		if q.Mode == "Solo" then
+			anchor = makePad(q, 0, base, 13, c)
+		else
+			-- 두 존 사이 칸막이 + 존 발판
+			part({ Name = "ZoneDivider", Parent = deco, Size = Vector3.new(0.4, 0.5, 11), Position = base + Vector3.new(0, 0.6, 0),
+				Color = c, Material = Enum.Material.Neon, CanQuery = false })
+			makePad(q, 1, base + Vector3.new(-6.1, 0, 0), 11.4, ZONE_COLORS[1])
+			makePad(q, 2, base + Vector3.new(6.1, 0, 0), 11.4, ZONE_COLORS[2])
+			anchor = part({ Name = "QueueBoardAnchor_" .. q.Id, Parent = deco, Size = Vector3.new(1, 1, 1), Position = base + Vector3.new(0, 1, 0),
+				Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
+		end
 		local mode = Config.Modes[q.Mode]
 		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
 		-- 안내판: 스터드 단위 크기라 멀리서 봐도 옆 발판 글씨와 겹치지 않음 (제목 크게 + 상태 작게)
 		local bb = Instance.new("BillboardGui")
 		bb.Name = "QueueBoard"
 		bb.Size = UDim2.new(10, 0, 3, 0)
-		bb.StudsOffset = Vector3.new(0, 7.5, 0)
+		bb.StudsOffset = Vector3.new(0, 8.5, 0)
 		bb.MaxDistance = 140
 		bb.LightInfluence = 0
-		bb.Adornee = pad
-		bb.Parent = pad
+		bb.Adornee = anchor
+		bb.Parent = anchor
 		local plate = Instance.new("Frame")
 		plate.Size = UDim2.fromScale(1, 1)
 		plate.BackgroundColor3 = Color3.fromRGB(16, 14, 28)
@@ -578,9 +654,9 @@ function MapBuilder.BuildLobby()
 		sub.TextScaled = true
 		sub.RichText = true
 		sub.TextColor3 = Color3.fromRGB(200, 200, 220)
-		sub.Text = "발판을 밟아 참가"
+		sub.Text = q.Mode == "Solo" and "발판을 밟아 참가" or "A존 / B존 중 골라 서기"
 		sub.Parent = plate
-		pads[q.Id] = pad
+		pads[q.Id] = anchor
 		labels[q.Id] = { Label = sub, Title = title2, Ranked = q.Ranked }
 	end
 
@@ -667,9 +743,10 @@ function MapBuilder.BuildLobby()
 		Folder = lobby,
 		Spawn = spawn,
 		SpawnCFrame = CFrame.new(0, Y + 4, 44),
-		QueuePads = pads,
+		QueuePads = pads, -- 큐별 대표 위치(안내판 기준)
+		QueuePadList = padList, -- { Pad, Queue, Side(0=솔로, 1=A존, 2=B존) }
 		QueueLabels = labels,
-		PadRadius = 7,
+		PadRadius = 5.6,
 		Leaderboard = list,
 	}
 end

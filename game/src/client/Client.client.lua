@@ -172,6 +172,7 @@ end)
 
 remotes.Damaged.OnClientEvent:Connect(function(fromPos, amount, color)
 	HUD.DamageFlash(color or Color3.fromRGB(255, 60, 60)) -- 기획서 4장: 화면 가장자리 적 색 비네트
+	HUD.ScreenSplat(color, amount)
 	Effects.Shake(math.clamp(amount / 80, 0.05, 0.35))
 	SoundBank.Play("hurt", nil, 0.5)
 end)

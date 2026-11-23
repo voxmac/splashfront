@@ -656,12 +656,14 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 	end)
 	-- 스폰 지점 무기 교체: 숫자 1~6 = 무기 목록 순서, T = 다음 보유 무기
-	local NUM = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six }
+	-- 숫자 = 보유 무기 순서 (교체 바의 [번호]와 같음)
+	local NUM = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six,
+		Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
 	local function ownedList()
 		local s = "," .. (player:GetAttribute("Owned") or "") .. ","
 		local out = {}
 		for _, w in ipairs(Weapons.List) do
-			if string.find(s, "," .. w.Id .. ",", 1, true) then
+			if string.find(s, "," .. w.Id .. ",", 1, true) and ModelKit.HasStoreModel(w.Id) then
 				table.insert(out, w.Id)
 			end
 		end
@@ -674,8 +676,7 @@ function WC.Init(remoteFolder, hud, effects)
 		local target = nil
 		for i, k in ipairs(NUM) do
 			if input.KeyCode == k then
-				local w = Weapons.List[i]
-				target = w and w.Id
+				target = ownedList()[i]
 			end
 		end
 		if input.KeyCode == Enum.KeyCode.T then

@@ -166,6 +166,20 @@ local function queueCounts()
 	return counts
 end
 
+-- 팀전 존(A=1/B=2)별 대기 인원
+local function sideCounts(queueId)
+	local c = { 0, 0 }
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl:GetAttribute("Queue") == queueId and not pl:GetAttribute("InMatch") then
+			local sd = pl:GetAttribute("QueueSide")
+			if sd == 1 or sd == 2 then
+				c[sd] = c[sd] + 1
+			end
+		end
+	end
+	return c
+end
+
 local function broadcast()
 	local flags = {}
 	for _, f in ipairs(S.Flags) do
@@ -212,13 +226,27 @@ local function broadcast()
 			end
 		end
 		local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		local sides = q.Mode ~= "Solo" and sideCounts(q.Id) or nil
 		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice,
-			Capacity = cap, Full = counts[q.Id] >= cap }
+			Capacity = cap, Full = counts[q.Id] >= cap, Sides = sides, TeamSize = q.TeamSize }
+		if sides and lobby and lobby.QueuePadList then
+			for _, ent in ipairs(lobby.QueuePadList) do
+				if ent.Queue == q.Id and ent.Side > 0 then
+					local tag = ent.Pad:FindFirstChild("ZoneTag")
+					local tx = tag and tag:FindFirstChild("Text")
+					local want = (ent.Side == 1 and "A" or "B") .. "존 " .. sides[ent.Side] .. "/" .. q.TeamSize
+					if tx and tx.Text ~= want then
+						tx.Text = want
+					end
+				end
+			end
+		end
 		-- 로비 발판 위 안내판
 		local pl = lobby and lobby.QueueLabels and lobby.QueueLabels[q.Id]
 		if pl then
 			local n = counts[q.Id]
-			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n) or '<font color="#B0B0C8">발판을 밟아 참가</font>'
+			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n)
+				or (q.Mode == "Solo" and '<font color="#B0B0C8">발판을 밟아 참가</font>' or '<font color="#B0B0C8">A존 / B존 중 골라 서기</font>')
 			local txt = line2 .. (pl.Ranked and '  <font color="#FFC840">랭크</font>' or "")
 			if pl.Label.Text ~= txt then
 				pl.Label.Text = txt
@@ -677,16 +705,12 @@ local function startMatch(q)
 				b.Label.Text = t.Name
 			end
 		end
-		-- 레이팅 순으로 지그재그 배치(1,2,2,1,1,2…)해 팀 실력을 맞춤 → 남는 자리는 봇
-		table.sort(humans, function(a, b)
-			return (a:GetAttribute("Rating") or 0) > (b:GetAttribute("Rating") or 0)
-		end)
+		-- 로비에서 선 존(A=1팀, B=2팀) 그대로 팀 구성. 존 정보가 없으면 인원이 적은 쪽으로 → 남는 자리는 봇
 		local per = { 0, 0 }
-		for i = 1, #humans do
-			local k = (i - 1) % 4
-			local team = (k == 0 or k == 3) and 1 or 2
-			if per[team] >= q.TeamSize then
-				team = 3 - team
+		for i, pl in ipairs(humans) do
+			local team = pl:GetAttribute("QueueSide")
+			if team ~= 1 and team ~= 2 or per[team] >= q.TeamSize then
+				team = (per[1] <= per[2]) and 1 or 2
 			end
 			per[team] = per[team] + 1
 			slots[i] = { OwnerId = team, TeamId = team }
@@ -893,6 +917,7 @@ local function endMatch()
 		if e.Player and e.Player.Parent then
 			e.Player:SetAttribute("InMatch", false)
 			e.Player:SetAttribute("Queue", nil)
+			e.Player:SetAttribute("QueueSide", nil)
 			e.Player:SetAttribute("OwnerId", nil)
 			e.Player:SetAttribute("TeamColor", nil)
 			e.Player:SetAttribute("SpawnZone", false)
@@ -939,34 +964,66 @@ function MatchService.QueueHost(queueId)
 	return best
 end
 
-local function padOf(queueId)
-	return lobby and lobby.QueuePads and lobby.QueuePads[queueId]
+-- 큐 + 존에 해당하는 발판 (솔로는 side 0)
+local function padOf(queueId, side)
+	for _, ent in ipairs(lobby and lobby.QueuePadList or {}) do
+		if ent.Queue == queueId and ent.Side == (side or 0) then
+			return ent.Pad
+		end
+	end
+	return nil
 end
 
-local function setQueue(player, queueId, viaPad)
+local function setQueue(player, queueId, viaPad, side)
 	if player:GetAttribute("InMatch") then
 		return
 	end
-	if queueId ~= nil and not queueDef(queueId) then
+	local q = queueId ~= nil and queueDef(queueId)
+	if queueId ~= nil and not q then
 		return
 	end
-	if player:GetAttribute("Queue") == queueId then
+	if q and q.Mode ~= "Solo" then
+		local c = sideCounts(queueId)
+		if player:GetAttribute("Queue") == queueId then
+			local cur = player:GetAttribute("QueueSide")
+			if cur == 1 or cur == 2 then
+				c[cur] = c[cur] - 1
+			end
+		end
+		if side ~= 1 and side ~= 2 then
+			side = (c[1] <= c[2]) and 1 or 2
+		end
+		if c[side] >= q.TeamSize then
+			local other = 3 - side
+			if viaPad or c[other] >= q.TeamSize then
+				remotes.Notify:FireClient(player, (side == 1 and "A" or "B") .. "존이 꽉 찼어요" .. (c[other] < q.TeamSize and " — 반대쪽 존에 서 주세요" or ""),
+					Color3.fromRGB(255, 180, 120))
+				return
+			end
+			side = other
+		end
+	else
+		side = nil
+	end
+	if player:GetAttribute("Queue") == queueId and player:GetAttribute("QueueSide") == side then
 		return
 	end
 	player:SetAttribute("Queue", queueId)
+	player:SetAttribute("QueueSide", side)
 	if queueId then
 		player:SetAttribute("QueueTime", os.clock())
 		joinAt[player] = os.clock()
 		Telemetry.Funnel(player, "Queued")
 		-- UI로 참가하면 해당 발판 위로 이동 (발판을 벗어나면 취소되는 규칙과 맞춤)
-		local pad = padOf(queueId)
+		local pad = padOf(queueId, side)
 		local char = player.Character
 		if not viaPad and pad and char and char:FindFirstChild("HumanoidRootPart") then
 			local a = math.random() * math.pi * 2
-			char:PivotTo(CFrame.new(pad.Position + Vector3.new(math.cos(a) * 2.5, 3.5, math.sin(a) * 2.5)))
+			char:PivotTo(CFrame.new(pad.Position + Vector3.new(math.cos(a) * 2, 3.5, math.sin(a) * 2)))
 		end
 	else
 		player:SetAttribute("QueueTime", nil)
+		player:SetAttribute("QueueSide", nil)
 		joinAt[player] = nil
 	end
 end
@@ -1022,7 +1079,7 @@ function MatchService.LeaveMatch(player)
 			Combatants.Remove(e)
 		end
 	end)
-	for _, a in ipairs({ "Queue", "QueueTime", "OwnerId", "TeamId", "TeamColor" }) do
+	for _, a in ipairs({ "Queue", "QueueTime", "QueueSide", "OwnerId", "TeamId", "TeamColor" }) do
 		player:SetAttribute(a, nil)
 	end
 	player:SetAttribute("SpawnZone", false)
@@ -1163,12 +1220,21 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 		end
 	end)
 	remotes.SwitchWeapon.OnServerEvent:Connect(switchWeapon)
-	for id, pad in pairs(lobby.QueuePads) do
-		pad.Touched:Connect(function(hit)
+	for _, ent in ipairs(lobby.QueuePadList) do
+		local id, side = ent.Queue, ent.Side
+		ent.Pad.Touched:Connect(function(hit)
 			local pl = Players:GetPlayerFromCharacter(hit.Parent)
-			if pl and pl:GetAttribute("Queue") ~= id and not pl:GetAttribute("InMatch") then
-				setQueue(pl, id, true)
-				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
+			if not pl or pl:GetAttribute("InMatch") then
+				return
+			end
+			local want = side > 0 and side or nil
+			if pl:GetAttribute("Queue") == id and pl:GetAttribute("QueueSide") == want then
+				return
+			end
+			setQueue(pl, id, true, want)
+			if pl:GetAttribute("Queue") == id then
+				local zone = side == 1 and " A존" or side == 2 and " B존" or ""
+				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
 			end
 		end)
 	end
@@ -1179,13 +1245,14 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local qid = pl:GetAttribute("Queue")
 				if qid and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
-					local pad = padOf(qid)
+					local pad = padOf(qid, pl:GetAttribute("QueueSide"))
 					local char = pl.Character
 					local r = char and char:FindFirstChild("HumanoidRootPart")
 					local hum = char and char:FindFirstChildOfClass("Humanoid")
 					if pad and r and hum and hum.Health > 0 then
 						local d = r.Position - pad.Position
-						local onPad = Vector3.new(d.X, 0, d.Z).Magnitude <= (lobby.PadRadius or 7) and d.Y > -2 and d.Y < 9
+						local radius = math.max(pad.Size.Y, pad.Size.Z) / 2 + 0.8
+						local onPad = Vector3.new(d.X, 0, d.Z).Magnitude <= radius and d.Y > -2 and d.Y < 9
 						if not onPad then
 							setQueue(pl, nil)
 							remotes.Notify:FireClient(pl, "발판을 벗어나 대기가 취소됐어요", Color3.fromRGB(255, 180, 120))

@@ -65,6 +65,15 @@ local maps = {
 	MapBuilder.BuildArena(),      -- 크로마 스퀘어
 	MapBuilder.BuildSkyRooftop(), -- 스카이 루프탑
 }
+-- 시가전: ServerStorage에 BigCity 모델이 있을 때만 추가
+do
+	local ok, city = pcall(require(script.Parent.CityMap).Build)
+	if ok and city then
+		table.insert(maps, city)
+	elseif not ok then
+		warn("[SplashFront] 시가전 맵 생성 실패: " .. tostring(city))
+	end
+end
 
 -- 업로드한 표면 텍스처·HUD 아이콘 (없으면 단색·이모지로 대체)
 ImageService.Load()

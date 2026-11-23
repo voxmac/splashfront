@@ -327,9 +327,44 @@ def scope_overlay():
     im.resize((1024, 1024), Image.LANCZOS).save(os.path.join(ICO, "scope.png"))
 
 
+def splat_overlay():
+    """화면 잉크 튀김: 흰 잉크 방울(가운데 덩어리 + 흘러내림 + 작은 방울). 게임에서 색을 입혀 씀"""
+    import math, random
+    S = 512 * 2
+    im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    rnd = random.Random(7)
+    c = S // 2
+    pts = []
+    for k in range(28):
+        a = k / 28 * math.tau
+        r = S * (0.24 + rnd.uniform(-0.05, 0.07))
+        pts.append((c + math.cos(a) * r, c + math.sin(a) * r))
+    d.polygon(pts, fill=(255, 255, 255, 255))
+    for k in range(7):
+        a = rnd.uniform(0, math.tau)
+        r = S * rnd.uniform(0.2, 0.3)
+        rr = S * rnd.uniform(0.06, 0.1)
+        x, y = c + math.cos(a) * r, c + math.sin(a) * r
+        d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=(255, 255, 255, 255))
+    for k in range(3):  # 흘러내림
+        x = c + rnd.uniform(-S * 0.15, S * 0.15)
+        w = S * rnd.uniform(0.03, 0.05)
+        L = S * rnd.uniform(0.18, 0.3)
+        d.rounded_rectangle([x - w, c, x + w, c + S * 0.2 + L], radius=int(w), fill=(255, 255, 255, 255))
+        d.ellipse([x - w * 1.4, c + S * 0.2 + L - w, x + w * 1.4, c + S * 0.2 + L + w * 1.8], fill=(255, 255, 255, 255))
+    for k in range(14):  # 튄 방울
+        a = rnd.uniform(0, math.tau)
+        r = S * rnd.uniform(0.36, 0.47)
+        rr = S * rnd.uniform(0.01, 0.03)
+        x, y = c + math.cos(a) * r, c + math.sin(a) * r
+        d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=(255, 255, 255, 255))
+    im.resize((512, 512), Image.LANCZOS).save(os.path.join(ICO, "splat.png"))
+
+
 for f in (floor_tile, wall_panel, crate_wood, container_rib, ramp_plate, hazard):
     f()
-for f in (coin, flame, skull, crown, hourglass, quest, check, bomb, target, chest, trophy, scope_overlay):
+for f in (coin, flame, skull, crown, hourglass, quest, check, bomb, target, chest, trophy, scope_overlay, splat_overlay):
     f()
 
 # 미리보기 한 장
