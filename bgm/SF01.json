@@ -1,0 +1,65 @@
+{
+ "id": "SF01",
+ "title": "SPLASH FRONT game BGM (Roblox) - lobby, two maps, victory, defeat",
+ "time": "4",
+ "tracks": [
+  {
+   "name": "lobby",
+   "bpm": 96,
+   "key": "F major",
+   "duration": 100,
+   "seeds": [
+    9101,
+    9102
+   ],
+   "style": "instrumental, no vocals, chill lo-fi hip hop meets synthpop, neon city lounge at dusk, warm Rhodes chords, playful synth plucks, sidechained pads, relaxed punchy drums, deep round bass, video game menu music, steady groove that loops smoothly"
+  },
+  {
+   "name": "chroma",
+   "bpm": 124,
+   "key": "A minor",
+   "duration": 120,
+   "seeds": [
+    9201,
+    9202,
+    9203
+   ],
+   "style": "instrumental, no vocals, energetic synthpop hip hop battle music, bright neon arcade synth lead, funky slap bass, punchy trap drums with claps and snare rolls, colorful paintball team battle in a city plaza, upbeat competitive and fun, video game action music, constant high energy"
+  },
+  {
+   "name": "sky",
+   "bpm": 138,
+   "key": "D minor",
+   "duration": 120,
+   "seeds": [
+    9301,
+    9302,
+    9303
+   ],
+   "style": "instrumental, no vocals, driving electro breakbeat, high-altitude rooftop chase at sunset, soaring supersaw lead, wind atmosphere, fast breakbeat drums, heavy sub bass, heroic and tense, video game action music, constant high energy"
+  },
+  {
+   "name": "victory",
+   "bpm": 128,
+   "key": "C major",
+   "duration": 14,
+   "seeds": [
+    9401,
+    9402
+   ],
+   "style": "instrumental, no vocals, short triumphant victory fanfare jingle for a video game, bright synth brass and sparkling arpeggios, punchy drum fill, celebratory, ends on a big final chord"
+  },
+  {
+   "name": "defeat",
+   "bpm": 90,
+   "key": "A minor",
+   "duration": 10,
+   "seeds": [
+    9501,
+    9502
+   ],
+   "style": "instrumental, no vocals, short cute game over jingle for a video game, playful descending synth melody, soft drums, a little sad but light, ends softly"
+  }
+ ],
+ "note": "Instrumental BGM for SPLASH FRONT (Roblox). ACE-Step 1.5 (MIT) on a Kaggle T4. tools/postprocess.py cuts loops and picks a take per track; set \"pick\": {\"chroma\": 2} to override."
+}

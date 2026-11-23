@@ -1,0 +1,90 @@
+name: bgm
+# Game BGM on a free Kaggle T4 (ACE-Step 1.5, MIT), same way as the MIDLIFE COMMUTER channel:
+# commit bgm/SFxx.json (or Actions -> bgm -> Run workflow) -> Kaggle makes every take -> loops are cut here (CPU)
+# -> assets/audio/*.ogg committed + all takes in a GitHub Release + a summary issue (GitHub emails you).
+# Needs repo secrets KAGGLE_USERNAME / KAGGLE_KEY (the same values as voxmac/midlifecommuter).
+on:
+  push:
+    branches: [main]
+    paths: ["bgm/*.json"]
+  workflow_dispatch:
+    inputs:
+      id: {description: "Job id, e.g. SF01", required: true}
+      collect_only: {description: "true = do not start Kaggle again, only fetch the finished output", required: false, default: "false"}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency: {group: bgm, cancel-in-progress: false}
+
+jobs:
+  bgm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Which job
+        id: j
+        run: |
+          if [ -n "${{ github.event.inputs.id }}" ]; then echo "id=${{ github.event.inputs.id }}" >> $GITHUB_OUTPUT
+          else echo "id=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'bgm/*.json' | head -1 | xargs -r basename | sed 's/.json//')" >> $GITHUB_OUTPUT; fi
+      - name: Kaggle login
+        run: |
+          [ -n "$KAGGLE_KEY" ] || { echo "::error::Add repo secrets KAGGLE_USERNAME and KAGGLE_KEY (Settings -> Secrets and variables -> Actions)"; exit 1; }
+          pip install -q kaggle six soundfile numpy
+          mkdir -p ~/.kaggle
+          if echo "$KAGGLE_KEY" | grep -Eq '^[0-9a-f]{32}$'; then printf '{"username":"%s","key":"%s"}' "$KAGGLE_USERNAME" "$KAGGLE_KEY" > ~/.kaggle/kaggle.json
+          else printf '%s' "$KAGGLE_KEY" > ~/.kaggle/access_token; echo "KAGGLE_API_TOKEN=$KAGGLE_KEY" >> $GITHUB_ENV; fi
+          chmod 600 ~/.kaggle/*
+      - name: Start on Kaggle (free T4)
+        if: github.event.inputs.collect_only != 'true'
+        run: |
+          E=${{ steps.j.outputs.id }}; d=$(python tools/bgm_kernel.py bgm/$E.json $KAGGLE_USERNAME)
+          out=$(kaggle kernels push -p "$d" --accelerator NvidiaTeslaT4 2>&1); echo "$out"
+          echo "$out" | grep -qi "successfully pushed" || { echo "::error::Kaggle did not take the job (GPU quota or another session running)"; exit 1; }
+      - name: Wait for Kaggle (checks every 5 minutes)
+        run: |
+          slug="$KAGGLE_USERNAME/splashfront-bgm-$(echo ${{ steps.j.outputs.id }} | tr 'A-Z' 'a-z')"
+          for i in $(seq 1 66); do
+            st=$(kaggle kernels status $slug 2>/dev/null | grep -o 'has status "[^"]*"' | tr 'A-Z' 'a-z'); echo "$(date -u +%H:%M) $st"
+            case "$st" in *complete*) break;; *error*|*cancel*) echo "failed=1" >> $GITHUB_ENV; break;; esac
+            sleep 300
+          done
+          mkdir -p dl && kaggle kernels output $slug -p dl -q || true
+          ls -R dl | head -40
+      - name: Cut loops, pick takes
+        if: env.failed != '1'
+        run: |
+          sudo apt-get -qq update >/dev/null && sudo apt-get -qq install -y ffmpeg >/dev/null
+          python tools/postprocess.py bgm/${{ steps.j.outputs.id }}.json dl assets/audio
+      - name: Publish (release + commit + issue)
+        run: |
+          E=${{ steps.j.outputs.id }}; TAG="$E-$(date -u +%m%d-%H%M)"
+          if [ "${failed:-0}" = "1" ] || [ ! -f assets/audio/manifest.json ]; then
+            LOG=$(ls dl/*.log 2>/dev/null | head -1)
+            { echo "## $E failed on Kaggle"; echo '```'; [ -n "$LOG" ] && tail -c 3500 "$LOG"; echo '```'; } > body.md
+            gh issue create --title "BGM failed: $E" --body-file body.md; exit 1
+          fi
+          gh release create "$TAG" $(find dl -name '*.mp3') assets/audio/*.mp3 assets/audio/manifest.json --title "$E BGM takes" \
+            --notes "Every take (trackname_vN.mp3) and the game cut (trackname.mp3). The .ogg files are committed in assets/audio/."
+          git config user.name "splashfront-bot"; git config user.email "bot@users.noreply.github.com"
+          git add assets/audio; git commit -q -m "$E BGM: loops cut [skip ci]" && { for i in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done; }
+          python - "$TAG" > body.md <<'PY'
+          import json, sys
+          m = json.load(open("assets/audio/manifest.json")); tag = sys.argv[1]
+          base = f"https://github.com/${{ github.repository }}/releases/download/{tag}"
+          print(f"## {m['job']} BGM ready\n\n| track | kind | length | picked | other takes |\n| --- | --- | --- | --- | --- |")
+          for n, t in m["tracks"].items():
+              others = " ".join(f"[v{k['version']}]({base}/{n}_v{k['version']}.mp3)" for k in t["takes"])
+              print(f"| [{n}]({base}/{n}.mp3) | {t['kind']} | {t['seconds']} s | v{t['picked']} ({t['picked_by']}) | {others} |")
+          print("\nTo use another take: add `\"pick\": {\"chroma\": 2}` to the job file, then Actions -> bgm -> Run workflow with collect_only = true.")
+          PY
+          gh issue create --title "BGM ready: $E" --body-file body.md
