@@ -191,7 +191,7 @@ local function buildAdmin()
 end
 
 function CBT.ToggleAdmin()
-	if not player:GetAttribute("IsAdmin") then
+	if not player:GetAttribute("IsAdmin") or not adminFrame then
 		return
 	end
 	adminFrame.Visible = not adminFrame.Visible
@@ -210,11 +210,13 @@ function CBT.Init(remoteFolder, hud)
 		player:WaitForChild("PlayerGui"))
 	buildFeedback()
 	-- 서버가 DevTools 속성을 넣을 때까지 잠깐 대기 (정식 서버면 운영 명령만 표시)
-	local t0 = os.clock()
-	while player:GetAttribute("DevTools") == nil and os.clock() - t0 < 5 do
-		task.wait(0.1)
-	end
-	buildAdmin()
+	task.spawn(function()
+		local t0 = os.clock()
+		while player:GetAttribute("DevTools") == nil and os.clock() - t0 < 5 do
+			task.wait(0.1)
+		end
+		buildAdmin()
+	end)
 
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
 	-- 0.5: 왼쪽 아래 피드백 버튼 제거 (채팅창 자리). 피드백은 F4 또는 결과 화면 안내로
