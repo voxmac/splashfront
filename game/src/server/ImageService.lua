@@ -119,7 +119,6 @@ end
 
 -- 로비: 어두운 바닥에 타일 무늬를 보라빛으로 물들여 깔기
 ImageService.LobbyRules = {
-	Floor = { "floor_tile", { F.Top }, 10, 10, true },
 	Stage = { "ramp_plate", { F.Top }, 6, 6, true },
 }
 

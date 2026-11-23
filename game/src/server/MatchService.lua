@@ -234,7 +234,7 @@ local function broadcast()
 				if ent.Queue == q.Id and ent.Side > 0 then
 					local tag = ent.Pad:FindFirstChild("ZoneTag")
 					local tx = tag and tag:FindFirstChild("Text")
-					local want = (ent.Side == 1 and "A" or "B") .. "존 " .. sides[ent.Side] .. "/" .. q.TeamSize
+					local want = "ZONE " .. sides[ent.Side] .. "/" .. q.TeamSize
 					if tx and tx.Text ~= want then
 						tx.Text = want
 					end
@@ -246,7 +246,7 @@ local function broadcast()
 		if pl then
 			local n = counts[q.Id]
 			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n)
-				or (q.Mode == "Solo" and '<font color="#B0B0C8">발판을 밟아 참가</font>' or '<font color="#B0B0C8">A존 / B존 중 골라 서기</font>')
+				or (q.Mode == "Solo" and '<font color="#B0B0C8">발판을 밟아 참가</font>' or '<font color="#B0B0C8">같은 ZONE에 선 사람끼리 한 팀</font>')
 			local txt = line2 .. (pl.Ranked and '  <font color="#FFC840">랭크</font>' or "")
 			if pl.Label.Text ~= txt then
 				pl.Label.Text = txt
@@ -895,6 +895,11 @@ local function endMatch()
 	Telemetry.RecordMatch(statRows)
 
 	local winnerInfo = winner and ownerInfo(winner)
+	pcall(function()
+		local mvp = rows[1]
+		RankService.NoteMatch({ Map = arena.Name or "?", Mode = tostring(S.QueueId or S.Mode), Winner = winnerInfo and winnerInfo.Name or nil,
+			MVP = mvp and mvp.Name or nil, Kills = mvp and mvp.Kills or 0, Cells = mvp and mvp.Cells or 0 })
+	end)
 	remotes.Results:FireAllClients({
 		Mode = S.Mode,
 		Teams = final,
@@ -927,7 +932,7 @@ local function endMatch()
 		end
 	end
 	Combatants.Clear()
-	MapBuilder.ApplyLighting("Day") -- 로비로 돌아오면 낮 조명
+	MapBuilder.ApplyLighting("Lobby") -- 로비로 돌아오면 격납고 조명
 	S.Phase = "Lobby"
 	S.Mode = nil
 	S.QueueId = nil
@@ -996,7 +1001,7 @@ local function setQueue(player, queueId, viaPad, side)
 		if c[side] >= q.TeamSize then
 			local other = 3 - side
 			if viaPad or c[other] >= q.TeamSize then
-				remotes.Notify:FireClient(player, (side == 1 and "A" or "B") .. "존이 꽉 찼어요" .. (c[other] < q.TeamSize and " — 반대쪽 존에 서 주세요" or ""),
+				remotes.Notify:FireClient(player, (side == 1 and "블루" or "오렌지") .. " ZONE이 꽉 찼어요" .. (c[other] < q.TeamSize and " — 옆 ZONE에 서 주세요" or ""),
 					Color3.fromRGB(255, 180, 120))
 				return
 			end
@@ -1233,7 +1238,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			end
 			setQueue(pl, id, true, want)
 			if pl:GetAttribute("Queue") == id then
-				local zone = side == 1 and " A존" or side == 2 and " B존" or ""
+				local zone = side == 1 and " 블루 ZONE" or side == 2 and " 오렌지 ZONE" or ""
 				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
 			end
 		end)

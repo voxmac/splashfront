@@ -1,5 +1,6 @@
 -- 인원이 부족할 때 자리를 채우는 간단한 AI 봇
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
@@ -34,6 +35,78 @@ function BotService.SetCells(folder)
 	cellsFolder = folder
 end
 
+-- 봇 걷기·달리기 동작: Roblox 기본 R15 애니메이션을 서버에서 재생 (자동으로 모든 클라이언트에 보임)
+local ANIM_IDS = { Idle = 507766666, Walk = 507777826, Run = 507767714, Jump = 507765000, Fall = 507767968 }
+local animated = {} -- model -> { Hum, Root, Tracks, Cur }
+local function setupAnimations(model)
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	local root = model:FindFirstChild("HumanoidRootPart")
+	if not hum or not root then
+		return
+	end
+	-- 클라이언트용 Animate 스크립트는 봇에서 돌지 않으니 지우고 서버가 직접 재생
+	local old = model:FindFirstChild("Animate")
+	if old then
+		old:Destroy()
+	end
+	local animator = hum:FindFirstChildOfClass("Animator") or Instance.new("Animator", hum)
+	local tracks = {}
+	for name, id in pairs(ANIM_IDS) do
+		local a = Instance.new("Animation")
+		a.AnimationId = "rbxassetid://" .. id
+		local ok, t = pcall(function()
+			return animator:LoadAnimation(a)
+		end)
+		if ok and t then
+			t.Priority = (name == "Idle") and Enum.AnimationPriority.Idle or Enum.AnimationPriority.Movement
+			t.Looped = name ~= "Jump"
+			tracks[name] = t
+		end
+	end
+	animated[model] = { Hum = hum, Root = root, Tracks = tracks, Cur = nil }
+end
+
+local function play(st, name, speed)
+	local t = st.Tracks[name]
+	if not t then
+		return
+	end
+	if st.Cur ~= name then
+		for n, other in pairs(st.Tracks) do
+			if n ~= name and other.IsPlaying then
+				other:Stop(0.15)
+			end
+		end
+		t:Play(0.15)
+		st.Cur = name
+	end
+	t:AdjustSpeed(speed or 1)
+end
+
+RunService.Heartbeat:Connect(function()
+	for model, st in pairs(animated) do
+		if not model.Parent or st.Hum.Health <= 0 then
+			for _, t in pairs(st.Tracks) do
+				t:Stop(0.2)
+			end
+			animated[model] = nil
+		else
+			local v = st.Root.AssemblyLinearVelocity
+			local flat = Vector3.new(v.X, 0, v.Z).Magnitude
+			local s = st.Hum:GetState()
+			if s == Enum.HumanoidStateType.Freefall then
+				play(st, v.Y > 2 and "Jump" or "Fall", 1)
+			elseif flat > 13 then
+				play(st, "Run", flat / 16)
+			elseif flat > 0.8 then
+				play(st, "Walk", math.max(0.5, flat / 10))
+			else
+				play(st, "Idle", 1)
+			end
+		end
+	end
+end)
+
 function BotService.CreateModel(e, cframe, color)
 	local folder = workspace:FindFirstChild("Bots")
 	if not folder then
@@ -66,6 +139,7 @@ function BotService.CreateModel(e, cframe, color)
 	if root then
 		root:SetNetworkOwner(nil)
 	end
+	setupAnimations(model)
 	state[e] = { Goal = nil, GoalTime = 0, LastPos = cframe.Position, StuckTime = 0, Strafe = 1 }
 	return model
 end

@@ -640,11 +640,12 @@ local function rebuildMatch()
 			label(b, { Text = string.format("%s  ·  %s", qi.Host or "-", qi.Map or "-"), TextSize = 15, TextColor3 = joined and Color3.new(1, 1, 1) or C.Sub,
 				Position = UDim2.fromOffset(14, 34), Size = UDim2.new(1, -160, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
 			local sd = qi.Sides
-			local countText = sd and string.format("A %d/%d · B %d/%d", sd[1] or 0, q.TeamSize, sd[2] or 0, q.TeamSize) or string.format("%d명 대기", n)
+			local countText = sd and string.format('<font color="#3CB4FF">●</font> %d/%d  <font color="#FF8A30">●</font> %d/%d', sd[1] or 0, q.TeamSize, sd[2] or 0, q.TeamSize)
+				or string.format("%d명 대기", n)
 			label(b, { Text = countText, TextSize = 17, TextColor3 = C.Gold, Position = UDim2.new(1, -150, 0, 6), Size = UDim2.fromOffset(136, 24),
-				TextXAlignment = Enum.TextXAlignment.Right })
+				TextXAlignment = Enum.TextXAlignment.Right, RichText = true })
 			-- 대기 취소는 발판에서 내려오면 됨 (나가기 버튼 없음)
-			local status = joined and ((mySide == 1 and "A존 대기 중") or (mySide == 2 and "B존 대기 중") or "대기 중") or "참가 >"
+			local status = joined and ((mySide == 1 and "블루 ZONE 대기") or (mySide == 2 and "오렌지 ZONE 대기") or "대기 중") or "참가 >"
 			label(b, { Text = status, TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -150, 0, 34),
 				Size = UDim2.fromOffset(136, 20), TextXAlignment = Enum.TextXAlignment.Right })
 			if not joined then

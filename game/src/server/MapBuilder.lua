@@ -106,6 +106,11 @@ local PRESETS = {
 		AtmDensity = 0.27, AtmOffset = 0.15, AtmColor = Color3.fromRGB(225, 200, 255), AtmDecay = Color3.fromRGB(120, 80, 160), Haze = 0.8, Glare = 0.6,
 		Sat = 0.18, Con = 0.1, Tint = Color3.fromRGB(255, 242, 248), Bloom = 0.6, Thresh = 1.4,
 		Rays = 0.1, RaySpread = 0.8, Dof = 0.12, Clouds = { Cover = 0.5, Density = 0.55, Color = Color3.fromRGB(255, 214, 236) }, Sun = 18 },
+	-- 로비 격납고: 차가운 남색 실내, 네온이 번지도록 블룸 강하게, 바닥 반사
+	Lobby = { Clock = 14, Lat = 35, Bright = 1.6, Amb = Color3.fromRGB(46, 56, 92), Out = Color3.fromRGB(70, 84, 130), Spec = 1,
+		AtmDensity = 0.22, AtmOffset = 0.1, AtmColor = Color3.fromRGB(170, 190, 255), AtmDecay = Color3.fromRGB(80, 90, 160), Haze = 1, Glare = 0.2,
+		Sat = 0.22, Con = 0.16, Tint = Color3.fromRGB(236, 240, 255), Bloom = 0.9, Thresh = 0.95,
+		Rays = 0.05, RaySpread = 0.5, Dof = 0.06, Clouds = { Cover = 0.5, Density = 0.6, Color = Color3.fromRGB(230, 236, 255) }, Sun = 14 },
 	-- 시가전: 레퍼런스 1번처럼 지평선 가까운 해, 주황빛 먼지 안개, 햇살 번짐, 먼 건물은 실루엣
 	City = { Clock = 17.75, Lat = 25, Bright = 2.6, Amb = Color3.fromRGB(110, 86, 78), Out = Color3.fromRGB(150, 118, 100), Spec = 1,
 		AtmDensity = 0.42, AtmOffset = 0.25, AtmColor = Color3.fromRGB(255, 196, 150), AtmDecay = Color3.fromRGB(176, 104, 74), Haze = 2.6, Glare = 1.6,
@@ -198,7 +203,7 @@ function MapBuilder.SetupLighting()
 		b.Threshold = 1.7
 		b.Parent = Lighting
 	end	Lighting.ShadowSoftness = 0.18
-	MapBuilder.ApplyLighting("Day")
+	MapBuilder.ApplyLighting("Lobby")
 end
 
 -- 기획서 3장: 엄폐물은 어두운 외곽선으로 바닥과 구분
@@ -397,8 +402,10 @@ function MapBuilder.BuildLobby()
 	local H = 46 -- 천장 높이
 
 	-- 바닥: 진한 강철판 + 10스터드 이음새
-	part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
-		Color = STEEL3, Material = Enum.Material.DiamondPlate })
+	local floor = part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
+		Color = Color3.fromRGB(18, 22, 38), Material = Enum.Material.SmoothPlastic })
+	floor.Reflectance = 0.12 -- 네온이 바닥에 비치는 광택
+	floor:SetAttribute("NoTexture", true)
 	for x = -W / 2 + 10, W / 2 - 10, 10 do
 		part({ Name = "Seam", Parent = deco, Size = Vector3.new(0.18, 0.04, D), Position = Vector3.new(x, Y + 0.02, 0),
 			Color = Color3.fromRGB(12, 14, 24), CanCollide = false, CanQuery = false })
@@ -409,8 +416,9 @@ function MapBuilder.BuildLobby()
 	end
 	-- 중앙 통로 (스폰 → 발판 무대): 밝은 패널 + 양옆 무지개 네온 줄
 	local pathZ1, pathZ2 = -12, D / 2 - 4
-	part({ Name = "Walkway", Parent = deco, Size = Vector3.new(26, 0.1, pathZ2 - pathZ1), Position = Vector3.new(0, Y + 0.05, (pathZ1 + pathZ2) / 2),
-		Color = STEEL2, Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+	local walk = part({ Name = "Walkway", Parent = deco, Size = Vector3.new(26, 0.1, pathZ2 - pathZ1), Position = Vector3.new(0, Y + 0.05, (pathZ1 + pathZ2) / 2),
+		Color = Color3.fromRGB(34, 42, 70), Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+	walk.Reflectance = 0.18
 	local segs = 24
 	for i = 0, segs - 1 do
 		local z1 = pathZ1 + (pathZ2 - pathZ1) * i / segs
@@ -480,6 +488,59 @@ function MapBuilder.BuildLobby()
 	wallSide("X", 1)
 	wallSide("Z", -1)
 	wallSide("Z", 1)
+
+	-- 벽 모니터: 게임 안내·팁이 흐르는 화면 (좌우 벽, 사람 눈높이 위)
+	local tips = {
+		{ "PAINT TO WIN", "바닥을 더 많이 칠한 팀이 승리 · 페인트 80% + 처치·미션 20%" },
+		{ "ZONE TEAMS", "같은 ZONE 발판에 선 친구끼리 한 팀으로 출전" },
+		{ "DAILY MISSIONS", "일일·주간 미션을 깨고 코인으로 스킨을 사세요" },
+		{ "NEW MAP · 시가전", "도시 한복판에서 벌이는 페인트 시가전" },
+	}
+	for i, tip in ipairs(tips) do
+		local sx = (i <= 2) and -1 or 1
+		local zz = (i % 2 == 1) and 40 or -30 -- 랭킹 보드·상점 간판(z 2~25)과 겹치지 않게
+		local pos = Vector3.new(sx * (W / 2 - 1.9), Y + 15, zz)
+		local mon = part({ Name = "WallMonitor", Parent = deco, Size = Vector3.new(16, 8.5, 0.4), CFrame = CFrame.lookAt(pos, pos + Vector3.new(-sx, 0, 0)),
+			Color = Color3.fromRGB(8, 10, 20), Material = Enum.Material.Glass, CanQuery = false })
+		part({ Name = "MonitorFrame", Parent = deco, Size = Vector3.new(16.8, 9.3, 0.3), CFrame = mon.CFrame * CFrame.new(0, 0, 0.25),
+			Color = Color3.fromRGB(26, 32, 54), Material = Enum.Material.Metal, CanQuery = false })
+		local g = Instance.new("SurfaceGui")
+		g.Face = Enum.NormalId.Front
+		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		g.PixelsPerStud = 32
+		g.LightInfluence = 0
+		g.Parent = mon
+		local bg = Instance.new("Frame")
+		bg.Size = UDim2.fromScale(1, 1)
+		bg.BackgroundColor3 = Color3.new(1, 1, 1)
+		bg.Parent = g
+		local grad = Instance.new("UIGradient")
+		local c1 = (i % 2 == 1) and NEON_M or NEON_C
+		grad.Color = ColorSequence.new(c1:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(10, 12, 28))
+		grad.Rotation = 35
+		grad.Parent = bg
+		local h = Instance.new("TextLabel")
+		h.BackgroundTransparency = 1
+		h.Size = UDim2.fromScale(0.9, 0.42)
+		h.Position = UDim2.fromScale(0.05, 0.12)
+		h.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		h.TextScaled = true
+		h.TextXAlignment = Enum.TextXAlignment.Left
+		h.TextColor3 = NEON_Y
+		h.Text = tip[1]
+		h.Parent = bg
+		local d2 = Instance.new("TextLabel")
+		d2.BackgroundTransparency = 1
+		d2.Size = UDim2.fromScale(0.9, 0.3)
+		d2.Position = UDim2.fromScale(0.05, 0.58)
+		d2.Font = Enum.Font.GothamBold
+		d2.TextScaled = true
+		d2.TextWrapped = true
+		d2.TextXAlignment = Enum.TextXAlignment.Left
+		d2.TextColor3 = Color3.fromRGB(225, 232, 255)
+		d2.Text = tip[2]
+		d2.Parent = bg
+	end
 
 	-- 유리 천장 + 자홍/보라 네온 갈비대 (하늘과 구름이 비침)
 	part({ Name = "CeilingGlass", Parent = deco, Size = Vector3.new(W, 0.4, D), Position = Vector3.new(0, Y + H, 0), Color = Color3.fromRGB(150, 200, 255),
@@ -669,10 +730,6 @@ function MapBuilder.BuildLobby()
 		pad.Transparency = 0.3
 		pad:SetAttribute("QueueId", q.Id)
 		pad:SetAttribute("Side", side)
-		local beam = cyl({ Name = "Holo", Parent = deco, Height = 10, Diameter = diameter - 1.2, Position = base + Vector3.new(0, 6, 0), Color = c,
-			Material = Enum.Material.ForceField, CanCollide = false, CanQuery = false })
-		beam.CanTouch = false
-		beam.Transparency = 0.2
 		local att = Instance.new("Attachment")
 		att.Parent = pad
 		local pe = Instance.new("ParticleEmitter")
@@ -681,7 +738,7 @@ function MapBuilder.BuildLobby()
 		pe.Size = NumberSequence.new(0.3, 0)
 		pe.Lifetime = NumberRange.new(1.4, 2.2)
 		pe.Speed = NumberRange.new(3, 6)
-		pe.Rate = 8
+		pe.Rate = 3
 		pe.SpreadAngle = Vector2.new(20, 20)
 		pe.EmissionDirection = Enum.NormalId.Right -- 원기둥을 눕혔으므로 Right = 위쪽
 		pe.Shape = Enum.ParticleEmitterShape.Disc
@@ -696,9 +753,9 @@ function MapBuilder.BuildLobby()
 			-- 발판 바로 위 작은 존 표시 (A / B + 인원)
 			local zb = Instance.new("BillboardGui")
 			zb.Name = "ZoneTag"
-			zb.Size = UDim2.new(4.2, 0, 1.5, 0)
-			zb.StudsOffset = Vector3.new(0, 3.2, 0)
-			zb.MaxDistance = 90
+			zb.Size = UDim2.new(3.4, 0, 1, 0)
+			zb.StudsOffset = Vector3.new(0, 2.4, 0)
+			zb.MaxDistance = 70
 			zb.LightInfluence = 0
 			zb.Adornee = pad
 			zb.Parent = pad
@@ -710,7 +767,8 @@ function MapBuilder.BuildLobby()
 			zt.Font = Enum.Font.GothamBlack
 			zt.TextScaled = true
 			zt.TextColor3 = Color3.new(1, 1, 1)
-			zt.Text = ZONE_NAMES[side] .. "존 0/" .. q.TeamSize
+			zt.Text = "ZONE 0/" .. q.TeamSize
+			zt.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 			zt.Parent = zb
 			local zc = Instance.new("UICorner")
 			zc.CornerRadius = UDim.new(0.3, 0)
@@ -741,33 +799,40 @@ function MapBuilder.BuildLobby()
 		end
 		local mode = Config.Modes[q.Mode]
 		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
-		-- 안내판: 스터드 단위 크기라 멀리서 봐도 옆 발판 글씨와 겹치지 않음 (제목 크게 + 상태 작게)
-		local bb = Instance.new("BillboardGui")
+		-- 안내 화면: 발판 뒤에 세운 얇은 스크린 (떠 있는 글씨판 대신 → 발판·존 표시와 겹치지 않음)
+		local screenPos = Vector3.new(x, Y + 5.2, z - 8.6)
+		local screen = part({ Name = "QueueScreen", Parent = lobby, Size = Vector3.new(13, 4.4, 0.3), CFrame = CFrame.lookAt(screenPos,
+			Vector3.new(x, Y + 5.2, 60)), Color = Color3.fromRGB(10, 14, 28), Material = Enum.Material.Glass })
+		for _, e in ipairs({ { 0, 2.3, 13.4, 0.2 }, { 0, -2.3, 13.4, 0.2 } }) do
+			part({ Name = "ScreenTrim", Parent = deco, Size = Vector3.new(e[3], e[4], 0.4), CFrame = screen.CFrame * CFrame.new(e[1], e[2], 0), Color = c,
+				Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+		end
+		for _, sx in ipairs({ -5.5, 5.5 }) do
+			part({ Name = "ScreenLeg", Parent = deco, Size = Vector3.new(0.4, 3.2, 0.4), CFrame = screen.CFrame * CFrame.new(sx, -3.8, 0.1),
+				Color = Color3.fromRGB(40, 48, 74), Material = Enum.Material.Metal, CanQuery = false })
+		end
+		local bb = Instance.new("SurfaceGui")
 		bb.Name = "QueueBoard"
-		bb.Size = UDim2.new(10, 0, 3, 0)
-		bb.StudsOffset = Vector3.new(0, 8.5, 0)
-		bb.MaxDistance = 140
+		bb.Face = Enum.NormalId.Front
+		bb.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		bb.PixelsPerStud = 40
 		bb.LightInfluence = 0
-		bb.Adornee = anchor
-		bb.Parent = anchor
+		bb.Parent = screen
 		local plate = Instance.new("Frame")
 		plate.Size = UDim2.fromScale(1, 1)
-		plate.BackgroundColor3 = Color3.fromRGB(16, 14, 28)
-		plate.BackgroundTransparency = 0.25
+		plate.BackgroundColor3 = Color3.fromRGB(10, 14, 30)
+		plate.BackgroundTransparency = 0.05
 		plate.Parent = bb
-		local pc = Instance.new("UICorner")
-		pc.CornerRadius = UDim.new(0.2, 0)
-		pc.Parent = plate
-		local ps = Instance.new("UIStroke")
-		ps.Color = c
-		ps.Thickness = 2
-		ps.Parent = plate
+		local pg = Instance.new("UIGradient")
+		pg.Color = ColorSequence.new(Color3.fromRGB(40, 52, 96), Color3.fromRGB(10, 12, 26))
+		pg.Rotation = 90
+		pg.Parent = plate
 		local tl = Instance.new("TextLabel")
 		tl.Name = "Title"
 		tl.BackgroundTransparency = 1
 		tl.Size = UDim2.new(0.92, 0, 0.56, 0)
 		tl.Position = UDim2.new(0.04, 0, 0.06, 0)
-		tl.Font = Enum.Font.GothamBlack
+		tl.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 		tl.TextScaled = true
 		tl.TextColor3 = Color3.new(1, 1, 1)
 		tl.Text = title2
@@ -781,7 +846,7 @@ function MapBuilder.BuildLobby()
 		sub.TextScaled = true
 		sub.RichText = true
 		sub.TextColor3 = Color3.fromRGB(200, 200, 220)
-		sub.Text = q.Mode == "Solo" and "발판을 밟아 참가" or "A존 / B존 중 골라 서기"
+		sub.Text = q.Mode == "Solo" and "발판을 밟아 참가" or "같은 ZONE에 선 사람끼리 한 팀"
 		sub.Parent = plate
 		pads[q.Id] = anchor
 		labels[q.Id] = { Label = sub, Title = title2, Ranked = q.Ranked }

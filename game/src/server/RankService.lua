@@ -117,46 +117,112 @@ function RankService.Apply(player, won, performance)
 	return delta
 end
 
+-- 로비 랭킹 보드: 글로벌 TOP 10(데이터스토어, 60초 캐시)에 지금 접속 중인 플레이어의 최신 레이팅을 바로 합쳐서 보여 주고,
+-- 최근 경기 결과(맵·승리 팀·MVP)를 함께 표시. 경기가 끝나면 즉시 갱신
+local boardLabel = nil
+local recent = {}       -- 최근 경기 { Map, Mode, Winner, MVP, Kills, Cells, At }
+local globalTop = { At = -1e9, Rows = {} }
+local nameCache = {}
+
+local function fetchGlobal()
+	if not ordered or os.clock() - globalTop.At < 60 then
+		return
+	end
+	globalTop.At = os.clock()
+	pcall(function()
+		local entries = ordered:GetSortedAsync(false, 10):GetCurrentPage()
+		local rows = {}
+		for _, entry in ipairs(entries) do
+			local userId = tonumber(string.sub(entry.key, 2)) or 0
+			if not nameCache[userId] then
+				pcall(function()
+					nameCache[userId] = Players:GetNameFromUserIdAsync(userId)
+				end)
+			end
+			table.insert(rows, { UserId = userId, Name = nameCache[userId] or "?", Rating = entry.value })
+		end
+		globalTop.Rows = rows
+	end)
+end
+
+local function mergedTop(n)
+	local byId = {}
+	for _, r in ipairs(globalTop.Rows) do
+		byId[r.UserId] = { UserId = r.UserId, Name = r.Name, Rating = r.Rating, Online = false }
+	end
+	for _, pl in ipairs(Players:GetPlayers()) do
+		byId[pl.UserId] = { UserId = pl.UserId, Name = pl.DisplayName, Rating = pl:GetAttribute("Rating") or Config.Rating.Start, Online = true,
+			Wins = pl:GetAttribute("Wins") or 0 }
+	end
+	local list = {}
+	for _, r in pairs(byId) do
+		table.insert(list, r)
+	end
+	table.sort(list, function(a, b)
+		return a.Rating > b.Rating
+	end)
+	while #list > n do
+		table.remove(list)
+	end
+	return list
+end
+
+local function esc(t)
+	return (tostring(t):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
+end
+
+function RankService.RefreshBoard()
+	if not boardLabel then
+		return
+	end
+	fetchGlobal()
+	local lines = { string.format('<font color="#F0FF28"><b>시즌 %s 랭킹 TOP 10</b></font>   <font color="#8FA0C8" size="20">실시간</font>', Config.Season) }
+	for i, r in ipairs(mergedTop(10)) do
+		local medal = (i == 1 and "#FFD84A") or (i == 2 and "#D8E0F0") or (i == 3 and "#E09A5A") or "#FFFFFF"
+		table.insert(lines, string.format('<font color="%s">%2d.</font> %s  <font color="#7FE8FF">%d</font> <font color="#A8B4D8" size="22">%s</font>%s',
+			medal, i, esc(r.Name), r.Rating, Config.GetTier(r.Rating).Name, r.Online and '  <font color="#3CFF8C" size="20">● 접속 중</font>' or ""))
+	end
+	table.insert(lines, "")
+	table.insert(lines, '<font color="#FF4FD0"><b>최근 경기</b></font>')
+	if #recent == 0 then
+		table.insert(lines, '<font color="#8FA0C8" size="22">아직 끝난 경기가 없어요 — 발판에 올라 첫 경기를 시작하세요</font>')
+	end
+	for i = 1, math.min(3, #recent) do
+		local m = recent[i]
+		local ago = math.floor((os.time() - m.At) / 60)
+		table.insert(lines, string.format('<font size="24">%s · %s  승리 <font color="#FFD84A">%s</font>  MVP <font color="#7FE8FF">%s</font> (%d킬)  <font color="#8FA0C8">%s</font></font>',
+			esc(m.Map), esc(m.Mode), esc(m.Winner or "-"), esc(m.MVP or "-"), m.Kills or 0, ago < 1 and "방금" or (ago .. "분 전")))
+	end
+	boardLabel.Text = table.concat(lines, "\n")
+end
+
+-- MatchService가 경기 끝날 때 부름
+function RankService.NoteMatch(info)
+	info.At = os.time()
+	table.insert(recent, 1, info)
+	while #recent > 5 do
+		table.remove(recent)
+	end
+	cache.At = -1e9 -- TOP 50 창도 새로 읽게
+	globalTop.At = -1e9
+	task.delay(3, RankService.RefreshBoard) -- 레이팅 저장 직후 반영
+end
+
 function RankService.StartBoard(textLabel)
+	boardLabel = textLabel
+	textLabel.RichText = true
+	textLabel.TextSize = 27
+	textLabel.LineHeight = 1.05
+	Players.PlayerAdded:Connect(function()
+		task.delay(6, RankService.RefreshBoard)
+	end)
+	Players.PlayerRemoving:Connect(function()
+		task.delay(1, RankService.RefreshBoard)
+	end)
 	task.spawn(function()
 		while true do
-			local lines = { "  시즌 " .. Config.Season .. " 랭킹 TOP 10", "" }
-			local ok = false
-			if ordered then
-				ok = pcall(function()
-					local pages = ordered:GetSortedAsync(false, 10)
-					local entries = pages:GetCurrentPage()
-					for i, entry in ipairs(entries) do
-						local userId = tonumber(string.sub(entry.key, 2))
-						local name = "?"
-						pcall(function()
-							name = Players:GetNameFromUserIdAsync(userId)
-						end)
-						local tier = Config.GetTier(entry.value).Name
-						table.insert(lines, string.format("  %2d. %s  %d (%s)", i, name, entry.value, tier))
-					end
-				end)
-			end
-			if not ok then
-				-- DataStore를 쓸 수 없을 때(스튜디오 등)는 현재 서버 플레이어로 표시
-				local list = {}
-				for _, pl in ipairs(Players:GetPlayers()) do
-					table.insert(list, { pl.Name, pl:GetAttribute("Rating") or Config.Rating.Start })
-				end
-				table.sort(list, function(a, b)
-					return a[2] > b[2]
-				end)
-				for i, row in ipairs(list) do
-					if i > 10 then
-						break
-					end
-					table.insert(lines, string.format("  %2d. %s  %d (%s)", i, row[1], row[2], Config.GetTier(row[2]).Name))
-				end
-				table.insert(lines, "")
-				table.insert(lines, "  (서버 내 순위 · 글로벌 랭킹은 게시 후 표시)")
-			end
-			textLabel.Text = table.concat(lines, "\n")
-			task.wait(60)
+			pcall(RankService.RefreshBoard)
+			task.wait(10)
 		end
 	end)
 end

@@ -10,7 +10,7 @@ local CityMap = {}
 
 local CELL = Config.CellSize
 local ORIGIN = Vector3.new(2800, 0, 0) -- 다른 맵과 겹치지 않는 곳
-local MAX_X, MAX_Z = 380, 260          -- 전투 구역 최대 크기 (도시가 더 크면 가운데만 사용)
+local MAX_X, MAX_Z = 900, 900          -- 전투 구역 = 도시 전체 (보이지 않는 벽이 길을 막지 않도록 도시 바깥 테두리에만 둠)
 local WALL_H = 160
 
 local function findSource()
@@ -220,12 +220,23 @@ function CityMap.Build()
 		return swap and d.Z or d.X, swap and d.X or d.Z
 	end
 
-	-- 스폰: 양 끝 거리 18 이내의 바닥 셀 중 옆으로 흩어진 5곳
+	-- 셀 중 목표 지점에 가장 가까운 바닥
+	local function nearestGround(target)
+		local bestC, bestD = nil, math.huge
+		for _, c in ipairs(list) do
+			local d = (Vector3.new(c.Position.X, 0, c.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude
+			if d < bestD then
+				bestC, bestD = c, d
+			end
+		end
+		return bestC and (bestC.Position + Vector3.new(0, 0.2, 0)) or target
+	end
+	-- 스폰: 도시가 넓어서 맨 끝이 아니라 가운데에서 진영 축으로 30~42% 떨어진 띠의 바닥 셀 중 옆으로 흩어진 5곳
 	local function pickEnd(sign)
 		local cand = {}
 		for _, c in ipairs(list) do
-			local a = axisOf(c)
-			if a * sign > along - 22 then
+			local a, b = axisOf(c)
+			if a * sign > along * 0.3 and a * sign < along * 0.42 and math.abs(b) < (swap and hx or hz) * 0.45 then
 				table.insert(cand, c)
 			end
 		end
@@ -244,32 +255,21 @@ function CityMap.Build()
 			end
 		end
 		if #out == 0 then
-			local pos = axisPos(sign * (along - 10), 0) + Vector3.new(0, 4, 0)
+			local pos = nearestGround(axisPos(sign * along * 0.36, 0)) + Vector3.new(0, 4, 0)
 			table.insert(out, CFrame.lookAt(pos, Vector3.new(cx, pos.Y, cz)))
 		end
 		return out
 	end
 	local spawns = { [1] = pickEnd(-1), [2] = pickEnd(1) }
 
-	-- 셀 중 목표 지점에 가장 가까운 바닥
-	local function nearestGround(target)
-		local bestC, bestD = nil, math.huge
-		for _, c in ipairs(list) do
-			local d = (Vector3.new(c.Position.X, 0, c.Position.Z) - Vector3.new(target.X, 0, target.Z)).Magnitude
-			if d < bestD then
-				bestC, bestD = c, d
-			end
-		end
-		return bestC and (bestC.Position + Vector3.new(0, 0.2, 0)) or target
-	end
 	local side = swap and hx or hz
 	local solo = {}
-	for _, p in ipairs({ { -0.9, 0 }, { 0.9, 0 }, { 0, 0.8 }, { 0, -0.8 }, { -0.5, 0.7 }, { 0.5, -0.7 }, { 0.5, 0.7 }, { -0.5, -0.7 } }) do
+	for _, p in ipairs({ { -0.4, 0 }, { 0.4, 0 }, { 0, 0.4 }, { 0, -0.4 }, { -0.28, 0.32 }, { 0.28, -0.32 }, { 0.28, 0.32 }, { -0.28, -0.32 } }) do
 		local g = nearestGround(axisPos(p[1] * along, p[2] * side)) + Vector3.new(0, 3.5, 0)
 		table.insert(solo, CFrame.lookAt(g, Vector3.new(cx, g.Y, cz)))
 	end
 	local missionSpots = {}
-	for _, p in ipairs({ { 0, 0 }, { -0.35, 0.5 }, { 0.35, -0.5 }, { -0.35, -0.5 }, { 0.35, 0.5 }, { 0, 0.6 }, { 0, -0.6 }, { -0.5, 0 }, { 0.5, 0 } }) do
+	for _, p in ipairs({ { 0, 0 }, { -0.18, 0.25 }, { 0.18, -0.25 }, { -0.18, -0.25 }, { 0.18, 0.25 }, { 0, 0.3 }, { 0, -0.3 }, { -0.25, 0 }, { 0.25, 0 } }) do
 		table.insert(missionSpots, nearestGround(axisPos(p[1] * along, p[2] * side)))
 	end
 
@@ -283,12 +283,12 @@ function CityMap.Build()
 		Spawns = spawns,
 		SoloSpawns = solo,
 		FlagPoints = {
-			{ Name = "A", Position = nearestGround(axisPos(0, -0.55 * side)) },
+			{ Name = "A", Position = nearestGround(axisPos(0, -0.3 * side)) },
 			{ Name = "C", Position = nearestGround(axisPos(0, 0)) },
-			{ Name = "B", Position = nearestGround(axisPos(0, 0.55 * side)) },
+			{ Name = "B", Position = nearestGround(axisPos(0, 0.3 * side)) },
 		},
 		MissionSpots = missionSpots,
-		BaseCenters = { [1] = axisPos(-(along - 10), 0), [2] = axisPos(along - 10, 0) },
+		BaseCenters = { [1] = axisPos(-along * 0.36, 0), [2] = axisPos(along * 0.36, 0) },
 		KillY = groundY - 40,
 		Lighting = "City",
 		NoTextures = true,
