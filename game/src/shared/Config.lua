@@ -194,11 +194,13 @@ Config.Season = "S1"
 
 -- 수익화 (Creator Hub에서 만든 실제 ID로 교체. 0이면 비활성)
 Config.Monetization = {
-	VipGamePassId = 0,
-	CrateProductId = 0, -- 크로마 크레이트 79 R$ 개발자 상품 ID
+	VipGamePassId = 2096803140, -- VIP (코인 1.25배)
+	CrateProductId = 3735180315, -- 크로마 크레이트 79 R$
 	CoinProducts = {
 		-- [개발자 상품 ID] = 지급 코인
-		-- [123456789] = 500,
+		[3735180593] = 500,
+		[3735180872] = 1200,
+		[3735181059] = 3000,
 	},
 }
 

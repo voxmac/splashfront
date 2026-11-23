@@ -278,11 +278,13 @@ Config.Season = "S1"
 
 -- 수익화 (Creator Hub에서 만든 실제 ID로 교체. 0이면 비활성)
 Config.Monetization = {
-	VipGamePassId = 0,
-	CrateProductId = 0, -- 크로마 크레이트 79 R$ 개발자 상품 ID
+	VipGamePassId = 2096803140, -- VIP (코인 1.25배)
+	CrateProductId = 3735180315, -- 크로마 크레이트 79 R$
 	CoinProducts = {
 		-- [개발자 상품 ID] = 지급 코인
-		-- [123456789] = 500,
+		[3735180593] = 500,
+		[3735180872] = 1200,
+		[3735181059] = 3000,
 	},
 }
 
@@ -9310,7 +9312,81 @@ local function buildSkins(page)
 	end
 end
 
-local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection }
+-- 로벅스 충전: VIP 게임패스 + 코인 팩 (가격은 Roblox에서 실시간으로 읽음)
+local priceCache = {}
+local function robuxPrice(id, infoType)
+	local key = tostring(infoType) .. id
+	if priceCache[key] then
+		return priceCache[key]
+	end
+	local ok, info = pcall(function()
+		return MarketplaceService:GetProductInfo(id, infoType)
+	end)
+	local p = ok and info and info.PriceInRobux or nil
+	priceCache[key] = p
+	return p
+end
+
+local function buildRobux(page)
+	clear(page)
+	label(page, { Text = "로벅스로 VIP와 코인을 충전할 수 있어요 · 코인은 스킨 상점·무기 구매에 사용", TextSize = 18, TextColor3 = C.Sub,
+		Size = UDim2.new(1, -10, 0, 28), LayoutOrder = 0 })
+	local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1 }, page)
+	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 250), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+	local M = Config.Monetization
+	local items = {
+		{ Kind = "Pass", Id = M.VipGamePassId, Title = "VIP", Sub = "코인 획득 1.25배 (영구)", Icon = "crown", Color = Color3.fromRGB(255, 180, 40) },
+	}
+	local packs = {}
+	for id, coins in pairs(M.CoinProducts or {}) do
+		table.insert(packs, { Id = id, Coins = coins })
+	end
+	table.sort(packs, function(a, b)
+		return a.Coins < b.Coins
+	end)
+	for _, pk in ipairs(packs) do
+		table.insert(items, { Kind = "Product", Id = pk.Id, Title = string.format("코인 %d", pk.Coins), Sub = (pk.Coins >= 3000 and "50% 보너스")
+			or (pk.Coins >= 1200 and "20% 보너스") or "기본 팩", Icon = "coin", Color = C.Cyan })
+	end
+	for i, it in ipairs(items) do
+		if it.Id and it.Id ~= 0 then
+			local owned = it.Kind == "Pass" and player:GetAttribute("Vip")
+			local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, grid)
+			corner(cardF, 14)
+			UI.stroke(cardF, it.Color, 2, 0.2)
+			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 110), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+			corner(pic, 12)
+			UI.gradient(pic, it.Color:Lerp(Color3.new(0, 0, 0), 0.35), Color3.fromRGB(26, 24, 40), 90)
+			UI.Icon(pic, it.Icon, "", { Size = UDim2.fromOffset(88, 88), Position = UDim2.new(0.5, -44, 0.5, -44) })
+			label(cardF, { Text = it.Title, TextSize = 22, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 124), Size = UDim2.new(1, -20, 0, 28),
+				TextXAlignment = Enum.TextXAlignment.Center })
+			label(cardF, { Text = it.Sub, TextSize = 15, TextColor3 = C.Sub, Position = UDim2.fromOffset(10, 154), Size = UDim2.new(1, -20, 0, 20),
+				TextXAlignment = Enum.TextXAlignment.Center })
+			local b = button(cardF, owned and "보유 중" or "...", owned and C.Dim or Color3.fromRGB(0, 176, 111),
+				{ Size = UDim2.new(1, -16, 0, 46), Position = UDim2.new(0, 8, 1, -54), TextSize = 20 })
+			if not owned then
+				task.spawn(function()
+					local price = robuxPrice(it.Id, it.Kind == "Pass" and Enum.InfoType.GamePass or Enum.InfoType.Product)
+					if b.Parent then
+						b.Text = price and (price .. " R$") or "구매"
+					end
+				end)
+			end
+			b.MouseButton1Click:Connect(function()
+				if owned then
+					return
+				end
+				if it.Kind == "Pass" then
+					MarketplaceService:PromptGamePassPurchase(player, it.Id)
+				else
+					MarketplaceService:PromptProductPurchase(player, it.Id)
+				end
+			end)
+		end
+	end
+end
+
+local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection, Robux = buildRobux }
 local currentTab = "Weapons"
 
 local function showTab(name)
@@ -9790,9 +9866,9 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	tabButtons = {}
 	pages = {}
-	local tabs = { { "Weapons", "무기" }, { "Skins", "스킨 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" } }
+	local tabs = { { "Weapons", "무기" }, { "Skins", "스킨 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" }, { "Robux", "충전 · VIP" } }
 	for i, t in ipairs(tabs) do
-		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(196, 48), Position = UDim2.fromOffset(20 + (i - 1) * 206, 76), TextSize = 20 })
+		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(156, 48), Position = UDim2.fromOffset(20 + (i - 1) * 164, 76), TextSize = 19 })
 		b.MouseButton1Click:Connect(function()
 			showTab(t[1])
 		end)
@@ -9867,6 +9943,11 @@ function Lobby.Init(remoteFolder, hud)
 	player:GetAttributeChangedSignal("Quests"):Connect(function()
 		if questPanel.Visible then
 			Lobby.UpdateQuests()
+		end
+	end)
+	player:GetAttributeChangedSignal("Vip"):Connect(function()
+		if shop.Visible and currentTab == "Robux" then
+			showTab("Robux")
 		end
 	end)
 	for _, attr in ipairs({ "Coins", "Rating", "Tier", "Wins", "Vip", "Level" }) do
