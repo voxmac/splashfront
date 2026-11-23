@@ -122,6 +122,10 @@ local function buildViewmodel()
 	WC.UpdateViewmodelParent()
 end
 
+local vm = { Aim = 0, Run = 0, Crouch = 0, Phase = 0, SwayX = 0, SwayY = 0, Land = 0, LastLook = nil }
+local currentStance = "Normal"
+local lastPoseSent, lastPitchSent, lastStanceSent = 0, 999, ""
+
 local function placeViewmodel(dt)
 	if not viewmodel then
 		return
@@ -137,13 +141,32 @@ local function placeViewmodel(dt)
 	-- Anchor(손잡이) 기준 위치: 오른쪽 아래(허리 사격) / 화면 가운데(조준)
 	local hipOffset = CFrame.new(0.85, -0.95, -1.25)
 	local adsOffset = CFrame.new(0, -0.8, -1.0) -- 조준점 아래로 내려 표적이 가리지 않게
-	local offset = aiming and adsOffset or hipOffset
-	local t = os.clock()
 	local hum = humanoid()
-	local moving = hum and hum.MoveDirection.Magnitude > 0.1
-	local bob = moving and CFrame.new(math.sin(t * 9) * 0.05, math.abs(math.cos(t * 9)) * 0.05, 0) or CFrame.new()
+	local speed = (hum and hum.RootPart) and Vector3.new(hum.RootPart.AssemblyLinearVelocity.X, 0, hum.RootPart.AssemblyLinearVelocity.Z).Magnitude or 0
+	local k = 1 - math.exp(-12 * dt)
+	vm.Aim = vm.Aim + ((aiming and 1 or 0) - vm.Aim) * k
+	vm.Run = vm.Run + ((currentStance == "Run" and 1 or 0) - vm.Run) * k
+	vm.Crouch = vm.Crouch + ((crouched and 1 or 0) - vm.Crouch) * k
+	-- 걷는 속도에 맞춘 흔들림 (조준 중엔 거의 없음)
+	vm.Phase = vm.Phase + dt * (4 + speed * 0.45)
+	local amp = math.clamp(speed / 16, 0, 1.6) * (0.045 + vm.Run * 0.05) * (1 - vm.Aim * 0.85)
+	local bob = CFrame.new(math.sin(vm.Phase) * amp, -math.abs(math.cos(vm.Phase)) * amp * 0.9, 0) * CFrame.Angles(0, 0, math.sin(vm.Phase) * amp * 0.6)
+	-- 화면을 돌리면 총이 살짝 늦게 따라옴 (무게감)
+	local look = cam.CFrame.LookVector
+	if vm.LastLook then
+		local d = cam.CFrame:VectorToObjectSpace(vm.LastLook)
+		vm.SwayX = vm.SwayX + (math.clamp(d.X * 3, -0.12, 0.12) - vm.SwayX) * k
+		vm.SwayY = vm.SwayY + (math.clamp(d.Y * 3, -0.12, 0.12) - vm.SwayY) * k
+	end
+	vm.LastLook = look
+	local sway = CFrame.new(vm.SwayX * (1 - vm.Aim * 0.7), vm.SwayY * (1 - vm.Aim * 0.7), 0) * CFrame.Angles(vm.SwayY * 0.6, vm.SwayX * 0.8, 0)
+	-- 달리기: 총을 비스듬히 내려 듦 / 앉기: 살짝 낮게 / 착지: 툭 내려앉음
+	local runPose = CFrame.new(0.25 * vm.Run, -0.3 * vm.Run - 0.06 * vm.Crouch - vm.Land, 0.1 * vm.Run)
+		* CFrame.Angles(math.rad(-18) * vm.Run, math.rad(38) * vm.Run, math.rad(12) * vm.Run)
+	vm.Land = vm.Land * math.exp(-10 * dt)
 	vmKick = vmKick * math.exp(-14 * dt)
-	local cf = cam.CFrame * offset * bob * CFrame.new(0, 0, vmKick * 0.12) * CFrame.Angles(math.rad(vmKick * 3), 0, 0)
+	local base = hipOffset:Lerp(adsOffset, vm.Aim)
+	local cf = cam.CFrame * base * runPose * sway * bob * CFrame.new(0, 0, vmKick * 0.12) * CFrame.Angles(math.rad(vmKick * 3), 0, 0)
 	viewmodel:PivotTo(cf)
 end
 
@@ -376,6 +399,8 @@ local function updateSpeed()
 	if HUD and HUD.SetMove then
 		HUD.SetMove(mode)
 	end
+	currentStance = (mode == "앉기" and "Crouch") or (mode == "달리기" and "Run") or (mode == "걷기" and "Walk") or "Normal"
+	CharacterPose.SetLocalStance(currentStance)
 end
 
 ------------------------------------------------------------------------
@@ -678,6 +703,11 @@ function WC.Init(remoteFolder, hud, effects)
 			end)
 		end
 		local hum = char:WaitForChild("Humanoid")
+		hum.StateChanged:Connect(function(_, new)
+			if new == Enum.HumanoidStateType.Landed then
+				vm.Land = 0.18 -- 착지할 때 총이 툭 내려앉음
+			end
+		end)
 		hum.Died:Connect(function()
 			firing = false
 			setAim(false)
@@ -756,6 +786,15 @@ function WC.Init(remoteFolder, hud, effects)
 			spreadExtra = math.max(0, spreadExtra - dt * 8)
 		end
 		placeViewmodel(dt)
+		-- 내 조준 각도·자세를 다른 사람에게 공유 (상체가 조준 방향을 따라 움직이게)
+		local t = os.clock()
+		if t - lastPoseSent > 0.12 and remotes:FindFirstChild("Pose") then
+			local pitch = math.deg(math.asin(math.clamp(camera().CFrame.LookVector.Y, -1, 1)))
+			if math.abs(pitch - lastPitchSent) >= 2 or currentStance ~= lastStanceSent then
+				lastPoseSent, lastPitchSent, lastStanceSent = t, pitch, currentStance
+				remotes.Pose:FireServer(pitch, currentStance)
+			end
+		end
 		speedTimer = speedTimer + dt
 		if speedTimer > 0.1 then
 			speedTimer = 0

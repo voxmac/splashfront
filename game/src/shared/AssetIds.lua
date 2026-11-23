@@ -58,4 +58,26 @@ return {
 		Gear_Helmet = 99158892556934,
 		Gear_Backpack = 107109456395512,
 	},
+	-- 데칼 ID (서버 ImageService가 실제 이미지 ID로 바꿔 씀)
+	Textures = {
+		container_rib = 0,
+		crate_wood = 0,
+		floor_tile = 0,
+		hazard = 0,
+		ramp_plate = 0,
+		wall_panel = 0,
+	},
+	Icons = {
+		bomb = 0,
+		check = 0,
+		chest = 0,
+		coin = 0,
+		crown = 0,
+		flame = 0,
+		hourglass = 0,
+		quest = 0,
+		skull = 0,
+		target = 0,
+		trophy = 0,
+	},
 }

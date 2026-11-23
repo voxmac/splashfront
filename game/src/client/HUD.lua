@@ -86,7 +86,7 @@ function HUD.Build()
 	local pill = make("Frame", { Size = UDim2.fromOffset(190, 46), Position = UDim2.new(0.5, -95, 0, 0), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2 }, top)
 	corner(pill, 23)
 	make("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Transparency = 0.75 }, pill)
-	text(pill, { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(12, 6), Text = "⌛", TextStrokeTransparency = 1 })
+	UI.Icon(pill, "hourglass", "⌛", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(12, 6) })
 	timerLbl = text(pill, { Size = UDim2.new(1, -60, 1, -8), Position = UDim2.fromOffset(50, 4), Text = "5:00", Font = Enum.Font.FredokaOne,
 		TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.6 })
 	modeLbl = text(top, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 48), Font = Enum.Font.GothamBold,
@@ -139,7 +139,7 @@ function HUD.Build()
 
 	-- 왼쪽: 연속 처치 불꽃
 	streakFrame = make("Frame", { Size = UDim2.fromOffset(120, 120), Position = UDim2.new(0, 20, 0.62, 0), BackgroundTransparency = 1, Visible = false }, gui)
-	text(streakFrame, { Size = UDim2.fromScale(1, 1), Text = "🔥", TextStrokeTransparency = 1 })
+	UI.Icon(streakFrame, "flame", "🔥", { Size = UDim2.fromScale(1, 1) })
 	streakLbl = text(streakFrame, { Size = UDim2.new(1, 0, 0.46, 0), Position = UDim2.new(0, 0, 0.5, 0), Text = "x2", Font = Enum.Font.FredokaOne,
 		TextStrokeTransparency = 1 })
 	make("UIStroke", { Thickness = 4, Color = Color3.fromRGB(150, 20, 40) }, streakLbl)
@@ -204,7 +204,7 @@ function HUD.Build()
 		Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.5, ZIndex = 2 })
 	xpLbl = text(xb, { Size = UDim2.new(0.45, 0, 1, -10), Position = UDim2.new(0.55, -46, 0, 5), Text = "0 / 100 XP", TextXAlignment = Enum.TextXAlignment.Right,
 		Font = Enum.Font.GothamBold, TextStrokeTransparency = 0.5, ZIndex = 2 })
-	text(xb, { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -30, 0.5, -20), Text = "🧰", TextStrokeTransparency = 1, ZIndex = 3 })
+	UI.Icon(xb, "chest", "🧰", { Size = UDim2.fromOffset(44, 44), Position = UDim2.new(1, -30, 0.5, -22), ZIndex = 3 })
 
 	-- 오른쪽 아래: 잉크(탄) 칸 + 숫자, 슬롯 카드 [1 무기] [Q 스페셜] [F 아이템]
 	local ammo = make("Frame", { Size = UDim2.fromOffset(300, 44), Position = UDim2.new(1, -16, 1, -128), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
@@ -239,7 +239,7 @@ function HUD.Build()
 	weaponCard = { Frame = wc, Pic = wpic, Name = wname }
 	weaponLbl = wname
 	local sc, spic, sname = card(2, "Q")
-	text(spic, { Size = UDim2.fromScale(1, 0.8), Text = "💣", TextStrokeTransparency = 1 })
+	UI.Icon(spic, "bomb", "💣", { Size = UDim2.fromScale(1, 1) })
 	local sb = make("Frame", { Size = UDim2.new(1, -16, 0, 6), Position = UDim2.new(0, 8, 1, -30), BackgroundColor3 = DARKP, ZIndex = 3 }, sc)
 	corner(sb, 3)
 	specialFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 220, 60), BorderSizePixel = 0, ZIndex = 3 }, sb)
@@ -533,7 +533,8 @@ function HUD.KillFeed(d)
 		VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, row)
 	if d.Killer then
 		if (d.KillerStreak or 0) >= 2 then
-			chip(row, "🔥x" .. d.KillerStreak, Color3.fromRGB(255, 200, 40), Color3.fromRGB(120, 20, 10), 64, 1)
+			local sc = chip(row, "    x" .. d.KillerStreak, Color3.fromRGB(255, 200, 40), Color3.fromRGB(120, 20, 10), 64, 1)
+			UI.Icon(sc, "flame", "🔥", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(4, 3), ZIndex = 3 })
 		end
 		local kc = chip(row, d.Killer, d.KillerColor or Color3.fromRGB(80, 80, 100), Color3.new(1, 1, 1), 140, 2)
 		make("UIStroke", { Thickness = 1.5, Color = Color3.new(1, 1, 1), Transparency = (d.KillerPlayer == player) and 0 or 1 }, kc)
@@ -543,7 +544,7 @@ function HUD.KillFeed(d)
 			UI.GunImage(gun, d.WeaponId, Color3.fromRGB(60, 60, 70))
 		end
 		if d.Head then
-			text(gun, { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0, 0), Text = "🎯", TextStrokeTransparency = 1, ZIndex = 3 })
+			UI.Icon(gun, "target", "🎯", { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0, 0), ZIndex = 3 })
 		end
 	end
 	local vc = chip(row, d.Victim, Color3.fromRGB(40, 38, 58), d.VictimColor, 140, 4)
@@ -583,8 +584,9 @@ function HUD.DeathCard(d)
 	deathCard = c
 	corner(c, 16)
 	make("UIStroke", { Thickness = 3, Color = d.KillerColor or Color3.fromRGB(255, 80, 110) }, c)
-	text(c, { Size = UDim2.new(1, -20, 0, 26), Position = UDim2.fromOffset(10, 8), Text = "💀 스플래시 당했다!", Font = Enum.Font.FredokaOne,
-		TextColor3 = Color3.fromRGB(255, 120, 150) })
+	UI.Icon(c, "skull", "💀", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(16, 7) })
+	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래시 당했다!", Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(255, 120, 150), TextXAlignment = Enum.TextXAlignment.Left })
 	local who = make("Frame", { Size = UDim2.fromOffset(170, 36), Position = UDim2.fromOffset(16, 46), BackgroundColor3 = d.KillerColor or Color3.fromRGB(90, 90, 110) }, c)
 	corner(who, 10)
 	text(who, { Size = UDim2.new(1, -12, 1, -8), Position = UDim2.fromOffset(6, 4), Text = d.Killer or "낙사", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.6,
@@ -600,7 +602,8 @@ function HUD.DeathCard(d)
 	if d.Head then
 		local hb = make("Frame", { Size = UDim2.fromOffset(84, 26), Position = UDim2.new(1, -90, 0, 4), BackgroundColor3 = Color3.fromRGB(255, 200, 40), ZIndex = 3 }, pic)
 		corner(hb, 8)
-		text(hb, { Size = UDim2.new(1, -8, 1, -6), Position = UDim2.fromOffset(4, 3), Text = "🎯 헤드샷", TextColor3 = Color3.fromRGB(60, 30, 0),
+		UI.Icon(hb, "target", "🎯", { Size = UDim2.fromOffset(20, 20), Position = UDim2.fromOffset(4, 3), ZIndex = 4 })
+		text(hb, { Size = UDim2.new(1, -30, 1, -6), Position = UDim2.fromOffset(26, 3), Text = "헤드샷", TextColor3 = Color3.fromRGB(60, 30, 0),
 			TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack, ZIndex = 4 })
 	end
 	local cd = text(c, { Size = UDim2.fromOffset(170, 30), Position = UDim2.fromOffset(16, 90), Text = "", Font = Enum.Font.GothamBold, TextColor3 = Color3.fromRGB(210, 210, 230) })
@@ -653,26 +656,31 @@ function HUD.Elim(d)
 		end
 	end)
 	-- 보상 줄
-	local line = text(rewardList, { Size = UDim2.new(1, 0, 0, 24), Text = string.format("%s %s 제거  🪙 +%d  ·  +%d XP", d.Head and "🎯 헤드샷!" or "💀", tostring(d.Victim),
-		d.Coins or 0, d.XP or 0), Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, LayoutOrder = -math.floor(os.clock() * 100) })
+	local line = make("Frame", { Size = UDim2.new(0, 0, 0, 26), AutomaticSize = Enum.AutomaticSize.X, BackgroundTransparency = 1,
+		LayoutOrder = -math.floor(os.clock() * 100) }, rewardList)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder }, line)
+	UI.Icon(line, d.Head and "target" or "skull", d.Head and "🎯" or "💀", { Size = UDim2.fromOffset(24, 24), LayoutOrder = 1 })
+	local lt = text(line, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = string.format("%s%s 제거", d.Head and "헤드샷! " or "",
+		tostring(d.Victim)), Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, LayoutOrder = 2 })
+	UI.Icon(line, "coin", "🪙", { Size = UDim2.fromOffset(22, 22), LayoutOrder = 3 })
+	text(line, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Text = string.format("+%d  ·  +%d XP", d.Coins or 0, d.XP or 0),
+		Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, TextColor3 = Color3.fromRGB(255, 220, 90), LayoutOrder = 4 })
 	task.delay(3, function()
 		if line.Parent then
-			TweenService:Create(line, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-			task.delay(0.45, function()
-				line:Destroy()
-			end)
+			line:Destroy()
 		end
 	end)
 	local n = 0
 	for _, c in ipairs(rewardList:GetChildren()) do
-		if c:IsA("TextLabel") then
+		if c:IsA("Frame") then
 			n = n + 1
 		end
 	end
 	if n > 3 then
 		local oldest, ol = nil, math.huge
 		for _, c in ipairs(rewardList:GetChildren()) do
-			if c:IsA("TextLabel") and -c.LayoutOrder < ol then
+			if c:IsA("Frame") and -c.LayoutOrder < ol then
 				oldest, ol = c, -c.LayoutOrder
 			end
 		end
@@ -742,7 +750,7 @@ function HUD.RenderBoard(board)
 		text(cardF, { Size = UDim2.fromOffset(34, 22), Position = UDim2.new(1, -30, 1, -20), Text = "#" .. i, Font = Enum.Font.FredokaOne, ZIndex = 3,
 			TextColor3 = (i == 1) and Color3.fromRGB(255, 220, 80) or Color3.new(1, 1, 1) })
 		if i == 1 then
-			text(cardF, { Size = UDim2.fromOffset(28, 26), Position = UDim2.fromOffset(-8, 16), Text = "👑", TextStrokeTransparency = 1, ZIndex = 3, Rotation = -20 })
+			UI.Icon(cardF, "crown", "👑", { Size = UDim2.fromOffset(32, 30), Position = UDim2.fromOffset(-10, 12), ZIndex = 3, Rotation = -20 })
 		end
 		if (b.Streak or 0) >= 3 then
 			text(cardF, { Size = UDim2.fromOffset(40, 22), Position = UDim2.new(0, -6, 1, -20), Text = "🔥" .. b.Streak, ZIndex = 3, Font = Enum.Font.GothamBlack })
@@ -779,7 +787,7 @@ function HUD.UpdateQuests()
 		local q = list[i]
 		local cardF = make("Frame", { Size = UDim2.fromOffset(380, 58), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2, LayoutOrder = i }, questBox)
 		corner(cardF, 10)
-		text(cardF, { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(8, 9), Text = q.Done and "✅" or "📅", TextStrokeTransparency = 1 })
+		UI.Icon(cardF, q.Done and "check" or "quest", q.Done and "✅" or "📅", { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(8, 9) })
 		text(cardF, { Size = UDim2.new(1, -170, 0, 20), Position = UDim2.fromOffset(54, 8), Text = string.format("[%s] %s", q.Period == "Daily" and "일일" or "주간", q.Name),
 			Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 1 })
 		text(cardF, { Size = UDim2.fromOffset(100, 18), Position = UDim2.new(1, -184, 0, 9), Text = string.format("%d / %d", q.P, q.Goal), TextScaled = false,
@@ -789,8 +797,9 @@ function HUD.UpdateQuests()
 		local fill = make("Frame", { Size = UDim2.fromScale(math.clamp(q.P / math.max(1, q.Goal), 0, 1), 1),
 			BackgroundColor3 = q.Done and Color3.fromRGB(120, 255, 170) or Color3.fromRGB(80, 210, 255), BorderSizePixel = 0 }, bar)
 		corner(fill, 4)
-		text(cardF, { Size = UDim2.fromOffset(80, 30), Position = UDim2.new(1, -86, 0.5, -15), Text = "🪙 +" .. q.Reward, Font = Enum.Font.GothamBlack,
-			TextColor3 = Color3.fromRGB(255, 220, 90) })
+		UI.Icon(cardF, "coin", "🪙", { Size = UDim2.fromOffset(24, 24), Position = UDim2.new(1, -90, 0.5, -12) })
+		text(cardF, { Size = UDim2.fromOffset(56, 26), Position = UDim2.new(1, -62, 0.5, -13), Text = "+" .. q.Reward, Font = Enum.Font.GothamBlack,
+			TextColor3 = Color3.fromRGB(255, 220, 90), TextXAlignment = Enum.TextXAlignment.Left })
 	end
 end
 player:GetAttributeChangedSignal("Quests"):Connect(function()

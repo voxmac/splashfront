@@ -1,5 +1,6 @@
 """Uploads game assets to Roblox with Open Cloud and records their asset IDs.
-usage: ROBLOX_API_KEY=... ROBLOX_CREATOR=user:12345 python tools/roblox_upload.py [audio|models|all]
+usage: ROBLOX_API_KEY=... ROBLOX_CREATOR=user:12345 python tools/roblox_upload.py [audio|models|images|all]
+  images : assets/textures/*.png (surface textures) + assets/icons/*.png (HUD icons) as Decals
   audio  : assets/audio/<track>.ogg (BGM 5) + assets/sfx/sfx_atlas.ogg (all 37 effects in one file)
   models : assets/models/*.fbx (6 guns + helmet + backpack)
 Skips files already uploaded with the same content (sha1 in assets/roblox_ids.json).
@@ -105,5 +106,13 @@ if WHAT in ("models", "all"):
     for p in sorted(__import__("glob").glob(os.path.join(ROOT, "assets", "models", "*.fbx"))):
         name = os.path.basename(p)[:-4]
         upload(f"model/{name}", p, "Model", f"SPLASH FRONT {name}", "SPLASH FRONT model (Blender)", "model/fbx")
+if WHAT in ("images", "all"):
+    import glob as _g
+    for folder, prefix in (("textures", "tex"), ("icons", "icon")):
+        for p in sorted(_g.glob(os.path.join(ROOT, "assets", folder, "*.png"))):
+            name = os.path.basename(p)[:-4]
+            if name.startswith("_"):
+                continue
+            upload(f"{prefix}/{name}", p, "Decal", f"SPLASH FRONT {prefix} {name}", f"SPLASH FRONT {folder[:-1]} (procedural)", "image/png")
 save()
 print("done:", sum(1 for k, v in ids.items() if v), "asset IDs")

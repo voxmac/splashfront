@@ -120,6 +120,13 @@ local function fireAt(e, head, targetPos, extraSpread)
 		dirs[i] = spreadDir(base, w.Spread + (extraSpread or 0))
 	end
 	CombatService.Fire(e, head.Position, dirs)
+	-- 다른 플레이어 화면에서 봇 상체·팔이 표적 쪽으로 기울도록
+	if e.Model and base.Magnitude > 0.1 then
+		local pitch = math.floor(math.deg(math.asin(math.clamp(base.Unit.Y, -1, 1))) + 0.5)
+		if math.abs((e.Model:GetAttribute("AimPitch") or 0) - pitch) >= 3 then
+			e.Model:SetAttribute("AimPitch", pitch)
+		end
+	end
 end
 
 local function think(e)

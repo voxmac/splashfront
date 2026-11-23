@@ -15,6 +15,7 @@ local AdminService = require(Services.AdminService)
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModelService = require(Services.ModelService)
 local ItemService = require(Services.ItemService)
+local ImageService = require(Services.ImageService)
 local QuestService = require(Services.QuestService)
 
 -- 원격 이벤트
@@ -24,6 +25,24 @@ for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
+end
+-- 조준 각도·자세 공유 (자주 보내므로 신뢰성 없는 이벤트)
+do
+	local pose = Instance.new("UnreliableRemoteEvent")
+	pose.Name = "Pose"
+	pose.Parent = remotes
+	local STANCES = { Normal = true, Run = true, Walk = true, Crouch = true }
+	pose.OnServerEvent:Connect(function(pl, pitch, stance)
+		if type(pitch) == "number" and pitch == pitch then
+			local p = math.clamp(math.floor(pitch + 0.5), -70, 70)
+			if math.abs((pl:GetAttribute("AimPitch") or 0) - p) >= 2 then
+				pl:SetAttribute("AimPitch", p)
+			end
+		end
+		if STANCES[stance] and pl:GetAttribute("Stance") ~= stance then
+			pl:SetAttribute("Stance", stance)
+		end
+	end)
 end
 for _, name in ipairs({ "Shop", "Admin", "Feedback", "Leaderboard" }) do
 	local f = Instance.new("RemoteFunction")
@@ -46,6 +65,13 @@ local maps = {
 	MapBuilder.BuildArena(),      -- 크로마 스퀘어
 	MapBuilder.BuildSkyRooftop(), -- 스카이 루프탑
 }
+
+-- 업로드한 표면 텍스처·HUD 아이콘 (없으면 단색·이모지로 대체)
+ImageService.Load()
+ImageService.ApplyTextures(lobby.Folder, ImageService.LobbyRules)
+for _, m in ipairs(maps) do
+	ImageService.ApplyTextures(m.Folder)
+end
 local activeCells = Instance.new("ObjectValue")
 activeCells.Name = "ActiveCells" -- 클라이언트가 현재 맵의 바닥 셀을 찾는 용도
 activeCells.Value = maps[1].Cells

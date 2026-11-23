@@ -117,6 +117,32 @@ function UI.Panel(parent, title, size, accent)
 end
 
 ------------------------------------------------------------------------
+-- 커스텀 아이콘 (업로드한 이미지). 아직 없으면 이모지로 보였다가 이미지가 준비되면 바뀜
+------------------------------------------------------------------------
+local images = ReplicatedStorage:WaitForChild("Images", 10)
+function UI.Icon(parent, name, emoji, props)
+	local holder = make("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(32, 32) }, parent)
+	for k, v in pairs(props or {}) do
+		holder[k] = v
+	end
+	local img = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit, Visible = false,
+		ZIndex = holder.ZIndex }, holder)
+	local txt = make("TextLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = emoji or "", TextScaled = true,
+		Font = Enum.Font.GothamBlack, TextColor3 = Color3.new(1, 1, 1), ZIndex = holder.ZIndex }, holder)
+	local function refresh()
+		local url = images and images:GetAttribute("icon_" .. name)
+		img.Image = url or ""
+		img.Visible = url ~= nil
+		txt.Visible = url == nil
+	end
+	refresh()
+	if images then
+		images:GetAttributeChangedSignal("icon_" .. name):Connect(refresh)
+	end
+	return holder
+end
+
+------------------------------------------------------------------------
 -- 아이템 이미지: 총은 3D 미리보기(ViewportFrame), 패턴은 재질 견본, 이펙트는 아이콘
 ------------------------------------------------------------------------
 local function viewportModel(parent, model, size, rotY)

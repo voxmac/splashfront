@@ -5,10 +5,10 @@ name: roblox-upload
 on:
   workflow_dispatch:
     inputs:
-      what: {description: "audio, models or all", required: false, default: "all"}
+      what: {description: "audio, models, images or all", required: false, default: "all"}
   push:
     branches: [main]
-    paths: ["assets/sfx/*.ogg", "assets/models/*.fbx"]
+    paths: ["assets/sfx/*.ogg", "assets/models/*.fbx", "assets/textures/*.png", "assets/icons/*.png"]
 
 permissions:
   contents: write

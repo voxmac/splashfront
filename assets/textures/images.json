@@ -1,0 +1,23 @@
+{
+ "textures": [
+  "container_rib",
+  "crate_wood",
+  "floor_tile",
+  "hazard",
+  "ramp_plate",
+  "wall_panel"
+ ],
+ "icons": [
+  "bomb",
+  "check",
+  "chest",
+  "coin",
+  "crown",
+  "flame",
+  "hourglass",
+  "quest",
+  "skull",
+  "target",
+  "trophy"
+ ]
+}

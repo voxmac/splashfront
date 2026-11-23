@@ -21,6 +21,12 @@ lines += ["\t},", f"\tSfxAtlas = {num('sfx/atlas')},", "\tSfxRegions = {"]
 lines += [f"\t\t{n} = {{ {a}, {b} }}," for n, (a, b) in regions.items()]
 lines += ["\t},", "\tModels = {"]
 lines += [f"\t\t{m} = {num('model/' + m)}," for m in MODELS]
+lines += ["\t},"]
+imgs = json.load(open(os.path.join(ROOT, "assets", "textures", "images.json"), encoding="utf-8"))
+lines += ["\t-- 데칼 ID (서버 ImageService가 실제 이미지 ID로 바꿔 씀)", "\tTextures = {"]
+lines += [f"\t\t{t} = {num('tex/' + t)}," for t in imgs["textures"]]
+lines += ["\t},", "\tIcons = {"]
+lines += [f"\t\t{t} = {num('icon/' + t)}," for t in imgs["icons"]]
 lines += ["\t},", "}", ""]
 out = os.path.join(ROOT, "game", "src", "shared", "AssetIds.lua")
 os.makedirs(os.path.dirname(out), exist_ok=True)
