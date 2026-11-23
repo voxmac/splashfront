@@ -145,14 +145,78 @@ local function bind(folder)
 	end
 end
 
+------------------------------------------------------------------------
+-- 벽·엄폐물 페인트 자국: 총알이 벽·상자·컨테이너에 맞으면 둥근 자국 + 흘러내린 방울
+-- (바닥 셀이 없는 곳에도 색이 묻어 맵 전체가 칠해지는 느낌. 판정·점수와는 무관)
+------------------------------------------------------------------------
+local walls = {}
+local MAX_WALL = 900
+local function isCharacter(inst)
+	local m = inst:FindFirstAncestorOfClass("Model")
+	while m do
+		if m:FindFirstChildOfClass("Humanoid") then
+			return true
+		end
+		m = m.Parent and m.Parent:FindFirstAncestorOfClass("Model")
+	end
+	return false
+end
+
+function PV.WallSplat(inst, pos, normal, color)
+	if not layer or not inst or not inst:IsA("BasePart") or inst.Name == "Cell" or inst.Transparency > 0.8 then
+		return
+	end
+	local lobby = workspace:FindFirstChild("Lobby")
+	if (lobby and inst:IsDescendantOf(lobby)) or isCharacter(inst) then
+		return
+	end
+	local active = ReplicatedStorage:FindFirstChild("ActiveCells")
+	local mapRoot = active and active.Value and active.Value.Parent
+	if mapRoot and not inst:IsDescendantOf(mapRoot) then
+		return
+	end
+	local n = normal.Unit
+	local up = (math.abs(n.Y) < 0.95) and Vector3.yAxis or Vector3.xAxis
+	local vy = (up - n * up:Dot(n)).Unit
+	local vz = n:Cross(vy)
+	local d = rng:NextNumber(1.6, 3.2)
+	local cf = CFrame.fromMatrix(pos + n * (0.03 + rng:NextNumber(0, 0.02)), n, vy, vz)
+	local splat = disc(Vector3.zero, 0.3, color, Enum.Material.SmoothPlastic)
+	splat.CFrame = cf
+	TweenService:Create(splat, GROW, { Size = Vector3.new(0.05, d, d) }):Play()
+	table.insert(walls, splat)
+	-- 세로 벽이면 아래로 흘러내린 방울 1~2개
+	if math.abs(n.Y) < 0.4 then
+		for k = 1, rng:NextInteger(1, 2) do
+			local dd = rng:NextNumber(0.4, 0.9)
+			local drop = disc(Vector3.zero, dd, color, Enum.Material.SmoothPlastic)
+			drop.CFrame = cf * CFrame.new(0.01, -(d * 0.45 + k * dd * 0.9), rng:NextNumber(-d * 0.25, d * 0.25))
+			table.insert(walls, drop)
+		end
+	end
+	while #walls > MAX_WALL do
+		local old = table.remove(walls, 1)
+		old:Destroy()
+	end
+end
+
+local function clearWalls()
+	for _, p in ipairs(walls) do
+		p:Destroy()
+	end
+	walls = {}
+end
+
 function PV.Init()
 	layer = Instance.new("Folder")
 	layer.Name = "PaintLayer"
 	layer.Parent = workspace
 	local active = ReplicatedStorage:WaitForChild("ActiveCells")
 	active.Changed:Connect(function()
+		clearWalls()
 		bind(active.Value)
 	end)
+	game:GetService("Players").LocalPlayer:GetAttributeChangedSignal("InMatch"):Connect(clearWalls)
 	bind(active.Value)
 end
 

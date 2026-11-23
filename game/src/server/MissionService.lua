@@ -179,6 +179,9 @@ local function finish(ctx)
 		api.Cue("mission_result", winner)
 		api.AddBonus(winner, ctx.Def.Bonus)
 		api.RewardOwner(winner, Config.Rewards.Mission)
+		if api.RewardItems then
+			api.RewardItems(winner)
+		end
 		if ctx.Taker then
 			ctx.Taker.MissionWins = ctx.Taker.MissionWins + 1
 		end

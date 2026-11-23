@@ -17,6 +17,8 @@ def item(cls,name,inner=''):
     return f'<Item class="{cls}" referent="RBX{next(ref)}"><Properties><string name="Name">{name}</string></Properties>{inner}</Item>'
 x='<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4">'
 x+='<Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item>'
+# 조명 엔진 Future (스크립트로는 못 바꾸는 속성이라 파일에 기록). Enum.Technology: Voxel=1 · Compatibility=2 · ShadowMap=3 · Future=4
+x+='<Item class="Lighting" referent="RBXL"><Properties><string name="Name">Lighting</string><token name="Technology">4</token><float name="EnvironmentDiffuseScale">1</float><float name="EnvironmentSpecularScale">0.6</float></Properties></Item>'
 x+=item('ReplicatedStorage','ReplicatedStorage', item('Folder','Shared',children(f'{root}/src/shared')))
 x+=item('ServerScriptService','ServerScriptService',children(f'{root}/src/server'))
 x+=item('StarterPlayer','StarterPlayer', item('StarterPlayerScripts','StarterPlayerScripts',children(f'{root}/src/client')))

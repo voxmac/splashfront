@@ -14,11 +14,13 @@ local Telemetry = require(Services.TelemetryService)
 local AdminService = require(Services.AdminService)
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModelService = require(Services.ModelService)
+local ItemService = require(Services.ItemService)
+local QuestService = require(Services.QuestService)
 
 -- 원격 이벤트
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon" }) do
+for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem" }) do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
@@ -60,6 +62,14 @@ Telemetry.Init(remotes)
 AdminService.Init(remotes)
 RankService.StartBoard(lobby.Leaderboard)
 RankService.Init(remotes)
+ItemService.Init(remotes)
+QuestService.Init(remotes)
+CombatService.OnSpecialUsed = function(pl)
+	QuestService.Add(pl, "Specials", 1)
+end
+ItemService.OnUsed = function(pl)
+	QuestService.Add(pl, "Items", 1)
+end
 
 -- 전투 틱 (잉크 충전·체력 회복)
 task.spawn(function()
@@ -76,7 +86,9 @@ local function onPlayer(player)
 	if not AdminService.Gate(player) then
 		return
 	end
+	player.DevEnableMouseLock = false -- Shift는 달리기 (기본 시프트락 끔)
 	DataService.Load(player)
+	QuestService.Publish(player)
 	player.CharacterAdded:Connect(function(character)
 		local hum = character:WaitForChild("Humanoid")
 		hum.Died:Connect(function()

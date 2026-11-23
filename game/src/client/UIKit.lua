@@ -133,6 +133,10 @@ local function viewportModel(parent, model, size, rotY)
 	return vp
 end
 
+function UI.ModelImage(parent, model, size, rotY)
+	return viewportModel(parent, model, size, rotY)
+end
+
 function UI.GunImage(parent, weaponId, accent, skin, size)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
 	return viewportModel(parent, model, size, math.rad(90))

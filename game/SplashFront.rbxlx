@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="ReplicatedStorage" referent="RBX7"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX6"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBXL"><Properties><string name="Name">Lighting</string><token name="Technology">4</token><float name="EnvironmentDiffuseScale">1</float><float name="EnvironmentSpecularScale">0.6</float></Properties></Item><Item class="ReplicatedStorage" referent="RBX7"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX6"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
@@ -63,7 +63,7 @@ return {
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.5.1-CBT"
+Config.Build = "0.6-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -129,6 +129,8 @@ Config.WalkSpeed = 16
 Config.WalkSpeedOwn = 21
 Config.WalkSpeedEnemy = 11
 Config.CrouchSpeedMul = 0.6
+Config.RunSpeedMul = 1.4    -- 달리기(Shift 누르는 동안) · 조준·앉기·사격 직후엔 안 됨
+Config.WalkSpeedMul = 0.55  -- 걷기(Z 전환) · 탄 퍼짐이 줄어 정밀 사격
 
 Config.SpecialCells = 150       -- 이만큼 칠하면 스페셜 충전
 Config.SpecialRadius = 14
@@ -148,6 +150,11 @@ Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판�
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
 Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)
+
+-- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
+-- 플래그 러시는 깃발 점수로 판정
+Config.WinWeights = { Paint = 0.8, Combat = 0.2 }
+Config.MissionKillValue = 1 -- 미션 보너스 1점 = 처치 몇 번어치인지 (미션 보너스는 보통 4점)
 
 Config.Modes = {
 	Turf = { Id = "Turf", Name = "터프 배틀", Desc = "더 넓게 칠한 팀이 승리" },
@@ -170,14 +177,68 @@ Config.Flag = {
 	Radius = 7,
 }
 
+-- 미션 보상 아이템 (미션 성공 팀원 전원에게 1개씩 무작위 지급, 최대 3개 보관 · F 사용 · G 순서 바꾸기)
+Config.Items = {
+	{ Id = "Jetpack", Name = "제트팩", Desc = "10초 동안 Space를 누르고 있으면 날아올라요", Duration = 10, Weight = 18 },
+	{ Id = "Shield", Name = "일시 무적", Desc = "6초 동안 어떤 공격도 받지 않아요", Duration = 6, Weight = 16 },
+	{ Id = "Smoke", Name = "연막탄", Desc = "조준한 곳에 12초 동안 연막을 펼쳐 시야를 가려요", Duration = 12, Weight = 20 },
+	{ Id = "Golden", Name = "황금총", Desc = "단 1발 · 맞으면 무조건 처치 · 쏘면 사라져요", Weight = 10 },
+	{ Id = "Zoom3", Name = "3배 스코프", Desc = "60초 동안 모든 총 조준이 3배 확대", Duration = 60, Zoom = 3, Weight = 20 },
+	{ Id = "Zoom6", Name = "6배 스코프", Desc = "60초 동안 모든 총 조준이 6배 확대", Duration = 60, Zoom = 6, Weight = 16 },
+}
+Config.ItemSlots = 3
+Config.JetpackThrust = 85   -- 초당 위로 가속 (중력 196을 상쇄하는 양만큼 추가로 줌)
+Config.JetpackMaxRise = 26  -- 최대 상승 속도
+Config.SmokeRadius = 14
+Config.GoldenRange = 320
+
+-- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐
+Config.Throw = { Speed = 55, Gravity = 70, MaxTime = 3 }
+
 -- 미션
 Config.MissionInterval = 35
 Config.MissionFirstDelay = 20
 
 -- 보상
 Config.Rewards = {
-	Win = 120, Lose = 60, Kill = 10, Per100Cells = 10, Mission = 30,
+	Win = 120, Lose = 60, Kill = 10, Headshot = 5, Per100Cells = 10, Mission = 30,
 }
+
+-- 경험치·레벨 (레벨업마다 코인 보너스)
+Config.XP = { Kill = 25, Headshot = 10, Win = 100, Lose = 50, PerCells = 40, Mission = 40, Quest = 60 }
+function Config.XPNeed(level)
+	return 100 + (level - 1) * 35
+end
+function Config.LevelReward(level)
+	return 100 + level * 10
+end
+Config.MultiKillWindow = 4 -- 초: 이 안에 연달아 처치하면 더블·트리플·쿼드 킬
+
+-- 일일·주간 퀘스트 (한국 시간 자정 / 월요일 0시 초기화, 모든 플레이어가 같은 퀘스트)
+-- Stat: Kills · Headshots · Cells · Wins · Matches · Missions · Specials · Items
+Config.Quests = {
+	Daily = {
+		{ Id = "d_kill20", Name = "20 처치 달성", Stat = "Kills", Goal = 20, Reward = 60 },
+		{ Id = "d_head5", Name = "헤드샷 5회", Stat = "Headshots", Goal = 5, Reward = 60 },
+		{ Id = "d_paint1500", Name = "바닥 1,500칸 칠하기", Stat = "Cells", Goal = 1500, Reward = 60 },
+		{ Id = "d_win2", Name = "2승 하기", Stat = "Wins", Goal = 2, Reward = 80 },
+		{ Id = "d_play3", Name = "경기 3판 하기", Stat = "Matches", Goal = 3, Reward = 50 },
+		{ Id = "d_mission2", Name = "랜덤 미션 2번 성공", Stat = "Missions", Goal = 2, Reward = 70 },
+		{ Id = "d_special3", Name = "크로마 봄 3번 터뜨리기", Stat = "Specials", Goal = 3, Reward = 50 },
+	},
+	Weekly = {
+		{ Id = "w_kill300", Name = "300 처치 달성", Stat = "Kills", Goal = 300, Reward = 500 },
+		{ Id = "w_win15", Name = "15승 하기", Stat = "Wins", Goal = 15, Reward = 600 },
+		{ Id = "w_paint20k", Name = "바닥 20,000칸 칠하기", Stat = "Cells", Goal = 20000, Reward = 500 },
+		{ Id = "w_head60", Name = "헤드샷 60회", Stat = "Headshots", Goal = 60, Reward = 450 },
+		{ Id = "w_item15", Name = "아이템 15번 사용", Stat = "Items", Goal = 15, Reward = 400 },
+		{ Id = "w_play30", Name = "경기 30판 하기", Stat = "Matches", Goal = 30, Reward = 450 },
+	},
+	PerPeriod = 3,
+}
+
+-- 포인트(코인)로 바로 사는 스킨 가격 (크레이트 아이템도 코인으로 직접 구매 가능)
+Config.SkinPrices = { Rare = 1500, Epic = 4000, Legendary = 9000 }
 Config.VipCoinMul = 1.25
 
 -- 랭크
@@ -584,6 +645,31 @@ function ModelKit.Armor(character, color)
 			piece(l, Vector3.new(s.X * 0.5, 0.1, 0.24), CFrame.new(0, y, -(s.Z / 2 + 0.08)), color, Enum.Material.Neon)
 		end
 	end
+	-- 장갑 · 부츠 · 팔꿈치 패드
+	for _, n in ipairs({ "LeftHand", "RightHand" }) do
+		local h = character:FindFirstChild(n)
+		if h then
+			local sz = h.Size
+			piece(h, sz * 1.12, CFrame.new(), Color3.fromRGB(30, 30, 38), Enum.Material.Fabric)
+			piece(h, Vector3.new(sz.X * 1.16, 0.08, sz.Z * 1.16), CFrame.new(0, sz.Y / 2 - 0.02, 0), color, Enum.Material.Neon)
+		end
+	end
+	for _, n in ipairs({ "LeftFoot", "RightFoot" }) do
+		local f = character:FindFirstChild(n)
+		if f then
+			local sz = f.Size
+			piece(f, Vector3.new(sz.X * 1.15, sz.Y * 1.25, sz.Z * 1.18), CFrame.new(0, 0.02, -0.03), Color3.fromRGB(40, 38, 50), Enum.Material.Leather)
+			piece(f, Vector3.new(sz.X * 1.18, 0.1, sz.Z * 1.2), CFrame.new(0, sz.Y * 0.62, -0.03), color, Enum.Material.Neon)
+			piece(f, Vector3.new(sz.X * 1.17, 0.12, sz.Z * 1.21), CFrame.new(0, -sz.Y * 0.55, -0.03), Color3.fromRGB(235, 235, 240), Enum.Material.SmoothPlastic)
+		end
+	end
+	for _, n in ipairs({ "LeftLowerArm", "RightLowerArm" }) do
+		local a = character:FindFirstChild(n)
+		if a then
+			local sz = a.Size
+			piece(a, Vector3.new(sz.X * 1.15, 0.32, sz.Z * 1.15), CFrame.new(0, sz.Y / 2 - 0.12, 0), ARMOR, Enum.Material.Metal)
+		end
+	end
 	local hip = character:FindFirstChild("LowerTorso") or torso
 	if hip then
 		local s = hip.Size
@@ -632,13 +718,145 @@ function ModelKit.Recolor(model, accent, bodyColor, bodyMaterial)
 	end
 end
 
-return ModelKit
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">Weapons</string><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT : 무기 정의 (사이드그레이드 원칙 — 강해지는 업그레이드 없음)
+------------------------------------------------------------------------
+-- 미션 보상 아이템 3D 모델 (카툰풍: 둥근 모서리·굵은 색 띠·네온 포인트)
+-- 앞(-Z) 기준, 손잡이/중심이 원점. HUD 아이콘(ViewportFrame)과 몸에 차는 제트팩에 씀
+------------------------------------------------------------------------
+local function ip(m, shape, size, cf, color, mat, name)
+	local p = Instance.new("Part")
+	p.Name = name or "Item"
+	p.Shape = shape or Enum.PartType.Block
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = m
+	return p
+end
+local CYL, BALL, BLOCK = Enum.PartType.Cylinder, Enum.PartType.Ball, Enum.PartType.Block
+local UPR = CFrame.Angles(0, 0, math.rad(90)) -- 원기둥 세우기
+local FWD = CFrame.Angles(0, math.rad(90), 0) -- 원기둥 앞뒤로 눕히기
+
+local ITEM_BUILDERS = {}
+
+ITEM_BUILDERS.Jetpack = function(m, accent)
+	local white = Color3.fromRGB(236, 238, 246)
+	ip(m, BLOCK, Vector3.new(1.9, 1.7, 0.35), CFrame.new(0, 0, 0), Color3.fromRGB(50, 52, 66), Enum.Material.Metal, "Plate")
+	for _, x in ipairs({ -0.55, 0.55 }) do
+		ip(m, CYL, Vector3.new(1.7, 0.9, 0.9), CFrame.new(x, 0, 0.55) * UPR, white, Enum.Material.SmoothPlastic, "Tank")
+		ip(m, BALL, Vector3.new(0.9, 0.9, 0.9), CFrame.new(x, 0.85, 0.55), white, Enum.Material.SmoothPlastic, "Cap")
+		ip(m, CYL, Vector3.new(0.18, 0.95, 0.95), CFrame.new(x, 0.35, 0.55) * UPR, accent, Enum.Material.Neon, "Stripe")
+		ip(m, CYL, Vector3.new(0.18, 0.95, 0.95), CFrame.new(x, -0.3, 0.55) * UPR, accent, Enum.Material.Neon, "Stripe")
+		local n = ip(m, CYL, Vector3.new(0.45, 0.6, 0.6), CFrame.new(x, -1.05, 0.55) * UPR, Color3.fromRGB(60, 60, 70), Enum.Material.Metal, "Nozzle")
+		local a = Instance.new("Attachment")
+		a.Name = "Flame"
+		a.Position = Vector3.new(-0.3, 0, 0) -- 원기둥 로컬 -X = 아래
+		a.Parent = n
+	end
+	ip(m, BLOCK, Vector3.new(1.4, 0.25, 0.5), CFrame.new(0, 0.6, 0.3), accent, Enum.Material.SmoothPlastic, "Strap")
+end
+
+ITEM_BUILDERS.Shield = function(m, accent)
+	local blue = Color3.fromRGB(70, 170, 255)
+	ip(m, CYL, Vector3.new(0.35, 2.2, 2.2), CFrame.new(0, 0, 0) * FWD, Color3.fromRGB(230, 236, 250), Enum.Material.SmoothPlastic, "Rim")
+	ip(m, CYL, Vector3.new(0.45, 1.8, 1.8), CFrame.new(0, 0, -0.02) * FWD, blue, Enum.Material.SmoothPlastic, "Face")
+	ip(m, BALL, Vector3.new(1.3, 1.3, 0.6), CFrame.new(0, 0, -0.2), Color3.fromRGB(140, 220, 255), Enum.Material.Glass, "Dome")
+	ip(m, BLOCK, Vector3.new(0.25, 0.9, 0.2), CFrame.new(0, 0.05, -0.5), Color3.new(1, 1, 1), Enum.Material.Neon, "Cross")
+	ip(m, BLOCK, Vector3.new(0.9, 0.25, 0.2), CFrame.new(0, 0.05, -0.5), Color3.new(1, 1, 1), Enum.Material.Neon, "Cross")
+end
+
+ITEM_BUILDERS.Smoke = function(m, accent)
+	local grey = Color3.fromRGB(110, 120, 128)
+	ip(m, CYL, Vector3.new(1.3, 0.9, 0.9), CFrame.new(0, 0, 0) * UPR, grey, Enum.Material.SmoothPlastic, "Body")
+	ip(m, CYL, Vector3.new(0.3, 0.95, 0.95), CFrame.new(0, 0.1, 0) * UPR, Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic, "Band")
+	ip(m, CYL, Vector3.new(0.2, 0.96, 0.96), CFrame.new(0, -0.35, 0) * UPR, Color3.fromRGB(255, 200, 40), Enum.Material.Neon, "Band")
+	ip(m, CYL, Vector3.new(0.3, 0.55, 0.55), CFrame.new(0, 0.8, 0) * UPR, Color3.fromRGB(60, 62, 70), Enum.Material.Metal, "Top")
+	ip(m, BLOCK, Vector3.new(0.18, 0.9, 0.3), CFrame.new(0.4, 0.45, 0) * CFrame.Angles(0, 0, math.rad(-12)), Color3.fromRGB(70, 72, 80), Enum.Material.Metal, "Lever")
+	ip(m, CYL, Vector3.new(0.08, 0.45, 0.45), CFrame.new(-0.35, 0.95, 0) * FWD, Color3.fromRGB(220, 220, 230), Enum.Material.Metal, "Pin")
+end
+
+local function scope(m, accent, label)
+	local black = Color3.fromRGB(34, 34, 42)
+	ip(m, CYL, Vector3.new(2.6, 0.55, 0.55), CFrame.new(0, 0, 0) * FWD, black, Enum.Material.SmoothPlastic, "Tube")
+	ip(m, CYL, Vector3.new(0.5, 0.8, 0.8), CFrame.new(0, 0, -1.2) * FWD, black, Enum.Material.SmoothPlastic, "Bell")
+	ip(m, CYL, Vector3.new(0.45, 0.68, 0.68), CFrame.new(0, 0, 1.15) * FWD, black, Enum.Material.SmoothPlastic, "Eye")
+	ip(m, CYL, Vector3.new(0.06, 0.7, 0.7), CFrame.new(0, 0, -1.46) * FWD, Color3.fromRGB(120, 200, 255), Enum.Material.Neon, "Lens")
+	for _, z in ipairs({ -0.5, 0.5 }) do
+		ip(m, CYL, Vector3.new(0.14, 0.62, 0.62), CFrame.new(0, 0, z) * FWD, accent, Enum.Material.Neon, "Ring")
+		ip(m, BLOCK, Vector3.new(0.3, 0.45, 0.3), CFrame.new(0, -0.4, z), Color3.fromRGB(70, 70, 80), Enum.Material.Metal, "Mount")
+	end
+	ip(m, CYL, Vector3.new(0.3, 0.32, 0.32), CFrame.new(0, 0.38, 0) * UPR, accent, Enum.Material.SmoothPlastic, "Turret")
+end
+ITEM_BUILDERS.Zoom3 = function(m)
+	scope(m, Color3.fromRGB(80, 230, 120))
+end
+ITEM_BUILDERS.Zoom6 = function(m)
+	scope(m, Color3.fromRGB(255, 80, 90))
+end
+
+local GOLD = Color3.fromRGB(255, 196, 40)
+function ModelKit.Item(id, accent)
+	accent = accent or Color3.fromRGB(0, 200, 255)
+	if id == "Golden" then
+		local gun = ModelKit.Gun("Pistol", GOLD, { Color = GOLD }, Enum.Material.Foil)
+		for _, p in ipairs(gun:GetDescendants()) do
+			if p:IsA("BasePart") and p:GetAttribute("Kind") == "Metal" then
+				p.Color = Color3.fromRGB(255, 225, 120)
+				p.Material = Enum.Material.Foil
+			end
+		end
+		return gun
+	end
+	local m = Instance.new("Model")
+	m.Name = "Item_" .. tostring(id)
+	local b = ITEM_BUILDERS[id]
+	if b then
+		b(m, accent)
+	else
+		ip(m, BALL, Vector3.new(1, 1, 1), CFrame.new(), accent, Enum.Material.Neon)
+	end
+	return m
+end
+
+-- 황금총 상태로 손에 든 총을 금색으로 (해제하면 팀 색으로 되돌림)
+function ModelKit.SetGolden(gun, on, accent)
+	for _, p in ipairs(gun:GetDescendants()) do
+		if p:IsA("BasePart") then
+			local k = p:GetAttribute("Kind")
+			if k == "Body" or k == "Metal" or k == "Accent" then
+				if on then
+					if p:GetAttribute("OrigColor") == nil then
+						p:SetAttribute("OrigColor", p.Color)
+						p:SetAttribute("OrigMat", p.Material.Name)
+					end
+					p.Color = (k == "Accent") and Color3.fromRGB(255, 240, 160) or GOLD
+					p.Material = (k == "Accent") and Enum.Material.Neon or Enum.Material.Foil
+				elseif p:GetAttribute("OrigColor") ~= nil then
+					p.Color = p:GetAttribute("OrigColor")
+					p.Material = Enum.Material[p:GetAttribute("OrigMat")] or p.Material
+					if k == "Accent" and accent then
+						p.Color = accent
+					end
+				end
+			end
+		end
+	end
+end
+
+return ModelKit]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">Weapons</string><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT : 무기 정의 (사이드그레이드 원칙 — 강해지는 업그레이드 없음)
 -- Damage: 1발 피해 / FireInterval: 발사 간격(초) / Range: 사거리
 -- InkCost: 1발 잉크 소모 / PaintRadius: 착탄 페인트 반경
 -- Spread: 기본 탄퍼짐(도) / SpreadGrow: 연사 시 증가량 / SpreadMax: 최대
 -- Pellets: 산탄 수 / Splash: 착탄 범위 피해 반경(0이면 직격만)
 -- Recoil: 화면 반동(도) / PathPaint: 탄도 경로도 칠함
+-- ZoomFov: 우클릭 조준 시 시야각(작을수록 확대) / Sight: 조준점 모양 (Dot 레드닷, Holo 홀로, Scope 스코프)
 local Weapons = {}
 
 Weapons.List = {
@@ -646,28 +864,28 @@ Weapons.List = {
 		Id = "Pistol", Name = "스플랫 피스톨", Class = "권총", Price = 0,
 		Damage = 28, HeadMul = 1.5, FireInterval = 0.2, Range = 70,
 		InkCost = 2, PaintRadius = 4, Spread = 0.15, SpreadGrow = 0.25, SpreadMax = 1.5, -- 0.5: 명중률 상향
-		Pellets = 1, Splash = 0, Recoil = 1.2, Auto = false, PathPaint = false,
+		Pellets = 1, Splash = 0, Recoil = 1.2, Auto = false, PathPaint = false, ZoomFov = 48, Sight = "Dot",
 		Color = Color3.fromRGB(60, 60, 70), Size = Vector3.new(0.4, 0.7, 1.4),
 	},
 	{
 		Id = "Rifle", Name = "스트리트 라이플", Class = "돌격소총", Price = 1500,
 		Damage = 18, HeadMul = 1.5, FireInterval = 0.12, Range = 90, -- CBT 1차: 20→18 (TTK 0.48→0.60s)
 		InkCost = 1.6, PaintRadius = 3.5, Spread = 0.2, SpreadGrow = 0.12, SpreadMax = 1.8,
-		Pellets = 1, Splash = 0, Recoil = 0.9, Auto = true, PathPaint = false,
+		Pellets = 1, Splash = 0, Recoil = 0.9, Auto = true, PathPaint = false, ZoomFov = 36, Sight = "Holo",
 		Color = Color3.fromRGB(40, 44, 52), Size = Vector3.new(0.4, 0.6, 2.6),
 	},
 	{
 		Id = "SMG", Name = "레인메이커 SMG", Class = "따발총", Price = 2000,
 		Damage = 13, HeadMul = 1.5, FireInterval = 0.065, Range = 45, -- CBT 1차: 11→13 (근거리 최강, TTK 0.46s)
 		InkCost = 0.9, PaintRadius = 3, Spread = 1.0, SpreadGrow = 0.15, SpreadMax = 2.8,
-		Pellets = 1, Splash = 0, Recoil = 0.6, Auto = true, PathPaint = false,
+		Pellets = 1, Splash = 0, Recoil = 0.6, Auto = true, PathPaint = false, ZoomFov = 46, Sight = "Dot",
 		Color = Color3.fromRGB(70, 50, 90), Size = Vector3.new(0.45, 0.8, 1.8),
 	},
 	{
 		Id = "Shotgun", Name = "버스트 블래스터", Class = "산탄총", Price = 2500,
 		Damage = 12, HeadMul = 1.25, FireInterval = 0.7, Range = 30, -- CBT 1차: 11→12, 0.8→0.7s
 		InkCost = 7, PaintRadius = 3, Spread = 4.2, SpreadGrow = 0, SpreadMax = 4.2,
-		Pellets = 8, Splash = 0, Recoil = 4, Auto = false, PathPaint = false,
+		Pellets = 8, Splash = 0, Recoil = 4, Auto = false, PathPaint = false, ZoomFov = 54, Sight = "Holo",
 		Color = Color3.fromRGB(90, 60, 40), Size = Vector3.new(0.5, 0.7, 2.4),
 	},
 	{
@@ -676,14 +894,14 @@ Weapons.List = {
 		InkCost = 14, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
 		HipSpread = 1.2, Pellets = 1, Splash = 0, Recoil = 5, Auto = false, PathPaint = true,
 		PathStep = 10, PathRadius = 2, PathMax = 120, -- CBT 1차: 탄도 칠하기 축소(간격 7→10, 반경 2.5→2, 최대 120)
-		Scope = true, ScopeFov = 16, -- 0.5: 확대 강화
+		Scope = true, ScopeFov = 16, ZoomFov = 16, Sight = "Scope", -- 0.5: 확대 강화
 		Color = Color3.fromRGB(30, 30, 36), Size = Vector3.new(0.35, 0.6, 3.6),
 	},
 	{
 		Id = "Launcher", Name = "버킷 런처", Class = "유탄발사기", Price = 3500,
 		Damage = 45, HeadMul = 1, FireInterval = 1.0, Range = 65,
 		InkCost = 12, PaintRadius = 10, Spread = 0.4, SpreadGrow = 0, SpreadMax = 0.4,
-		Pellets = 1, Splash = 9, Recoil = 3.5, Auto = false, PathPaint = false,
+		Pellets = 1, Splash = 9, Recoil = 3.5, Auto = false, PathPaint = false, ZoomFov = 42, Sight = "Holo",
 		Color = Color3.fromRGB(110, 110, 30), Size = Vector3.new(0.8, 0.8, 2.2),
 	},
 }
@@ -700,7 +918,7 @@ function Weapons.Get(id)
 end
 
 return Weapons
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX24"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX26"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1353,7 +1571,9 @@ function CombatService.Fire(e, origin, directions, claims)
 	if now - e.LastFire < w.FireInterval * 0.75 then
 		return false
 	end
-	if e.Ink < w.InkCost then
+	-- 황금총: 잉크 없이 1발, 맞으면 무조건 처치, 쏘면 사라짐
+	local golden = e.Golden == true
+	if not golden and e.Ink < w.InkCost then
 		return false
 	end
 	local head = headOf(e)
@@ -1361,30 +1581,39 @@ function CombatService.Fire(e, origin, directions, claims)
 		return false
 	end
 	e.LastFire = now
-	e.Ink = e.Ink - w.InkCost
+	local range = w.Range
+	if golden then
+		e.Golden = false
+		if e.Player then
+			e.Player:SetAttribute("Golden", false)
+		end
+		range = Config.GoldenRange
+	else
+		e.Ink = e.Ink - w.InkCost
+	end
 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby") }
 
 	local endpoints = {}
-	local count = math.min(#directions, w.Pellets)
+	local count = golden and math.min(#directions, 1) or math.min(#directions, w.Pellets)
 	for i = 1, count do
 		local dir = directions[i]
 		if typeof(dir) == "Vector3" and dir.Magnitude > 0.5 then
 			dir = dir.Unit
 			e.Shots = (e.Shots or 0) + 1
-			local result = workspace:Raycast(origin, dir * w.Range, params)
+			local result = workspace:Raycast(origin, dir * range, params)
 			local endPos
 			-- 서버 레이가 빗나갔으면(지연 때문에 적이 서버에서 조금 옆에 있음) 플레이어 사격에 한해
 			-- 1) 쏜 사람 화면의 명중 판정을 검증해 인정  2) 그래도 없으면 탄도 근처 적 보정
 			local directVictim = result and Combatants.FromPart(result.Instance)
 			if e.Player and not (directVictim and Combatants.IsEnemy(e, directVictim)) then
-				local claimed = verifyClaim(e, origin, dir, w.Range, type(claims) == "table" and claims[i] or nil)
+				local claimed = verifyClaim(e, origin, dir, range, type(claims) == "table" and claims[i] or nil)
 				if claimed then
 					result = claimed
 				else
-					local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
+					local maxDist = result and ((result.Position - origin).Magnitude + 1) or range
 					local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
 					if v then
 						local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
@@ -1402,7 +1631,7 @@ function CombatService.Fire(e, origin, directions, claims)
 						if isHead then
 							e.Headshots = (e.Headshots or 0) + 1
 						end
-						local dmg = w.Damage * (isHead and w.HeadMul or 1)
+						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or 1))
 						CombatService.Damage(e, victim, dmg, isHead, endPos)
 						PaintService.PaintBelow(endPos, 2.5, e.OwnerId, e)
 					end
@@ -1417,7 +1646,7 @@ function CombatService.Fire(e, origin, directions, claims)
 					PaintService.PaintBelow(endPos + Vector3.new(0, 2, 0), w.PaintRadius, e.OwnerId, e)
 				end
 			else
-				endPos = origin + dir * w.Range
+				endPos = origin + dir * range
 				PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
 			end
 			if w.PathPaint then
@@ -1434,8 +1663,8 @@ function CombatService.Fire(e, origin, directions, claims)
 	end
 
 	remotes.FX:FireAllClients("Tracer", {
-		Shooter = e.Player, From = origin, To = endpoints, Color = colorOf(e.OwnerId), Weapon = w.Id,
-		Model = e.Model,
+		Shooter = e.Player, From = origin, To = endpoints, Color = golden and Color3.fromRGB(255, 205, 40) or colorOf(e.OwnerId), Weapon = w.Id,
+		Model = e.Model, Golden = golden,
 	})
 	Combatants.Sync(e)
 	return true
@@ -1455,28 +1684,88 @@ end
 ------------------------------------------------------------------------
 -- 스페셜: 크로마 봄
 ------------------------------------------------------------------------
-function CombatService.UseSpecial(e, target)
-	if not active or not e.Alive or e.Special < Config.SpecialCells then
-		return false
-	end
+-- 투척물: 포물선으로 날아가다 바닥·벽·캐릭터에 닿는 순간 onLand(위치) 호출
+-- 클라이언트는 같은 초기값(From·Vel·G)으로 공을 그리고 ProjEnd에서 터뜨림
+local projCount = 0
+function CombatService.Throw(e, target, kind, color, onLand)
 	local head = headOf(e)
 	if not head or typeof(target) ~= "Vector3" then
 		return false
 	end
-	local offset = target - head.Position
-	if offset.Magnitude > 70 then
-		target = head.Position + offset.Unit * 70
+	local T = Config.Throw
+	local from = head.Position + Vector3.new(0, 0.6, 0)
+	local offset = target - from
+	if offset.Magnitude > 75 then
+		target = from + offset.Unit * 75
+		offset = target - from
+	end
+	local g = Vector3.new(0, -T.Gravity, 0)
+	local flight = math.clamp(offset.Magnitude / T.Speed, 0.25, 1.4)
+	local vel = offset / flight - g * (0.5 * flight)
+	projCount = projCount + 1
+	local id = projCount
+	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind })
+	task.spawn(function()
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby") }
+		local pos, v, t = from, vel, 0
+		local hitPos = nil
+		local last = os.clock()
+		while t < T.MaxTime and active do
+			task.wait()
+			local step = math.min(os.clock() - last, 0.1)
+			last = os.clock()
+			local nv = v + g * step
+			local np = pos + (v + nv) * (0.5 * step)
+			local r = workspace:Raycast(pos, np - pos, params)
+			if r then
+				hitPos = r.Position + r.Normal * 0.3
+				break
+			end
+			-- 몸에 스치듯 지나가도 터지게 (근접 신관)
+			for _, o in ipairs(Combatants.All()) do
+				if o ~= e and o.Alive then
+					local root = rootOf(o)
+					if root and (root.Position - np).Magnitude < 2.6 then
+						hitPos = np
+					end
+				end
+			end
+			if hitPos then
+				break
+			end
+			pos, v, t = np, nv, t + step
+		end
+		hitPos = hitPos or pos
+		remotes.FX:FireAllClients("ProjEnd", { Id = id, Pos = hitPos, Kind = kind, Color = color, Radius = Config.SpecialRadius })
+		if onLand then
+			onLand(hitPos)
+		end
+	end)
+	return true
+end
+
+function CombatService.UseSpecial(e, target)
+	if not active or not e.Alive or e.Special < Config.SpecialCells then
+		return false
+	end
+	if not headOf(e) or typeof(target) ~= "Vector3" then
+		return false
 	end
 	e.Special = 0
 	Combatants.Sync(e)
 	local color = colorOf(e.OwnerId)
-	remotes.FX:FireAllClients("Bomb", { From = head.Position, To = target, Color = color, Radius = Config.SpecialRadius })
-	task.delay(0.7, function()
+	if CombatService.OnSpecialUsed and e.Player then
+		CombatService.OnSpecialUsed(e.Player)
+	end
+	CombatService.Throw(e, target, "Bomb", color, function(pos)
 		if not active then
 			return
 		end
-		PaintService.PaintBelow(target + Vector3.new(0, 3, 0), Config.SpecialRadius, e.OwnerId, e)
-		splashDamage(e, target, Config.SpecialRadius, Config.SpecialDamage)
+		PaintService.PaintBelow(pos + Vector3.new(0, 3, 0), Config.SpecialRadius, e.OwnerId, e)
+		PaintService.PaintAt(pos, Config.SpecialRadius * 0.6, e.OwnerId, e)
+		splashDamage(e, pos, Config.SpecialRadius, Config.SpecialDamage)
 	end)
 	return true
 end
@@ -1742,6 +2031,9 @@ local function defaultProfile()
 		EquippedEffect = nil,
 		CratePity = 0,           -- 마지막 레전더리 이후 개봉 수
 		CratesOpened = 0,
+		Level = 1,
+		XP = 0,
+		Quests = {},             -- QuestService가 관리 (기간 키 + 진행도)
 	}
 end
 
@@ -1772,6 +2064,9 @@ function DataService.Publish(player)
 	player:SetAttribute("KillEffect", p.EquippedEffect)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
 	player:SetAttribute("CratePity", p.CratePity or 0)
+	player:SetAttribute("Level", p.Level or 1)
+	player:SetAttribute("XP", p.XP or 0)
+	player:SetAttribute("XPNeed", Config.XPNeed(p.Level or 1))
 	local ls = player:FindFirstChild("leaderstats")
 	if ls then
 		ls.Rating.Value = p.Rating
@@ -1828,6 +2123,26 @@ function DataService.Load(player)
 	player:SetAttribute("FirstMatch", (p.Matches or 0) == 0)
 	DataService.Publish(player)
 	return p
+end
+
+-- 경험치: 레벨업하면 코인 보너스. 반환: 이번에 오른 레벨 수
+function DataService.AddXP(player, amount)
+	local p = profiles[player]
+	if not p or amount <= 0 then
+		return 0
+	end
+	p.Level = p.Level or 1
+	p.XP = (p.XP or 0) + math.floor(amount)
+	local ups = 0
+	while p.XP >= Config.XPNeed(p.Level) do
+		p.XP = p.XP - Config.XPNeed(p.Level)
+		p.Level = p.Level + 1
+		ups = ups + 1
+		p.Coins = p.Coins + Config.LevelReward(p.Level)
+		player:SetAttribute("LevelUp", p.Level .. ":" .. Config.LevelReward(p.Level) .. ":" .. os.clock())
+	end
+	DataService.Publish(player)
+	return ups
 end
 
 function DataService.Reset(player)
@@ -1890,7 +2205,317 @@ function DataService.Start()
 end
 
 return DataService
-]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX14"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX14"><Properties><string name="Name">ItemService</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템: 보관(최대 3개) · 사용(F) · 순서 바꾸기(G) · 효과 시간 관리
+-- 보관함은 플레이어 속성 "Items"(쉼표 목록)로 클라이언트에 보임
+local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage.Shared.Config)
+local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+local Combatants = require(script.Parent.Combatants)
+local CombatService = require(script.Parent.CombatService)
+
+local ItemService = {}
+
+local remotes = nil
+local inv = {}   -- player -> { itemId, ... }
+local ById = {}
+for _, it in ipairs(Config.Items) do
+	ById[it.Id] = it
+end
+ItemService.ById = ById
+
+local function now()
+	return workspace:GetServerTimeNow()
+end
+
+local function publish(player)
+	player:SetAttribute("Items", table.concat(inv[player] or {}, ","))
+end
+
+local function notify(player, text, color)
+	if remotes then
+		remotes.Notify:FireClient(player, text, color or Color3.fromRGB(255, 230, 120))
+	end
+end
+
+function ItemService.Grant(player, id)
+	if not ById[id] then
+		return
+	end
+	local list = inv[player] or {}
+	inv[player] = list
+	table.insert(list, id)
+	while #list > Config.ItemSlots do
+		table.remove(list, 1) -- 가득 차면 가장 오래된 것부터 버림
+	end
+	publish(player)
+	player:SetAttribute("LastItem", id .. ":" .. tostring(os.clock()))
+end
+
+function ItemService.GrantRandom(player)
+	local total = 0
+	for _, it in ipairs(Config.Items) do
+		total = total + (it.Weight or 1)
+	end
+	local r = math.random() * total
+	for _, it in ipairs(Config.Items) do
+		r = r - (it.Weight or 1)
+		if r <= 0 then
+			ItemService.Grant(player, it.Id)
+			return it
+		end
+	end
+end
+
+function ItemService.Clear(player)
+	inv[player] = {}
+	publish(player)
+	for _, a in ipairs({ "JetpackUntil", "ShieldUntil", "ZoomBuff", "ZoomUntil", "Golden" }) do
+		player:SetAttribute(a, nil)
+	end
+end
+
+------------------------------------------------------------------------
+-- 효과
+------------------------------------------------------------------------
+local function torsoOf(model)
+	return model and (model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso"))
+end
+
+local function attachJetpack(e, color)
+	local model = e.Model
+	local torso = torsoOf(model)
+	if not torso then
+		return
+	end
+	local old = model:FindFirstChild("SF_Jetpack")
+	if old then
+		old:Destroy()
+	end
+	local pack = model:FindFirstChild("SF_Backpack")
+	if pack then
+		pack:Destroy() -- 잉크 탱크 대신 제트팩을 멤
+	end
+	local jp = ModelKit.Item("Jetpack", color)
+	jp.Name = "SF_Jetpack"
+	for _, p in ipairs(jp:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Massless = true
+		end
+	end
+	jp:PivotTo(torso.CFrame * CFrame.new(0, 0.1, torso.Size.Z / 2 + 0.2))
+	for _, p in ipairs(jp:GetDescendants()) do
+		if p:IsA("BasePart") then
+			p.Anchored = false
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = torso
+			w.Part1 = p
+			w.Parent = p
+		end
+	end
+	-- 노즐 불꽃 (모두에게 보임)
+	for _, a in ipairs(jp:GetDescendants()) do
+		if a:IsA("Attachment") and a.Name == "Flame" then
+			local pe = Instance.new("ParticleEmitter")
+			pe.Color = ColorSequence.new(Color3.fromRGB(255, 240, 160), Color3.fromRGB(255, 90, 30))
+			pe.LightEmission = 1
+			pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 0) })
+			pe.Lifetime = NumberRange.new(0.18, 0.3)
+			pe.Speed = NumberRange.new(10, 14)
+			pe.Rate = 60
+			pe.EmissionDirection = Enum.NormalId.Left -- 원기둥을 세웠으므로 로컬 -X = 아래
+			pe.SpreadAngle = Vector2.new(8, 8)
+			pe.Parent = a
+			local l = Instance.new("PointLight")
+			l.Color = Color3.fromRGB(255, 170, 60)
+			l.Range = 8
+			l.Brightness = 2
+			l.Parent = a
+		end
+	end
+	jp.Parent = model
+end
+
+local function spawnSmoke(pos, duration)
+	local fx = workspace:FindFirstChild("FX") or workspace
+	local cloud = Instance.new("Model")
+	cloud.Name = "SmokeCloud"
+	local R = Config.SmokeRadius
+	local rng = Random.new()
+	for i = 1, 9 do
+		local a = rng:NextNumber() * math.pi * 2
+		local d = rng:NextNumber(0, R * 0.55)
+		local size = rng:NextNumber(R * 0.75, R * 1.1)
+		local p = Instance.new("Part")
+		p.Name = "Puff"
+		p.Shape = Enum.PartType.Ball
+		p.Size = Vector3.one * 2
+		p.Position = pos + Vector3.new(math.cos(a) * d, rng:NextNumber(2, 6), math.sin(a) * d)
+		p.Color = Color3.fromRGB(rng:NextInteger(205, 230), rng:NextInteger(208, 232), rng:NextInteger(215, 238))
+		p.Material = Enum.Material.SmoothPlastic
+		p.Transparency = 0.6
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false -- 총알은 통과(시야만 가림)
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Parent = cloud
+		TweenService:Create(p, TweenInfo.new(0.6 + i * 0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = Vector3.one * size, Transparency = 0.04 }):Play()
+		task.delay(duration - 1.5, function()
+			if p.Parent then
+				TweenService:Create(p, TweenInfo.new(1.4), { Transparency = 1 }):Play()
+			end
+		end)
+	end
+	local core = cloud:FindFirstChild("Puff")
+	if core then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Color = ColorSequence.new(Color3.fromRGB(230, 232, 240))
+		pe.Size = NumberSequence.new(4, 9)
+		pe.Transparency = NumberSequence.new(0.3, 1)
+		pe.Lifetime = NumberRange.new(2, 3)
+		pe.Speed = NumberRange.new(1, 3)
+		pe.Rate = 12
+		pe.SpreadAngle = Vector2.new(180, 180)
+		pe.Parent = core
+		task.delay(duration - 2, function()
+			pe.Enabled = false
+		end)
+	end
+	cloud.Parent = fx
+	Debris:AddItem(cloud, duration + 0.5)
+end
+
+local function use(player, target)
+	local list = inv[player]
+	local e = Combatants.FromPlayer(player)
+	if not list or #list == 0 then
+		return
+	end
+	if not e or not e.Alive or not player:GetAttribute("InMatch") then
+		notify(player, "아이템은 경기 중에 쓸 수 있어요", Color3.fromRGB(255, 180, 120))
+		return
+	end
+	local id = list[1]
+	local def = ById[id]
+	local color = player:GetAttribute("TeamColor") or Color3.new(1, 1, 1)
+	if id == "Jetpack" then
+		player:SetAttribute("JetpackUntil", now() + def.Duration)
+		attachJetpack(e, color)
+	elseif id == "Shield" then
+		e.ProtectedUntil = os.clock() + def.Duration
+		player:SetAttribute("ShieldUntil", now() + def.Duration)
+		if e.Model then
+			local ff = Instance.new("ForceField")
+			ff.Name = "SF_Shield"
+			ff.Visible = true
+			ff.Parent = e.Model
+			Debris:AddItem(ff, def.Duration)
+		end
+	elseif id == "Smoke" then
+		if typeof(target) ~= "Vector3" then
+			return
+		end
+		CombatService.Throw(e, target, "Smoke", Color3.fromRGB(220, 224, 232), function(pos)
+			spawnSmoke(pos, def.Duration)
+		end)
+	elseif id == "Golden" then
+		e.Golden = true
+		player:SetAttribute("Golden", true)
+		local gun = e.Model and e.Model:FindFirstChild("SF_Gun")
+		if gun then
+			ModelKit.SetGolden(gun, true)
+		end
+	elseif id == "Zoom3" or id == "Zoom6" then
+		player:SetAttribute("ZoomBuff", def.Zoom)
+		player:SetAttribute("ZoomUntil", now() + def.Duration)
+	end
+	table.remove(list, 1)
+	publish(player)
+	notify(player, def.Name .. " 사용!", Color3.fromRGB(140, 255, 200))
+	if ItemService.OnUsed then
+		ItemService.OnUsed(player, id)
+	end
+end
+
+local function cycle(player)
+	local list = inv[player]
+	if list and #list > 1 then
+		table.insert(list, table.remove(list, 1))
+		publish(player)
+	end
+end
+
+function ItemService.Init(remoteFolder)
+	remotes = remoteFolder
+	remotes.UseItem.OnServerEvent:Connect(function(player, action, target)
+		if action == "use" then
+			use(player, target)
+		elseif action == "cycle" then
+			cycle(player)
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(pl)
+		inv[pl] = nil
+	end)
+	-- 효과 시간 만료 처리
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			local t = now()
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local ju = pl:GetAttribute("JetpackUntil")
+				if ju and t > ju then
+					pl:SetAttribute("JetpackUntil", nil)
+					local jp = pl.Character and pl.Character:FindFirstChild("SF_Jetpack")
+					if jp then
+						jp:Destroy()
+					end
+				end
+				local su = pl:GetAttribute("ShieldUntil")
+				if su and t > su then
+					pl:SetAttribute("ShieldUntil", nil)
+				end
+				local zu = pl:GetAttribute("ZoomUntil")
+				if zu and t > zu then
+					pl:SetAttribute("ZoomUntil", nil)
+					pl:SetAttribute("ZoomBuff", nil)
+				end
+			end
+		end
+	end)
+	-- 황금총을 쏘면(서버가 Golden=false) 총 색을 되돌림
+	local function watch(pl)
+		pl:GetAttributeChangedSignal("Golden"):Connect(function()
+			if not pl:GetAttribute("Golden") then
+				local gun = pl.Character and pl.Character:FindFirstChild("SF_Gun")
+				if gun then
+					ModelKit.SetGolden(gun, false, pl:GetAttribute("TeamColor"))
+				end
+			end
+		end)
+	end
+	Players.PlayerAdded:Connect(watch)
+	for _, pl in ipairs(Players:GetPlayers()) do
+		watch(pl)
+	end
+end
+
+-- 부활할 때 황금총이 남아 있으면 새 총도 금색으로
+function ItemService.OnSpawn(e)
+	if e.Player and e.Golden and e.Model then
+		local gun = e.Model:FindFirstChild("SF_Gun")
+		if gun then
+			ModelKit.SetGolden(gun, true)
+		end
+	end
+end
+
+return ItemService
+]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX15"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -1906,11 +2531,13 @@ local Telemetry = require(Services.TelemetryService)
 local AdminService = require(Services.AdminService)
 local Config = require(ReplicatedStorage.Shared.Config)
 local ModelService = require(Services.ModelService)
+local ItemService = require(Services.ItemService)
+local QuestService = require(Services.QuestService)
 
 -- 원격 이벤트
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon" }) do
+for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem" }) do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
@@ -1952,6 +2579,14 @@ Telemetry.Init(remotes)
 AdminService.Init(remotes)
 RankService.StartBoard(lobby.Leaderboard)
 RankService.Init(remotes)
+ItemService.Init(remotes)
+QuestService.Init(remotes)
+CombatService.OnSpecialUsed = function(pl)
+	QuestService.Add(pl, "Specials", 1)
+end
+ItemService.OnUsed = function(pl)
+	QuestService.Add(pl, "Items", 1)
+end
 
 -- 전투 틱 (잉크 충전·체력 회복)
 task.spawn(function()
@@ -1968,7 +2603,9 @@ local function onPlayer(player)
 	if not AdminService.Gate(player) then
 		return
 	end
+	player.DevEnableMouseLock = false -- Shift는 달리기 (기본 시프트락 끔)
 	DataService.Load(player)
+	QuestService.Publish(player)
 	player.CharacterAdded:Connect(function(character)
 		local hum = character:WaitForChild("Humanoid")
 		hum.Died:Connect(function()
@@ -1991,7 +2628,7 @@ end
 
 MatchService.Run()
 print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") — 로비의 발판을 밟아 매치에 참가하세요")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX15"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
 -- 새 맵은 BuildXXX 함수를 추가하고 같은 형태의 info 테이블을 돌려주면 됨
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
@@ -2089,16 +2726,24 @@ local function ramp(parent, x1, x2, z, width, baseY, height)
 end
 
 function MapBuilder.SetupLighting()
-	Lighting.ClockTime = 17.6 -- 노을빛 네온 분위기
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(90, 90, 110)
-	Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 160)
+	-- 0.6: 밝은 한낮 카툰 톤 (흰 구조물 위에 진한 팀 페인트가 또렷하게)
+	Lighting.ClockTime = 14.2
+	Lighting.GeographicLatitude = 35
+	Lighting.Brightness = 3
+	Lighting.Ambient = Color3.fromRGB(140, 146, 165)
+	Lighting.OutdoorAmbient = Color3.fromRGB(165, 172, 192)
+	Lighting.EnvironmentDiffuseScale = 1
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.ShadowSoftness = 0.25
 	Lighting.GlobalShadows = true
 	if not Lighting:FindFirstChildOfClass("Atmosphere") then
 		local a = Instance.new("Atmosphere")
-		a.Density = 0.25
-		a.Color = Color3.fromRGB(220, 200, 255)
-		a.Decay = Color3.fromRGB(120, 80, 160)
+		a.Density = 0.27
+		a.Offset = 0.15
+		a.Color = Color3.fromRGB(199, 222, 255)
+		a.Decay = Color3.fromRGB(110, 150, 215)
+		a.Glare = 0.2
+		a.Haze = 1.1
 		a.Parent = Lighting
 	end
 	if not Lighting:FindFirstChildOfClass("Sky") then
@@ -2108,9 +2753,10 @@ function MapBuilder.SetupLighting()
 	end
 	if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
 		local cc = Instance.new("ColorCorrectionEffect")
-		cc.Saturation = 0.18
-		cc.Contrast = 0.08
-		cc.TintColor = Color3.fromRGB(255, 244, 250)
+		cc.Saturation = 0.22
+		cc.Contrast = 0.06
+		cc.Brightness = 0.02
+		cc.TintColor = Color3.fromRGB(255, 252, 248)
 		cc.Parent = Lighting
 	end
 	if not Lighting:FindFirstChildOfClass("SunRaysEffect") then
@@ -2120,21 +2766,130 @@ function MapBuilder.SetupLighting()
 	end
 	if not Lighting:FindFirstChildOfClass("BloomEffect") then
 		local b = Instance.new("BloomEffect")
-		b.Intensity = 0.6
-		b.Threshold = 1.4
+		b.Intensity = 0.35
+		b.Threshold = 1.7
 		b.Parent = Lighting
 	end
 end
 
 -- 기획서 3장: 엄폐물은 어두운 외곽선으로 바닥과 구분
-local OUTLINED = { Crate = true, Wall = true, WarehouseWall = true, Container = true, Parapet = true, WallSill = true }
+local OUTLINED = { Crate = true, Wall = true, WarehouseWall = true, Container = true, Parapet = true, WallSill = true, Platform = true,
+	Ramp = true, Boundary = true, SpawnWall = true, Lintel = true, WarehouseRoof = true }
+
+------------------------------------------------------------------------
+-- 0.6 아트 패스: 밝은 카툰 팔레트 + 엄폐물 디테일(모서리 프레임·받침·캡)
+-- 판정용 모양은 그대로 두고 장식 파트만 덧붙임 (CanCollide·CanQuery 끔)
+------------------------------------------------------------------------
+local PALETTE = {
+	Floor = { Color3.fromRGB(238, 240, 247), Enum.Material.SmoothPlastic },
+	Boundary = { Color3.fromRGB(214, 220, 234), Enum.Material.SmoothPlastic },
+	Wall = { Color3.fromRGB(226, 230, 240), Enum.Material.SmoothPlastic },
+	WarehouseWall = { Color3.fromRGB(226, 230, 240), Enum.Material.SmoothPlastic },
+	Lintel = { Color3.fromRGB(214, 218, 230), Enum.Material.SmoothPlastic },
+	WallSill = { Color3.fromRGB(214, 218, 230), Enum.Material.SmoothPlastic },
+	Parapet = { Color3.fromRGB(230, 234, 244), Enum.Material.SmoothPlastic },
+	SpawnWall = { Color3.fromRGB(210, 216, 230), Enum.Material.SmoothPlastic },
+	Platform = { Color3.fromRGB(206, 212, 228), Enum.Material.SmoothPlastic },
+	MidTower = { Color3.fromRGB(196, 204, 222), Enum.Material.SmoothPlastic },
+	SpawnTower = { Color3.fromRGB(188, 196, 216), Enum.Material.SmoothPlastic },
+	Ramp = { Color3.fromRGB(186, 192, 210), Enum.Material.DiamondPlate },
+	Crate = { Color3.fromRGB(236, 176, 100), Enum.Material.WoodPlanks },
+	WarehouseRoof = { Color3.fromRGB(222, 218, 206), Enum.Material.SmoothPlastic },
+	CityGround = { Color3.fromRGB(150, 160, 178), Enum.Material.SmoothPlastic },
+	Street = { Color3.fromRGB(150, 160, 178), Enum.Material.SmoothPlastic },
+}
+local PASTEL = Color3.fromRGB(190, 210, 238)
+
+local function deco(parent, size, cf, color, mat)
+	local p = Instance.new("Part")
+	p.Name = "Detail"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
+local function stylize(folder)
+	local detail = Instance.new("Folder")
+	detail.Name = "Detail"
+	detail.Parent = folder
+	for _, p in ipairs(folder:GetDescendants()) do
+		if p:IsA("BasePart") and p.Name ~= "Cell" and p.Parent ~= detail then
+			local pal = PALETTE[p.Name]
+			if pal then
+				p.Color = pal[1]
+				p.Material = pal[2]
+			elseif p.Name == "Building" or p.Name == "CityBuilding" then
+				p.Color = p.Color:Lerp(PASTEL, 0.75)
+				p.Material = Enum.Material.SmoothPlastic
+			elseif p.Name == "Container" then
+				p.Color = p.Color:Lerp(Color3.new(1, 1, 1), 0.25)
+				p.Material = Enum.Material.SmoothPlastic
+			end
+			local sz, cf = p.Size, p.CFrame
+			if p.Name == "Crate" then
+				-- 모서리 각재 4개 + 윗테 4개 + 가운데 X 대신 가로대
+				local dark = Color3.fromRGB(170, 108, 56)
+				for _, sx in ipairs({ -1, 1 }) do
+					for _, sz2 in ipairs({ -1, 1 }) do
+						deco(detail, Vector3.new(0.5, sz.Y + 0.04, 0.5), cf * CFrame.new(sx * (sz.X / 2 - 0.2), 0, sz2 * (sz.Z / 2 - 0.2)), dark, Enum.Material.Wood)
+					end
+				end
+				for _, sx in ipairs({ -1, 1 }) do
+					deco(detail, Vector3.new(0.4, 0.4, sz.Z + 0.06), cf * CFrame.new(sx * (sz.X / 2 - 0.15), sz.Y / 2 - 0.15, 0), dark, Enum.Material.Wood)
+					deco(detail, Vector3.new(sz.X + 0.06, 0.4, 0.4), cf * CFrame.new(0, sz.Y / 2 - 0.15, sx * (sz.Z / 2 - 0.15)), dark, Enum.Material.Wood)
+					deco(detail, Vector3.new(sz.X + 0.06, 0.35, 0.36), cf * CFrame.new(0, -0.1, sx * (sz.Z / 2 - 0.12)), dark, Enum.Material.Wood)
+				end
+			elseif p.Name == "Wall" or p.Name == "WarehouseWall" or p.Name == "Boundary" or p.Name == "SpawnWall" then
+				-- 아래 걸레받이 + 위 캡(살짝 넓게) + 일정 간격 패널 이음새
+				local long = (sz.X >= sz.Z) and "X" or "Z"
+				deco(detail, Vector3.new(sz.X + 0.12, 0.6, sz.Z + 0.12), cf * CFrame.new(0, -sz.Y / 2 + 0.3, 0), Color3.fromRGB(150, 158, 180))
+				deco(detail, Vector3.new(sz.X + 0.3, 0.35, sz.Z + 0.3), cf * CFrame.new(0, sz.Y / 2 + 0.17, 0), Color3.fromRGB(245, 247, 252))
+				local len = (long == "X") and sz.X or sz.Z
+				local n = math.floor(len / 8)
+				for k = 1, n - 1 do
+					local o = -len / 2 + k * (len / n)
+					local off = (long == "X") and CFrame.new(o, 0, 0) or CFrame.new(0, 0, o)
+					local s2 = (long == "X") and Vector3.new(0.18, sz.Y - 0.8, sz.Z + 0.06) or Vector3.new(sz.X + 0.06, sz.Y - 0.8, 0.18)
+					deco(detail, s2, cf * off, Color3.fromRGB(190, 196, 214))
+				end
+			elseif p.Name == "Platform" or p.Name == "Parapet" then
+				-- 윗면 가장자리 띠
+				deco(detail, Vector3.new(sz.X + 0.16, 0.3, sz.Z + 0.16), cf * CFrame.new(0, sz.Y / 2 - 0.12, 0), Color3.fromRGB(250, 250, 255))
+			elseif p.Name == "Container" then
+				-- 골판 무늬(세로 리브) + 문 손잡이
+				local long = (sz.X >= sz.Z) and "X" or "Z"
+				local len = (long == "X") and sz.X or sz.Z
+				local shade = p.Color:Lerp(Color3.new(0, 0, 0), 0.18)
+				for k = 1, math.floor(len / 1.6) do
+					local o = -len / 2 + (k - 0.5) * 1.6
+					local off = (long == "X") and CFrame.new(o, 0, 0) or CFrame.new(0, 0, o)
+					local s2 = (long == "X") and Vector3.new(0.35, sz.Y - 0.6, sz.Z + 0.1) or Vector3.new(sz.X + 0.1, sz.Y - 0.6, 0.35)
+					deco(detail, s2, cf * off, shade)
+				end
+				deco(detail, Vector3.new(sz.X + 0.14, 0.3, sz.Z + 0.14), cf * CFrame.new(0, sz.Y / 2 - 0.15, 0), shade)
+				deco(detail, Vector3.new(sz.X + 0.14, 0.3, sz.Z + 0.14), cf * CFrame.new(0, -sz.Y / 2 + 0.15, 0), shade)
+			end
+		end
+	end
+end
+
 local function addOutlines(folder)
+	stylize(folder)
 	for _, p in ipairs(folder:GetDescendants()) do
 		if p:IsA("BasePart") and OUTLINED[p.Name] then
 			local sb = Instance.new("SelectionBox")
 			sb.Adornee = p
-			sb.Color3 = Color3.fromRGB(12, 12, 20)
-			sb.LineThickness = 0.06
+			sb.Color3 = Color3.fromRGB(40, 44, 70)
+			sb.LineThickness = 0.05
 			sb.SurfaceTransparency = 1
 			sb.Parent = p
 		end
@@ -2381,13 +3136,50 @@ function MapBuilder.BuildLobby()
 		light.Parent = pad
 		local mode = Config.Modes[q.Mode]
 		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
-		local lbl = billboard(pad, title2, 9)
-		lbl.Name = "QueueLabel"
-		lbl.Parent.Size = UDim2.fromOffset(280, 90)
-		lbl.Parent.MaxDistance = 160
-		lbl.RichText = true
+		-- 안내판: 스터드 단위 크기라 멀리서 봐도 옆 발판 글씨와 겹치지 않음 (제목 크게 + 상태 작게)
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "QueueBoard"
+		bb.Size = UDim2.new(10, 0, 3, 0)
+		bb.StudsOffset = Vector3.new(0, 7.5, 0)
+		bb.MaxDistance = 140
+		bb.LightInfluence = 0
+		bb.Adornee = pad
+		bb.Parent = pad
+		local plate = Instance.new("Frame")
+		plate.Size = UDim2.fromScale(1, 1)
+		plate.BackgroundColor3 = Color3.fromRGB(16, 14, 28)
+		plate.BackgroundTransparency = 0.25
+		plate.Parent = bb
+		local pc = Instance.new("UICorner")
+		pc.CornerRadius = UDim.new(0.2, 0)
+		pc.Parent = plate
+		local ps = Instance.new("UIStroke")
+		ps.Color = c
+		ps.Thickness = 2
+		ps.Parent = plate
+		local tl = Instance.new("TextLabel")
+		tl.Name = "Title"
+		tl.BackgroundTransparency = 1
+		tl.Size = UDim2.new(0.92, 0, 0.56, 0)
+		tl.Position = UDim2.new(0.04, 0, 0.06, 0)
+		tl.Font = Enum.Font.GothamBlack
+		tl.TextScaled = true
+		tl.TextColor3 = Color3.new(1, 1, 1)
+		tl.Text = title2
+		tl.Parent = plate
+		local sub = Instance.new("TextLabel")
+		sub.Name = "Sub"
+		sub.BackgroundTransparency = 1
+		sub.Size = UDim2.new(0.86, 0, 0.3, 0)
+		sub.Position = UDim2.new(0.07, 0, 0.64, 0)
+		sub.Font = Enum.Font.GothamBold
+		sub.TextScaled = true
+		sub.RichText = true
+		sub.TextColor3 = Color3.fromRGB(200, 200, 220)
+		sub.Text = "발판을 밟아 참가"
+		sub.Parent = plate
 		pads[q.Id] = pad
-		labels[q.Id] = { Label = lbl, Title = title2, Ranked = q.Ranked }
+		labels[q.Id] = { Label = sub, Title = title2, Ranked = q.Ranked }
 	end
 
 	------------------------------------------------------------------
@@ -3206,6 +3998,7 @@ function MapBuilder.BuildSkyRooftop()
 		table.insert(solo, CFrame.lookAt(skyPos(p3[1], p3[2], p3[3]), skyPos(0, p3[2], 0)))
 	end
 
+	stylize(deco) -- 배경 빌딩도 파스텔 톤
 	addOutlines(geo)
 	return {
 		Id = "SkyRooftop",
@@ -3231,7 +4024,7 @@ function MapBuilder.BuildSkyRooftop()
 end
 
 return MapBuilder
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -3246,6 +4039,8 @@ local BotService = require(script.Parent.BotService)
 local DataService = require(script.Parent.DataService)
 local RankService = require(script.Parent.RankService)
 local Telemetry = require(script.Parent.TelemetryService)
+local ItemService = require(script.Parent.ItemService)
+local QuestService = require(script.Parent.QuestService)
 
 local MatchService = {}
 
@@ -3315,6 +4110,19 @@ local missionApi = {
 			end
 		end
 	end,
+	-- 미션 성공 팀원(플레이어) 전원에게 무작위 아이템 1개
+	RewardItems = function(ownerId)
+		for _, e in ipairs(Combatants.All()) do
+			if e.OwnerId == ownerId and e.Player and e.Player.Parent then
+				QuestService.Add(e.Player, "Missions", 1)
+				DataService.AddXP(e.Player, Config.XP.Mission)
+				local it = ItemService.GrantRandom(e.Player)
+				if it then
+					remotes.Notify:FireClient(e.Player, "🎁 미션 보상: " .. it.Name .. " 획득! [F] 사용", Color3.fromRGB(255, 220, 90))
+				end
+			end
+		end
+	end,
 	SetMission = function(m)
 		S.Mission = m
 	end,
@@ -3336,18 +4144,33 @@ local missionApi = {
 ------------------------------------------------------------------------
 local function scores()
 	local coverage = PaintService.GetCoverage()
+	local kills = {}
+	for _, e in ipairs(Combatants.All()) do
+		kills[e.OwnerId] = (kills[e.OwnerId] or 0) + e.Kills
+	end
+	-- 전체 합계 (몫 계산용)
+	local sumCov, sumCombat = 0, 0
+	for _, o in ipairs(S.Owners) do
+		sumCov = sumCov + (coverage[o.OwnerId] or 0)
+		sumCombat = sumCombat + (kills[o.OwnerId] or 0) + (S.Bonus[o.OwnerId] or 0) * Config.MissionKillValue
+	end
+	local W = Config.WinWeights
 	local list = {}
 	for _, o in ipairs(S.Owners) do
 		local cov = coverage[o.OwnerId] or 0
 		local bonus = S.Bonus[o.OwnerId] or 0
+		local combat = (kills[o.OwnerId] or 0) + bonus * Config.MissionKillValue
 		local score
 		if S.Mode == "Flag" then
 			score = S.FlagScore[o.OwnerId] or 0
 		else
-			score = cov + bonus
+			-- 페인트 몫 80% + 전투(처치·미션) 몫 20% → 0~100점
+			local paintShare = (sumCov > 0) and (cov / sumCov) or 0
+			local combatShare = (sumCombat > 0) and (combat / sumCombat) or 0
+			score = 100 * (W.Paint * paintShare + W.Combat * combatShare)
 		end
 		table.insert(list, {
-			OwnerId = o.OwnerId, Name = o.Name, Color = o.Color,
+			OwnerId = o.OwnerId, Name = o.Name, Color = o.Color, Kills = kills[o.OwnerId] or 0,
 			Coverage = math.floor(cov * 10 + 0.5) / 10, Bonus = bonus, Score = math.floor(score * 10 + 0.5) / 10,
 		})
 	end
@@ -3413,16 +4236,37 @@ local function broadcast()
 				end
 			end
 		end
-		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice }
+		local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice,
+			Capacity = cap, Full = counts[q.Id] >= cap }
 		-- 로비 발판 위 안내판
 		local pl = lobby and lobby.QueueLabels and lobby.QueueLabels[q.Id]
 		if pl then
 			local n = counts[q.Id]
 			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n) or '<font color="#B0B0C8">발판을 밟아 참가</font>'
-			local txt = pl.Title .. (pl.Ranked and "  [랭크]" or "") .. "\n" .. line2
+			local txt = line2 .. (pl.Ranked and '  <font color="#FFC840">랭크</font>' or "")
 			if pl.Label.Text ~= txt then
 				pl.Label.Text = txt
 			end
+		end
+	end
+	-- 상단 TOP 5 (처치 → 칠한 셀 순)
+	local board = {}
+	if S.Phase == "Playing" or S.Phase == "Results" then
+		local all = {}
+		for _, e in ipairs(Combatants.All()) do
+			table.insert(all, e)
+		end
+		table.sort(all, function(a, b)
+			if a.Kills ~= b.Kills then
+				return a.Kills > b.Kills
+			end
+			return a.Cells > b.Cells
+		end)
+		for i = 1, math.min(5, #all) do
+			local e = all[i]
+			table.insert(board, { Name = e.Name, UserId = e.Player and e.Player.UserId or nil, Kills = e.Kills, Streak = e.Streak or 0,
+				Color = MatchService.ColorOf(e.OwnerId), OwnerId = e.OwnerId })
 		end
 	end
 	local mapList = {}
@@ -3443,6 +4287,7 @@ local function broadcast()
 		Flags = flags,
 		QueueCounts = counts,
 		QueueInfo = queueInfo,
+		Board = board,
 		Maps = mapList,
 		FinalSplash = S.FinalSplash,
 	})
@@ -3542,6 +4387,7 @@ local function activate(e, model)
 	if not okGear then
 		warn("[SplashFront] 장비 부착 실패:", gearErr)
 	end
+	ItemService.OnSpawn(e)
 	-- 기획서 4장: 적 색 위에 서 있으면 발밑에서 페인트가 튀어 위치가 드러남
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if root then
@@ -3599,10 +4445,33 @@ onDied = function(e, model)
 	end
 	e.Alive = false
 	e.Deaths = e.Deaths + 1
+	e.Streak = 0
 	local killer = e.LastAttacker
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if killer and killer ~= e then
 		killer.Kills = killer.Kills + 1
+		killer.Streak = (killer.Streak or 0) + 1
+		local t = os.clock()
+		if t - (killer.LastKillAt or -99) <= Config.MultiKillWindow then
+			killer.Multi = (killer.Multi or 1) + 1
+		else
+			killer.Multi = 1
+		end
+		killer.LastKillAt = t
+		if killer.Player then
+			local head = e.LastHeadshot == true
+			local coins = Config.Rewards.Kill + (head and Config.Rewards.Headshot or 0)
+			local xp = Config.XP.Kill + (head and Config.XP.Headshot or 0)
+			DataService.AddXP(killer.Player, xp)
+			QuestService.Add(killer.Player, "Kills", 1)
+			if head then
+				QuestService.Add(killer.Player, "Headshots", 1)
+			end
+			remotes.FX:FireClient(killer.Player, "Elim", {
+				Victim = e.Name, VictimColor = MatchService.ColorOf(e.OwnerId), Head = head, Multi = killer.Multi,
+				Streak = killer.Streak, Coins = coins, XP = xp,
+			})
+		end
 		Combatants.Killed:Fire(killer, e, e.LastHeadshot)
 		if root then
 			PaintService.PaintBelow(root.Position, 6, killer.OwnerId, killer)
@@ -3616,6 +4485,8 @@ onDied = function(e, model)
 		Head = e.LastHeadshot,
 		Effect = killer and killer.KillEffect or nil,
 		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
+		WeaponId = killer and killer.WeaponId or nil,
+		KillerStreak = killer and killer.Streak or 0,
 		WeaponClass = killer and Weapons.Get(killer.WeaponId).Class or nil,
 		Pos = root and root.Position or nil,
 		KillerPlayer = killer and killer.Player or nil,
@@ -3978,6 +4849,7 @@ local function endMatch()
 		local coins = (won and Config.Rewards.Win or Config.Rewards.Lose)
 			+ e.Kills * Config.Rewards.Kill
 			+ math.floor(e.Cells / 100) * Config.Rewards.Per100Cells
+			+ (e.Headshots or 0) * Config.Rewards.Headshot
 			+ e.Coins
 		local ratingDelta = nil
 		if e.Player and e.Player.Parent then
@@ -3995,6 +4867,12 @@ local function endMatch()
 				ratingDelta = RankService.Apply(e.Player, won, perf[e])
 			end
 			RankService.RecordMeta(e.Player)
+			DataService.AddXP(e.Player, (won and Config.XP.Win or Config.XP.Lose) + math.floor(e.Cells / Config.XP.PerCells))
+			QuestService.Add(e.Player, "Matches", 1)
+			QuestService.Add(e.Player, "Cells", e.Cells)
+			if won then
+				QuestService.Add(e.Player, "Wins", 1)
+			end
 			Telemetry.Funnel(e.Player, "MatchFinished")
 			Telemetry.Economy(e.Player, true, coins, p and p.Coins or 0, "Gameplay", "MatchReward")
 			Telemetry.Custom(e.Player, "MatchEnd", e.Cells, S.Mode .. "/" .. tostring(S.QueueId), e.WeaponId, won and "win" or "lose")
@@ -4043,6 +4921,7 @@ local function endMatch()
 			e.Player:SetAttribute("OwnerId", nil)
 			e.Player:SetAttribute("TeamColor", nil)
 			e.Player:SetAttribute("SpawnZone", false)
+			ItemService.Clear(e.Player)
 			e.Player:LoadCharacter()
 			DataService.Save(e.Player)
 		end
@@ -4136,6 +5015,48 @@ local function setHostMap(player, mapId)
 	queueMap[qid] = mapId
 end
 
+-- 방장: 발판에 정원이 모두 모였으면 카운트다운을 건너뛰고 바로 시작
+local function startNow(player)
+	local qid = player:GetAttribute("Queue")
+	local q = qid and queueDef(qid)
+	if not q or MatchService.QueueHost(qid) ~= player then
+		return
+	end
+	local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+	if queueCounts()[qid] < cap then
+		remotes.Notify:FireClient(player, "정원이 모두 모여야 바로 시작할 수 있어요", Color3.fromRGB(255, 200, 90))
+		return
+	end
+	if S.Phase == "Countdown" and S.QueueId == qid then
+		S.EndsAt = math.min(S.EndsAt, now() + 1)
+		announce("방장이 바로 시작을 눌렀어요!", Color3.fromRGB(140, 255, 200))
+	end
+end
+
+-- 경기 도중 로비로 나가기 (보상 없음, 자리는 남은 인원으로 계속)
+function MatchService.LeaveMatch(player)
+	if not player:GetAttribute("InMatch") or S.Phase ~= "Playing" then
+		return
+	end
+	local e = Combatants.FromPlayer(player)
+	if e then
+		e.Alive = false
+		Combatants.Remove(e)
+	end
+	if player.Character then
+		player.Character:Destroy()
+	end
+	for _, a in ipairs({ "Queue", "QueueTime", "OwnerId", "TeamId", "TeamColor" }) do
+		player:SetAttribute(a, nil)
+	end
+	player:SetAttribute("SpawnZone", false)
+	player:SetAttribute("InMatch", false)
+	ItemService.Clear(player)
+	Telemetry.Custom(player, "LeftMatch", 1, S.Mode or "", tostring(S.QueueId), "")
+	player:LoadCharacter()
+	remotes.Notify:FireClient(player, "경기에서 나와 로비로 돌아왔어요", Color3.fromRGB(200, 220, 255))
+end
+
 -- 경기 중 무기 교체: 부활 직후이거나 우리 스폰 근처일 때만
 local function nearOwnSpawn(e)
 	local r = e.Model and e.Model:FindFirstChild("HumanoidRootPart")
@@ -4180,6 +5101,7 @@ local function switchWeapon(player, weaponId)
 	player:SetAttribute("Weapon", w.Id)
 	if e.Model then
 		pcall(attachGun, e, e.Model)
+		ItemService.OnSpawn(e)
 	end
 	Combatants.Sync(e)
 	remotes.Notify:FireClient(player, "무기 교체: " .. w.Name .. " (" .. w.Class .. ")", Color3.fromRGB(140, 255, 200))
@@ -4238,6 +5160,10 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 	remotes.Queue.OnServerEvent:Connect(function(player, a, b)
 		if a == "map" then
 			setHostMap(player, b)
+		elseif a == "startNow" then
+			startNow(player)
+		elseif a == "leaveMatch" then
+			MatchService.LeaveMatch(player)
 		elseif a == nil or type(a) == "string" then
 			setQueue(player, a, false)
 		end
@@ -4453,7 +5379,7 @@ Combatants.Killed:Connect(function(killer)
 end)
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
 -- 새 미션 추가: MISSIONS 테이블에 { Id, Name, Desc, Duration, Bonus, Begin, Finish } 하나 추가
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -4634,6 +5560,9 @@ local function finish(ctx)
 		api.Cue("mission_result", winner)
 		api.AddBonus(winner, ctx.Def.Bonus)
 		api.RewardOwner(winner, Config.Rewards.Mission)
+		if api.RewardItems then
+			api.RewardItems(winner)
+		end
 		if ctx.Taker then
 			ctx.Taker.MissionWins = ctx.Taker.MissionWins + 1
 		end
@@ -4701,7 +5630,7 @@ function MissionService.Stop()
 end
 
 return MissionService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
 -- Studio 3D 가져오기로 직접 넣은 모델이 이미 SplashModels에 있으면 그대로 씀
 local InsertService = game:GetService("InsertService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -4751,7 +5680,7 @@ function ModelService.Load()
 end
 
 return ModelService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Combatants = require(script.Parent.Combatants)
@@ -4887,7 +5816,149 @@ function PaintService.GetCoverage()
 end
 
 return PaintService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
+-- 진행도는 프로필(p.Quests)에 저장, 달성하면 자동으로 코인·경험치 지급
+-- 클라이언트에는 속성 "Quests"(JSON)로 보냄
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage.Shared.Config)
+local DataService = require(script.Parent.DataService)
+
+local QuestService = {}
+
+local remotes = nil
+local KST = 9 * 3600
+
+local function dayKey()
+	return math.floor((os.time() + KST) / 86400)
+end
+local function weekKey()
+	-- 1970-01-01은 목요일 → +3일 하면 월요일 시작 주
+	return math.floor((os.time() + KST + 3 * 86400) / (7 * 86400))
+end
+local function secondsLeft(period)
+	local t = os.time() + KST
+	if period == "Daily" then
+		return 86400 - (t % 86400)
+	end
+	local w = 7 * 86400
+	return w - ((t + 3 * 86400) % w)
+end
+
+-- 기간 키를 씨앗으로 퀘스트 N개를 고름 (모두 같은 결과)
+local function pick(period, key)
+	local pool = Config.Quests[period]
+	local idx = {}
+	for i = 1, #pool do
+		idx[i] = i
+	end
+	local rng = Random.new(key * 7919 + (period == "Daily" and 1 or 2))
+	for i = #idx, 2, -1 do
+		local j = rng:NextInteger(1, i)
+		idx[i], idx[j] = idx[j], idx[i]
+	end
+	local out = {}
+	for i = 1, math.min(Config.Quests.PerPeriod, #idx) do
+		table.insert(out, pool[idx[i]])
+	end
+	return out
+end
+
+local function ensure(p)
+	p.Quests = type(p.Quests) == "table" and p.Quests or {}
+	local q = p.Quests
+	for _, period in ipairs({ "Daily", "Weekly" }) do
+		local key = (period == "Daily") and dayKey() or weekKey()
+		local cur = q[period]
+		if type(cur) ~= "table" or cur.Key ~= key then
+			local list = {}
+			for _, def in ipairs(pick(period, key)) do
+				table.insert(list, { Id = def.Id, P = 0, Done = false })
+			end
+			q[period] = { Key = key, List = list }
+		end
+	end
+	return q
+end
+
+local function defOf(period, id)
+	for _, d in ipairs(Config.Quests[period]) do
+		if d.Id == id then
+			return d
+		end
+	end
+	return nil
+end
+
+function QuestService.Publish(player)
+	local p = DataService.Get(player)
+	if not p then
+		return
+	end
+	local q = ensure(p)
+	local view = {}
+	for _, period in ipairs({ "Daily", "Weekly" }) do
+		for _, it in ipairs(q[period].List) do
+			local d = defOf(period, it.Id)
+			if d then
+				table.insert(view, { Period = period, Name = d.Name, P = math.min(it.P, d.Goal), Goal = d.Goal, Reward = d.Reward, Done = it.Done,
+					Left = secondsLeft(period) })
+			end
+		end
+	end
+	player:SetAttribute("Quests", HttpService:JSONEncode(view))
+end
+
+-- 통계 stat을 n만큼 올림 (달성 시 보상)
+function QuestService.Add(player, stat, n)
+	if not player or not player.Parent or (n or 0) <= 0 then
+		return
+	end
+	local p = DataService.Get(player)
+	if not p then
+		return
+	end
+	local q = ensure(p)
+	local changed = false
+	for _, period in ipairs({ "Daily", "Weekly" }) do
+		for _, it in ipairs(q[period].List) do
+			local d = defOf(period, it.Id)
+			if d and d.Stat == stat and not it.Done then
+				it.P = it.P + n
+				changed = true
+				if it.P >= d.Goal then
+					it.Done = true
+					DataService.AddCoins(player, d.Reward)
+					DataService.AddXP(player, Config.XP.Quest)
+					if remotes then
+						remotes.Notify:FireClient(player, string.format("✅ [%s] %s 완료! +%d 코인", period == "Daily" and "일일" or "주간", d.Name, d.Reward),
+							Color3.fromRGB(120, 255, 170))
+					end
+				end
+			end
+		end
+	end
+	if changed then
+		QuestService.Publish(player)
+	end
+end
+
+function QuestService.Init(remoteFolder)
+	remotes = remoteFolder
+	-- 날짜가 바뀌면 새 퀘스트로 (1분마다 확인)
+	task.spawn(function()
+		while true do
+			for _, pl in ipairs(Players:GetPlayers()) do
+				QuestService.Publish(pl)
+			end
+			task.wait(60)
+		end
+	end)
+end
+
+return QuestService
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -5051,7 +6122,7 @@ function RankService.StartBoard(textLabel)
 end
 
 return RankService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -5069,6 +6140,28 @@ local function handle(player, action, weaponId)
 		return CrateService.TestOpen(player)
 	elseif action == "equipCosmetic" then
 		return CrateService.Equip(player, weaponId)
+	elseif action == "buyCosmetic" then
+		-- 포인트(코인)로 외형 직접 구매
+		local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+		local item = Cosmetics.ById[weaponId]
+		local p = DataService.Get(player)
+		local price = item and Config.SkinPrices[item.Rarity]
+		if not item or not p or not price then
+			return { ok = false, msg = "알 수 없는 아이템" }
+		end
+		p.Cosmetics = p.Cosmetics or {}
+		if p.Cosmetics[item.Id] then
+			return { ok = false, msg = "이미 보유 중" }
+		end
+		if p.Coins < price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - price
+		p.Cosmetics[item.Id] = true
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, price, p.Coins, "Shop", "Cosmetic_" .. item.Id)
+		return { ok = true, msg = item.Name .. " 구매 완료! 컬렉션에서 장착하세요" }
 	end
 	local p = DataService.Get(player)
 	local w = Weapons.ById[weaponId]
@@ -5167,7 +6260,7 @@ function ShopService.Init(remotes)
 end
 
 return ShopService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
 local Signal = {}
 Signal.__index = Signal
 
@@ -5197,7 +6290,7 @@ function Signal:Fire(...)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
 -- 1) Roblox AnalyticsService: 온보딩 퍼널 / 경제 / 커스텀 이벤트 → Creator Hub > 분석 에서 확인
 -- 2) 무기별 밸런스 통계 (자체 DataStore) → 관리자 패널 "밸런스 리포트"
 -- 3) 게임 내 피드백 (자체 DataStore) → 관리자 패널 "피드백 보기"
@@ -5466,7 +6559,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX38"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX37"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX41"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX40"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -5694,7 +6787,7 @@ function CBT.OnResults()
 end
 
 return CBT
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)가 총을 앞으로 겨누는 자세 + 사격 반동
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)가 총을 앞으로 겨누는 자세 + 사격 반동
 -- 애니메이션 에셋 없이 어깨·팔꿈치 Motor6D.Transform을 애니메이션 다음 단계에서 덮어씀
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -5808,7 +6901,7 @@ function Pose.Init()
 end
 
 return Pose
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX27"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX29"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -5826,6 +6919,7 @@ local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
+local ItemClient = require(script.Parent:WaitForChild("ItemClient"))
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
@@ -5863,8 +6957,26 @@ end)
 LobbyUI.SetModalHandler(function(on)
 	modal("lobby", on)
 end)
+HUD.SetLeaveHandler(function(on)
+	modal("leave", on)
+end, function()
+	remotes.Queue:FireServer("leaveMatch")
+end)
 CharacterPose.Init()
 PaintVisual.Init()
+ItemClient.Init(remotes, HUD)
+HUD.UpdateQuests()
+LobbyUI.UpdateQuests()
+
+-- 레벨 업 축하
+player:GetAttributeChangedSignal("LevelUp"):Connect(function()
+	local v = player:GetAttribute("LevelUp") or ""
+	local lv, coins = string.match(v, "^(%d+):(%d+)")
+	if lv then
+		HUD.Banner(string.format("⭐ 레벨 %s 달성!  🪙 +%s 코인", lv, coins), Color3.fromRGB(255, 210, 80))
+		SoundBank.Play("crate_epic", nil, 0.6)
+	end
+end)
 MusicPlayer.Init()
 
 -- 스페셜 충전 완료 / 부활
@@ -5915,6 +7027,8 @@ remotes.FX.OnClientEvent:Connect(function(kind, data)
 		if data.VictimPlayer == player then
 			SoundBank.Play("splashed", nil, 0.8)
 		end
+	elseif kind == "Elim" then
+		HUD.Elim(data)
 	elseif kind == "Cue" then
 		-- 서버가 알려주는 상황: 미션·깃발은 우리 팀이면 성공음, 아니면 실패음
 		local mine = player:GetAttribute("OwnerId")
@@ -5950,7 +7064,7 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 end)
 
 print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -5958,9 +7072,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
+local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
+
 
 local player = Players.LocalPlayer
 local Effects = {}
+function Effects.WallSplat(inst, pos, normal, color)
+	PaintVisual.WallSplat(inst, pos, normal, color)
+end
 
 local function folder()
 	local f = workspace:FindFirstChild("ClientFX")
@@ -6147,6 +7266,91 @@ function Effects.ShakeOffset(dt)
 	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 1.6), math.rad((math.random() - 0.5) * s * 1.6), 0)
 end
 
+-- 투척물 (스페셜 크로마 봄 · 연막탄): 서버와 같은 초기값으로 포물선을 그리다 ProjEnd에서 터짐
+local projs = {}
+local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+local function startProj(d)
+	local visual
+	if d.Kind == "Smoke" then
+		visual = ModelKit.Item("Smoke")
+		for _, p in ipairs(visual:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+			end
+		end
+		visual.Parent = folder()
+	else
+		visual = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.7, Color = d.Color, Position = d.From })
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 0.5, 0)
+		a0.Parent = visual
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -0.5, 0)
+		a1.Parent = visual
+		local trail = Instance.new("Trail")
+		trail.Attachment0, trail.Attachment1 = a0, a1
+		trail.Color = ColorSequence.new(d.Color)
+		trail.LightEmission = 0.8
+		trail.Lifetime = 0.25
+		trail.Transparency = NumberSequence.new(0.2, 1)
+		trail.Parent = visual
+		local l = Instance.new("PointLight")
+		l.Color = d.Color
+		l.Range = 10
+		l.Brightness = 3
+		l.Parent = visual
+	end
+	local t0 = os.clock()
+	local rec = { Visual = visual }
+	projs[d.Id] = rec
+	rec.Conn = game:GetService("RunService").RenderStepped:Connect(function()
+		local t = os.clock() - t0
+		if t > (Config.Throw.MaxTime + 0.5) then
+			rec.Conn:Disconnect()
+			visual:Destroy()
+			projs[d.Id] = nil
+			return
+		end
+		local pos = d.From + d.Vel * t + d.G * (0.5 * t * t)
+		local cf = CFrame.new(pos) * CFrame.Angles(t * 9, t * 5, 0)
+		if visual:IsA("Model") then
+			visual:PivotTo(cf)
+		else
+			visual.CFrame = cf
+		end
+	end)
+	SoundBank.Play("special_throw", d.From, 0.7)
+end
+
+local function endProj(d)
+	local rec = projs[d.Id]
+	if rec then
+		rec.Conn:Disconnect()
+		rec.Visual:Destroy()
+		projs[d.Id] = nil
+	end
+	local pos = d.Pos
+	if d.Kind == "Smoke" then
+		SoundBank.Play("land", pos, 0.8)
+		Effects.Splash(pos, Color3.fromRGB(230, 232, 240), 3)
+		return
+	end
+	local radius = d.Radius or Config.SpecialRadius
+	local ring = fxPart({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 2, 2), Color = d.Color,
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)) })
+	TweenService:Create(ring, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Size = Vector3.new(0.3, radius * 2, radius * 2), Transparency = 1 }):Play()
+	Debris:AddItem(ring, 0.4)
+	local ball = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 2, Color = d.Color, Position = pos })
+	TweenService:Create(ball, TweenInfo.new(0.3, Enum.EasingStyle.Quad), { Size = Vector3.one * radius * 1.4, Transparency = 1 }):Play()
+	Debris:AddItem(ball, 0.35)
+	Effects.Splash(pos + Vector3.new(0, 1, 0), d.Color, 4)
+	SoundBank.Play("special_boom", pos, 1)
+	local cam = workspace.CurrentCamera
+	if cam and (cam.CFrame.Position - pos).Magnitude < radius * 2.5 then
+		Effects.Shake(0.4)
+	end
+end
+
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
 	if kind == "Tracer" then
@@ -6171,10 +7375,25 @@ function Effects.OnFX(kind, d)
 				from = hand.Position
 			end
 		end
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { d.Model, folder(), workspace:FindFirstChild("PaintLayer") }
 		for _, to in ipairs(d.To) do
-			Effects.Tracer(from, to, d.Color, d.Weapon == "Sniper" and 0.35 or 0.18)
+			Effects.Tracer(from, to, d.Color, (d.Golden and 0.6) or (d.Weapon == "Sniper" and 0.35) or 0.18)
+			-- 다른 사람 총알도 벽에 맞은 자리에 페인트 자국
+			local dir = to - d.From
+			if dir.Magnitude > 0.5 then
+				local hit = workspace:Raycast(d.From, dir + dir.Unit * 0.6, params)
+				if hit then
+					PaintVisual.WallSplat(hit.Instance, hit.Position, hit.Normal, d.Color)
+				end
+			end
 		end
 		SoundBank.Play("fire_" .. string.lower(d.Weapon or "pistol"), d.From, 0.55)
+	elseif kind == "Proj" then
+		startProj(d)
+	elseif kind == "ProjEnd" then
+		endProj(d)
 	elseif kind == "Bomb" then
 		Effects.Bomb(d.From, d.To, d.Color, d.Radius)
 		SoundBank.Play("special_throw", d.From, 0.7)
@@ -6189,12 +7408,14 @@ function Effects.OnFX(kind, d)
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
+local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+local UI = require(script.Parent:WaitForChild("UIKit"))
 
 local player = Players.LocalPlayer
 local HUD = {}
@@ -6203,6 +7424,43 @@ local gui, top, timerLbl, modeLbl, barHolder, missionFrame, missionLbl, missionT
 local cross = {}
 local hitmarker, inkBar, inkFill, specialFill, specialLbl, healthFill, healthLbl
 local feed, banner, vignette, splashed, results, scope, weaponLbl, flagLbl, inkLbl, switchBar
+local sightDot, sightHolo, scopeZoomLbl, itemBar, itemSlots, buffLbl, toast
+local portraits, questBox, streakFrame, streakLbl, elimGui, elimFrame, rewardList, xpFill, xpLbl, levelLbl, inkPips, inkNum
+local weaponCard, itemCard, myStreak = nil, nil, 0
+local thumbCache = {}
+local boardSig = ""
+local HttpService = game:GetService("HttpService")
+local TextChatService = game:GetService("TextChatService")
+local DARKP = Color3.fromRGB(14, 12, 24)
+local leaveConfirm, moveLbl
+local MOVE_ICON = { ["일반"] = "🧍 일반", ["달리기"] = "🏃 달리기", ["걷기"] = "🚶 걷기", ["앉기"] = "🧎 앉기" }
+local MOVE_COLOR = { ["일반"] = Color3.fromRGB(230, 230, 240), ["달리기"] = Color3.fromRGB(255, 200, 80), ["걷기"] = Color3.fromRGB(140, 220, 255),
+	["앉기"] = Color3.fromRGB(170, 255, 170) }
+function HUD.SetMove(mode)
+	if moveLbl then
+		moveLbl.Text = MOVE_ICON[mode] or mode
+		moveLbl.TextColor3 = MOVE_COLOR[mode] or Color3.new(1, 1, 1)
+	end
+end
+local leaveModal = function() end
+local leaveConfirmFn = function() end
+
+function HUD.SetLeaveHandler(onModal, onConfirm)
+	leaveModal = onModal
+	leaveConfirmFn = onConfirm
+end
+
+function HUD.AskLeave()
+	if not leaveConfirm or not player:GetAttribute("InMatch") then
+		return
+	end
+	leaveConfirm.Visible = not leaveConfirm.Visible
+	leaveModal(leaveConfirm.Visible)
+end
+local ITEM_DEF = {}
+for _, it in ipairs(Config.Items) do
+	ITEM_DEF[it.Id] = it
+end
 local state = nil
 
 local function make(class, props, parent)
@@ -6233,19 +7491,85 @@ function HUD.Build()
 	gui = make("ScreenGui", { Name = "SplashHUD", ResetOnSpawn = false, IgnoreGuiInset = true, Enabled = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, player:WaitForChild("PlayerGui"))
 
-	-- 상단: 타이머 + 점수바
-	top = make("Frame", { Size = UDim2.new(0, 520, 0, 86), Position = UDim2.new(0.5, -260, 0, 10), BackgroundTransparency = 1 }, gui)
-	timerLbl = text(top, { Size = UDim2.new(0, 140, 0, 46), Position = UDim2.new(0.5, -70, 0, 0), Text = "3:00" })
-	modeLbl = text(top, { Size = UDim2.new(1, 0, 0, 16), Position = UDim2.new(0, 0, 0, 46), Font = Enum.Font.GothamBold,
-		TextColor3 = Color3.fromRGB(220, 220, 230) })
-	barHolder = make("Frame", { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 0, 64),
-		BackgroundColor3 = Color3.fromRGB(30, 30, 40), BackgroundTransparency = 0.2 }, top)
-	corner(barHolder, 10)
+	-- 상단 가운데: 모래시계 타이머 · 모드 · (팀전) 점수 막대 · TOP 5 초상화
+	top = make("Frame", { Size = UDim2.new(0, 600, 0, 196), Position = UDim2.new(0.5, -300, 0, 6), BackgroundTransparency = 1 }, gui)
+	local pill = make("Frame", { Size = UDim2.fromOffset(190, 46), Position = UDim2.new(0.5, -95, 0, 0), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2 }, top)
+	corner(pill, 23)
+	make("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Transparency = 0.75 }, pill)
+	text(pill, { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(12, 6), Text = "⌛", TextStrokeTransparency = 1 })
+	timerLbl = text(pill, { Size = UDim2.new(1, -60, 1, -8), Position = UDim2.fromOffset(50, 4), Text = "5:00", Font = Enum.Font.FredokaOne,
+		TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 0.6 })
+	modeLbl = text(top, { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0, 48), Font = Enum.Font.GothamBold,
+		TextColor3 = Color3.fromRGB(240, 240, 250), TextStrokeTransparency = 0.4 })
+	barHolder = make("Frame", { Size = UDim2.new(0, 420, 0, 16), Position = UDim2.new(0.5, -210, 0, 70),
+		BackgroundColor3 = DARKP, BackgroundTransparency = 0.25, ClipsDescendants = true }, top)
+	corner(barHolder, 8)
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, SortOrder = Enum.SortOrder.LayoutOrder }, barHolder)
-	flagLbl = text(gui, { Size = UDim2.new(0, 420, 0, 22), Position = UDim2.new(0.5, -210, 0, 100), Font = Enum.Font.GothamBold })
+	portraits = make("Frame", { Size = UDim2.new(1, 0, 0, 100), Position = UDim2.new(0, 0, 0, 92), BackgroundTransparency = 1 }, top)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, portraits)
+	flagLbl = text(gui, { Size = UDim2.new(0, 460, 0, 22), Position = UDim2.new(0.5, -230, 0, 202), Font = Enum.Font.GothamBold })
+
+	-- 오른쪽 위: 로비로 나가기 [L] + 확인 창
+	local leaveBtn = make("TextButton", { Size = UDim2.fromOffset(120, 36), Position = UDim2.new(1, -136, 0, 12), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2,
+		Text = "", AutoButtonColor = true }, gui)
+	corner(leaveBtn, 18)
+	text(leaveBtn, { Size = UDim2.new(1, -16, 1, -10), Position = UDim2.fromOffset(8, 5), Text = "⎋ 로비  [L]", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 1 })
+	leaveBtn.MouseButton1Click:Connect(function()
+		HUD.AskLeave()
+	end)
+	leaveConfirm = make("Frame", { Size = UDim2.fromOffset(420, 170), Position = UDim2.new(0.5, -210, 0.4, -85), BackgroundColor3 = Color3.fromRGB(20, 18, 34),
+		Visible = false, ZIndex = 60 }, gui)
+	corner(leaveConfirm, 16)
+	make("UIStroke", { Thickness = 3, Color = Color3.fromRGB(255, 90, 120) }, leaveConfirm)
+	text(leaveConfirm, { Size = UDim2.new(1, -40, 0, 34), Position = UDim2.fromOffset(20, 16), Text = "로비로 나갈까요?", ZIndex = 61 })
+	text(leaveConfirm, { Size = UDim2.new(1, -40, 0, 22), Position = UDim2.fromOffset(20, 54), Text = "지금 나가면 이번 판 보상·레이팅은 받지 못해요", TextScaled = false,
+		TextSize = 16, Font = Enum.Font.GothamBold, TextColor3 = Color3.fromRGB(200, 200, 220), ZIndex = 61 })
+	for i, o in ipairs({ { "나가기", Color3.fromRGB(230, 60, 100), true }, { "계속하기", Color3.fromRGB(60, 58, 86), false } }) do
+		local b = make("TextButton", { Size = UDim2.fromOffset(170, 48), Position = UDim2.new(0, 30 + (i - 1) * 190, 1, -66), BackgroundColor3 = o[2], Text = o[1],
+			TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 20, ZIndex = 61 }, leaveConfirm)
+		corner(b, 10)
+		b.MouseButton1Click:Connect(function()
+			leaveConfirm.Visible = false
+			leaveModal(false)
+			if o[3] then
+				leaveConfirmFn()
+			end
+		end)
+	end
+	game:GetService("UserInputService").InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.L and player:GetAttribute("InMatch") then
+			HUD.AskLeave()
+		end
+	end)
+
+	-- 왼쪽 위: 일일·주간 퀘스트 카드
+	questBox = make("Frame", { Size = UDim2.fromOffset(380, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(16, 56), BackgroundTransparency = 1 }, gui)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }, questBox)
+
+	-- 왼쪽: 연속 처치 불꽃
+	streakFrame = make("Frame", { Size = UDim2.fromOffset(120, 120), Position = UDim2.new(0, 20, 0.62, 0), BackgroundTransparency = 1, Visible = false }, gui)
+	text(streakFrame, { Size = UDim2.fromScale(1, 1), Text = "🔥", TextStrokeTransparency = 1 })
+	streakLbl = text(streakFrame, { Size = UDim2.new(1, 0, 0.46, 0), Position = UDim2.new(0, 0, 0.5, 0), Text = "x2", Font = Enum.Font.FredokaOne,
+		TextStrokeTransparency = 1 })
+	make("UIStroke", { Thickness = 4, Color = Color3.fromRGB(150, 20, 40) }, streakLbl)
+
+	-- 왼쪽 아래: 조작키 안내
+	local keys = make("Frame", { Size = UDim2.new(0, 0, 0, 36), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0, 16, 1, -16),
+		AnchorPoint = Vector2.new(0, 1), BackgroundTransparency = 1 }, gui)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, keys)
+	for i, k in ipairs({ { "⇧", "달리기" }, { "Z", "걷기" }, { "C", "앉기" }, { "Q", "스페셜" }, { "🖱", "조준" }, { "F", "아이템" }, { "V", "시점" } }) do
+		local chip = make("Frame", { Size = UDim2.fromOffset(92, 34), BackgroundColor3 = DARKP, BackgroundTransparency = 0.3, LayoutOrder = i }, keys)
+		corner(chip, 8)
+		local key = make("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(5, 5), BackgroundColor3 = Color3.fromRGB(240, 240, 248) }, chip)
+		corner(key, 5)
+		text(key, { Size = UDim2.fromScale(1, 1), Text = k[1], TextColor3 = Color3.fromRGB(20, 20, 30), TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack })
+		text(chip, { Size = UDim2.new(1, -38, 1, -12), Position = UDim2.fromOffset(34, 6), Text = k[2], TextXAlignment = Enum.TextXAlignment.Left,
+			Font = Enum.Font.GothamBold, TextStrokeTransparency = 1 })
+	end
 
 	-- 미션
-	missionFrame = make("Frame", { Size = UDim2.new(0, 340, 0, 64), Position = UDim2.new(0, 16, 0, 120),
+	missionFrame = make("Frame", { Size = UDim2.new(0, 380, 0, 56), Position = UDim2.new(0.5, -190, 0, 228),
 		BackgroundColor3 = Color3.fromRGB(255, 196, 40), BackgroundTransparency = 0.1, Visible = false }, gui)
 	corner(missionFrame, 10)
 	missionLbl = text(missionFrame, { Size = UDim2.new(1, -70, 1, -8), Position = UDim2.new(0, 10, 0, 4), TextColor3 = Color3.fromRGB(30, 20, 0),
@@ -6269,58 +7593,136 @@ function HUD.Build()
 		f.Position = UDim2.new(0.5, math.cos(a) * 10, 0.5, math.sin(a) * 10)
 	end
 
-	-- 하단: 체력 / 잉크(총탄) / 무기 / 스페셜
-	local bottom = make("Frame", { Size = UDim2.new(0, 780, 0, 70), Position = UDim2.new(0.5, -390, 1, -86), BackgroundTransparency = 1 }, gui)
-	-- 잉크 탱크 (하단 가운데 가로 막대)
-	inkBar = make("Frame", { Size = UDim2.new(0, 260, 0, 18), Position = UDim2.new(0.5, -130, 0, 40), BackgroundColor3 = Color3.fromRGB(20, 20, 26),
-		BackgroundTransparency = 0.2 }, bottom)
-	corner(inkBar, 9)
-	inkFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, inkBar)
-	corner(inkFill, 9)
-	inkLbl = text(bottom, { Size = UDim2.new(0, 260, 0, 26), Position = UDim2.new(0.5, -130, 0, 10), Text = "🎨 잉크 100%", Font = Enum.Font.GothamBold })
-	local hb = make("Frame", { Size = UDim2.new(0, 220, 0, 18), Position = UDim2.new(0, 0, 0, 40), BackgroundColor3 = Color3.fromRGB(20, 20, 26),
-		BackgroundTransparency = 0.2 }, bottom)
-	corner(hb, 9)
+	-- 이동 상태 (일반 / 달리기 / 걷기 / 앉기)
+	moveLbl = text(gui, { Size = UDim2.fromOffset(120, 22), Position = UDim2.new(0.5, 160, 1, -80), Text = "🧍 일반", Font = Enum.Font.GothamBlack,
+		TextXAlignment = Enum.TextXAlignment.Left, TextScaled = false, TextSize = 16 })
+
+	-- 하단 가운데: 체력 + 레벨 경험치 막대
+	local hb = make("Frame", { Size = UDim2.fromOffset(300, 12), Position = UDim2.new(0.5, -150, 1, -72), BackgroundColor3 = DARKP, BackgroundTransparency = 0.25 }, gui)
+	corner(hb, 6)
 	healthFill = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(90, 255, 140), BorderSizePixel = 0 }, hb)
-	corner(healthFill, 9)
-	healthLbl = text(bottom, { Size = UDim2.new(0, 220, 0, 30), Position = UDim2.new(0, 0, 0, 6), Text = "100",
-		TextXAlignment = Enum.TextXAlignment.Left })
-	weaponLbl = text(bottom, { Size = UDim2.new(0, 220, 0, 26), Position = UDim2.new(1, -220, 0, 10), TextXAlignment = Enum.TextXAlignment.Right,
-		Font = Enum.Font.GothamBold })
-	local sb = make("Frame", { Size = UDim2.new(0, 220, 0, 18), Position = UDim2.new(1, -220, 0, 40), BackgroundColor3 = Color3.fromRGB(20, 20, 26),
-		BackgroundTransparency = 0.2 }, bottom)
-	corner(sb, 9)
-	specialFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 220, 60), BorderSizePixel = 0 }, sb)
-	corner(specialFill, 9)
-	specialLbl = text(sb, { Size = UDim2.fromScale(1, 1), Text = "스페셜", Font = Enum.Font.GothamBold, ZIndex = 2 })
+	corner(healthFill, 6)
+	healthLbl = text(gui, { Size = UDim2.fromOffset(60, 22), Position = UDim2.new(0.5, -216, 1, -78), Text = "100", Font = Enum.Font.FredokaOne,
+		TextXAlignment = Enum.TextXAlignment.Right })
+	local xb = make("Frame", { Size = UDim2.fromOffset(470, 28), Position = UDim2.new(0.5, -235, 1, -48), BackgroundColor3 = DARKP, BackgroundTransparency = 0.15 }, gui)
+	corner(xb, 14)
+	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 190, 80), Transparency = 0.3 }, xb)
+	xpFill = make("Frame", { Size = UDim2.fromScale(0.3, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 }, xb)
+	corner(xpFill, 14)
+	make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 150, 40), Color3.fromRGB(255, 210, 90)) }, xpFill)
+	levelLbl = text(xb, { Size = UDim2.new(0.4, 0, 1, -8), Position = UDim2.fromOffset(14, 4), Text = "레벨 1", TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.5, ZIndex = 2 })
+	xpLbl = text(xb, { Size = UDim2.new(0.45, 0, 1, -10), Position = UDim2.new(0.55, -46, 0, 5), Text = "0 / 100 XP", TextXAlignment = Enum.TextXAlignment.Right,
+		Font = Enum.Font.GothamBold, TextStrokeTransparency = 0.5, ZIndex = 2 })
+	text(xb, { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(1, -30, 0.5, -20), Text = "🧰", TextStrokeTransparency = 1, ZIndex = 3 })
+
+	-- 오른쪽 아래: 잉크(탄) 칸 + 숫자, 슬롯 카드 [1 무기] [Q 스페셜] [F 아이템]
+	local ammo = make("Frame", { Size = UDim2.fromOffset(300, 44), Position = UDim2.new(1, -16, 1, -128), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
+	inkPips = {}
+	for i = 1, 10 do
+		local pip = make("Frame", { Size = UDim2.fromOffset(12, 26), Position = UDim2.fromOffset((i - 1) * 15, 10), BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0 }, ammo)
+		corner(pip, 4)
+		make("UIStroke", { Thickness = 1.5, Color = DARKP, Transparency = 0.2 }, pip)
+		inkPips[i] = pip
+	end
+	inkNum = text(ammo, { Size = UDim2.fromOffset(140, 44), Position = UDim2.new(1, -140, 0, 0), Text = "100", Font = Enum.Font.FredokaOne,
+		TextXAlignment = Enum.TextXAlignment.Right, RichText = true })
+	local slots = make("Frame", { Size = UDim2.fromOffset(470, 96), Position = UDim2.new(1, -16, 1, -24), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder }, slots)
+	local function card(order, key, wide)
+		local c = make("Frame", { Size = UDim2.fromOffset(wide and 170 or 140, 96), BackgroundColor3 = Color3.fromRGB(28, 26, 44), BackgroundTransparency = 0.12,
+			LayoutOrder = order }, slots)
+		corner(c, 12)
+		make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(230, 230, 245), Transparency = 0.6 }, c)
+		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 170, 190)), Rotation = 90 }, c)
+		local badge = make("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(6, 6), BackgroundColor3 = Color3.fromRGB(240, 240, 248), ZIndex = 3 }, c)
+		corner(badge, 6)
+		text(badge, { Size = UDim2.fromScale(1, 1), Text = key, TextColor3 = DARKP, TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack, ZIndex = 4 })
+		local pic = make("Frame", { Size = UDim2.new(1, -12, 1, -32), Position = UDim2.fromOffset(6, 6), BackgroundTransparency = 1 }, c)
+		local name = text(c, { Size = UDim2.new(1, -12, 0, 20), Position = UDim2.new(0, 6, 1, -24), Text = "", Font = Enum.Font.GothamBlack,
+			TextStrokeTransparency = 0.5, ZIndex = 3 })
+		return c, pic, name
+	end
+	local wc, wpic, wname = card(1, "1", true)
+	weaponCard = { Frame = wc, Pic = wpic, Name = wname }
+	weaponLbl = wname
+	local sc, spic, sname = card(2, "Q")
+	text(spic, { Size = UDim2.fromScale(1, 0.8), Text = "💣", TextStrokeTransparency = 1 })
+	local sb = make("Frame", { Size = UDim2.new(1, -16, 0, 6), Position = UDim2.new(0, 8, 1, -30), BackgroundColor3 = DARKP, ZIndex = 3 }, sc)
+	corner(sb, 3)
+	specialFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 220, 60), BorderSizePixel = 0, ZIndex = 3 }, sb)
+	corner(specialFill, 3)
+	specialLbl = sname
+	local ic, ipic, iname = card(3, "F")
+	itemCard = { Frame = ic, Pic = ipic, Name = iname }
 
 	-- 킬피드
-	feed = make("Frame", { Size = UDim2.new(0, 360, 0, 200), Position = UDim2.new(1, -376, 0, 16), BackgroundTransparency = 1 }, gui)
+	feed = make("Frame", { Size = UDim2.new(0, 470, 0, 260), Position = UDim2.new(1, -486, 0, 56), BackgroundTransparency = 1 }, gui)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		Padding = UDim.new(0, 4) }, feed)
 
 	-- 배너 / 처치 / 피격
 	local notifyGui = make("ScreenGui", { Name = "SplashNotify", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 10 }, player.PlayerGui)
 	banner = text(notifyGui, { Size = UDim2.new(0, 700, 0, 40), Position = UDim2.new(0.5, -350, 0.28, 0), TextTransparency = 1, TextStrokeTransparency = 1 })
-	splashed = text(gui, { Size = UDim2.new(0, 500, 0, 60), Position = UDim2.new(0.5, -250, 0.62, 0), Text = "SPLASHED!",
+	splashed = text(gui, { Size = UDim2.new(0, 500, 0, 60), Position = UDim2.new(0.5, -250, 0.62, 0), Text = "",
 		TextTransparency = 1, TextStrokeTransparency = 1 })
+	-- 처치 배너: [멀티킬 칩] / 제거됨 / 💀 상대 이름 + 보상 줄
+	elimGui = notifyGui
+	elimFrame = make("Frame", { Size = UDim2.fromOffset(520, 130), Position = UDim2.new(0.5, -260, 0.6, 0), BackgroundTransparency = 1, Visible = false }, notifyGui)
+	rewardList = make("Frame", { Size = UDim2.fromOffset(520, 80), Position = UDim2.new(0.5, -260, 0.6, 134), BackgroundTransparency = 1 }, notifyGui)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, HorizontalAlignment = Enum.HorizontalAlignment.Center, Padding = UDim.new(0, 2) }, rewardList)
 	vignette = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 0 }, gui)
 	local grad = make("UIGradient", { Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(0.25, 1), NumberSequenceKeypoint.new(0.75, 1), NumberSequenceKeypoint.new(1, 0.2) }) }, vignette)
 	grad.Name = "Grad"
 
 	-- 저격 조준경
-	scope = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 5 }, gui)
-	local ring = make("Frame", { Size = UDim2.new(0, 0, 0.8, 0), SizeConstraint = Enum.SizeConstraint.RelativeYY,
-		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1 }, scope)
+	-- 스코프: 원 바깥을 검게 가리고(굵은 테두리), 가운데 십자선·눈금·빨간 점
+	scope = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, ZIndex = 5, ClipsDescendants = true }, gui)
+	local ring = make("Frame", { Size = UDim2.new(0, 0, 0.86, 0), SizeConstraint = Enum.SizeConstraint.RelativeYY,
+		Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 5 }, scope)
 	make("UIAspectRatioConstraint", { AspectRatio = 1 }, ring)
 	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, ring)
-	make("UIStroke", { Thickness = 3, Color = Color3.new(0, 0, 0) }, ring)
-	make("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.fromScale(0, 0.5), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0 }, scope)
-	make("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.fromScale(0.5, 0), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0 }, scope)
+	make("UIStroke", { Thickness = 2400, Color = Color3.fromRGB(4, 4, 8), ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, ring)
+	local inner = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 6 }, ring)
+	make("UICorner", { CornerRadius = UDim.new(0.5, 0) }, inner)
+	make("UIStroke", { Thickness = 5, Color = Color3.fromRGB(20, 20, 26) }, inner)
+	make("Frame", { Size = UDim2.new(1, 0, 0, 2), Position = UDim2.fromScale(0, 0.5), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0, ZIndex = 6 }, ring)
+	make("Frame", { Size = UDim2.new(0, 2, 1, 0), Position = UDim2.fromScale(0.5, 0), AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0, ZIndex = 6 }, ring)
+	for k = 1, 4 do
+		for _, sgn in ipairs({ -1, 1 }) do
+			make("Frame", { Size = UDim2.fromOffset(10, 2), Position = UDim2.new(0.5, 0, 0.5, sgn * k * 22), AnchorPoint = Vector2.new(0.5, 0.5),
+				BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 6 }, ring)
+			make("Frame", { Size = UDim2.fromOffset(2, 10), Position = UDim2.new(0.5, sgn * k * 22, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+				BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 6 }, ring)
+		end
+	end
+	local rd = make("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = Color3.fromRGB(255, 40, 60), BorderSizePixel = 0, ZIndex = 7 }, ring)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, rd)
+	scopeZoomLbl = text(scope, { Size = UDim2.fromOffset(120, 30), Position = UDim2.new(0.5, 40, 0.5, 40), Text = "", Font = Enum.Font.GothamBlack, ZIndex = 8,
+		TextColor3 = Color3.fromRGB(255, 220, 80), TextXAlignment = Enum.TextXAlignment.Left })
+
+	-- 레드닷(점) / 홀로(원 + 점) 조준점: 우클릭 조준 시
+	sightDot = make("Frame", { Size = UDim2.fromOffset(7, 7), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = Color3.fromRGB(255, 40, 60), BorderSizePixel = 0, Visible = false, ZIndex = 4 }, gui)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, sightDot)
+	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 120, 130), Transparency = 0.5 }, sightDot)
+	sightHolo = make("Frame", { Size = UDim2.fromOffset(46, 46), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundTransparency = 1, Visible = false, ZIndex = 4 }, gui)
+	make("UICorner", { CornerRadius = UDim.new(1, 0) }, sightHolo)
+	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 60, 80), Transparency = 0.15 }, sightHolo)
+
+	itemSlots = {}
+	buffLbl = text(gui, { Size = UDim2.new(0, 700, 0, 22), Position = UDim2.new(0.5, -350, 1, -100), Text = "", Font = Enum.Font.GothamBlack,
+		RichText = true })
 
 	-- 스폰 지점 무기 교체 바 (1~6 / T)
-	switchBar = make("Frame", { Size = UDim2.new(0, 0, 0, 54), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, -150),
+	switchBar = make("Frame", { Size = UDim2.new(0, 0, 0, 54), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(0.5, 0, 1, -160),
 		AnchorPoint = Vector2.new(0.5, 0), BackgroundColor3 = Color3.fromRGB(10, 10, 16), BackgroundTransparency = 0.2, Visible = false }, gui)
 	corner(switchBar, 12)
 	make("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10), PaddingTop = UDim.new(0, 7), PaddingBottom = UDim.new(0, 7) }, switchBar)
@@ -6353,6 +7755,7 @@ function HUD.OnState(s)
 		return
 	end
 	modeLbl.Text = (s.ModeName or "") .. " · " .. (s.MapName or "")
+	HUD.RenderBoard(s.Board or {})
 	-- 점수바
 	for _, c in ipairs(barHolder:GetChildren()) do
 		if c:IsA("Frame") then
@@ -6367,8 +7770,9 @@ function HUD.OnState(s)
 		local share = (total > 0) and (t.Score / total) or (1 / math.max(1, #s.Teams))
 		local f = make("Frame", { Size = UDim2.new(share, 0, 1, 0), BackgroundColor3 = t.Color, BorderSizePixel = 0, LayoutOrder = i }, barHolder)
 		if share > 0.12 then
-			local unit = (s.Mode == "Flag") and "" or "%"
-			text(f, { Size = UDim2.fromScale(1, 1), Text = string.format("%s %.0f%s", t.Name, t.Score, unit), Font = Enum.Font.GothamBold })
+			local label = (s.Mode == "Flag") and string.format("%s %.0f", t.Name, t.Score)
+				or string.format("%.0f점 · 칠 %.0f%%", t.Score, t.Coverage or 0)
+			text(f, { Size = UDim2.fromScale(1, 1), Text = label, Font = Enum.Font.GothamBold })
 		end
 	end
 	-- 깃발
@@ -6399,7 +7803,8 @@ function HUD.OnState(s)
 end
 
 -- 매 프레임 갱신 (WeaponController에서 호출)
-function HUD.Update(spreadPx, weaponId, scoped)
+function HUD.Update(spreadPx, weaponId, sight, zoomText)
+	local scoped = sight == "Scope"
 	if not gui.Enabled then
 		return
 	end
@@ -6420,21 +7825,51 @@ function HUD.Update(spreadPx, weaponId, scoped)
 	cross[4].Size = UDim2.fromOffset(len, 2)
 	cross[4].Position = UDim2.new(0.5, gap + len / 2, 0.5, 0)
 	for i = 1, 4 do
-		cross[i].Visible = not scoped
+		cross[i].Visible = sight == nil
 	end
 	scope.Visible = scoped
+	scopeZoomLbl.Text = zoomText or ""
+	sightDot.Visible = sight == "Dot" or sight == "Holo"
+	sightHolo.Visible = sight == "Holo"
+	-- 효과 남은 시간
+	local now = workspace:GetServerTimeNow()
+	local parts = {}
+	local ju, su, zu = player:GetAttribute("JetpackUntil"), player:GetAttribute("ShieldUntil"), player:GetAttribute("ZoomUntil")
+	if ju and ju > now then
+		table.insert(parts, string.format('<font color="#FFB050">🚀 제트팩 %d초 (Space)</font>', math.ceil(ju - now)))
+	end
+	if su and su > now then
+		table.insert(parts, string.format('<font color="#70C8FF">🛡 무적 %d초</font>', math.ceil(su - now)))
+	end
+	if zu and zu > now then
+		table.insert(parts, string.format('<font color="#90FF90">🔭 %d배 줌 %d초</font>', player:GetAttribute("ZoomBuff") or 1, math.ceil(zu - now)))
+	end
+	if player:GetAttribute("Golden") then
+		table.insert(parts, '<font color="#FFD040">✨ 황금총 장전 — 다음 1발 즉사</font>')
+	end
+	buffLbl.Text = table.concat(parts, "   ")
 
 	local color = player:GetAttribute("TeamColor") or Color3.new(1, 1, 1)
-	local ink = (player:GetAttribute("Ink") or 100) / Config.InkMax
-	inkFill.Size = UDim2.fromScale(math.clamp(ink, 0, 1), 1)
-	inkFill.BackgroundColor3 = ink < 0.15 and Color3.fromRGB(255, 70, 70) or color
-	inkLbl.Text = string.format("🎨 잉크 %d%%", math.floor(math.clamp(ink, 0, 1) * 100))
-	inkLbl.TextColor3 = ink < 0.15 and Color3.fromRGB(255, 120, 120) or Color3.new(1, 1, 1)
+	local ink = math.clamp((player:GetAttribute("Ink") or 100) / Config.InkMax, 0, 1)
+	local low = ink < 0.15
+	for i, pip in ipairs(inkPips) do
+		local on = ink >= (i - 0.5) / 10
+		pip.BackgroundColor3 = on and (low and Color3.fromRGB(255, 70, 70) or color) or Color3.fromRGB(60, 58, 80)
+		pip.BackgroundTransparency = on and 0 or 0.4
+	end
+	inkNum.Text = string.format('%d<font size="20">%%</font>', math.floor(ink * 100))
+	inkNum.TextColor3 = low and Color3.fromRGB(255, 120, 120) or Color3.new(1, 1, 1)
 	local sp = player:GetAttribute("Special") or 0
 	specialFill.Size = UDim2.fromScale(math.clamp(sp, 0, 1), 1)
-	specialLbl.Text = sp >= 1 and "스페셜 준비! [Q]" or string.format("스페셜 %d%%", math.floor(sp * 100))
+	specialLbl.Text = sp >= 1 and "준비 완료!" or string.format("크로마 봄 %d%%", math.floor(sp * 100))
+	specialLbl.TextColor3 = sp >= 1 and Color3.fromRGB(255, 225, 80) or Color3.new(1, 1, 1)
 	local w = Weapons.Get(weaponId)
-	weaponLbl.Text = w.Name .. " · " .. w.Class
+	weaponLbl.Text = player:GetAttribute("Golden") and "✨ 황금총" or w.Class
+	-- 경험치
+	local lv, xp, need = player:GetAttribute("Level") or 1, player:GetAttribute("XP") or 0, player:GetAttribute("XPNeed") or 100
+	levelLbl.Text = "레벨 " .. lv
+	xpLbl.Text = string.format("%d / %d XP", xp, need)
+	xpFill.Size = UDim2.fromScale(math.clamp(xp / math.max(1, need), 0.04, 1), 1)
 
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -6493,48 +7928,324 @@ function HUD.Banner(msg, color)
 	end)
 end
 
+-- 킬피드 (오른쪽 위): [🔥연속] [처치자] [총 아이콘] [피해자] 칩
+local function chip(parent, txt, bg, fg, w, order)
+	local c = make("Frame", { Size = UDim2.fromOffset(w, 30), BackgroundColor3 = bg, LayoutOrder = order }, parent)
+	corner(c, 8)
+	text(c, { Size = UDim2.new(1, -12, 1, -8), Position = UDim2.fromOffset(6, 4), Text = txt, Font = Enum.Font.GothamBlack, TextColor3 = fg or Color3.new(1, 1, 1),
+		TextStrokeTransparency = 1, TextTruncate = Enum.TextTruncate.AtEnd })
+	return c
+end
+
 function HUD.KillFeed(d)
-	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = Color3.fromRGB(10, 10, 16), BackgroundTransparency = 0.35 }, feed)
-	corner(row, 6)
-	local txt = (d.Killer and (d.Killer .. (d.Head and "  ◎  " or "  ▶  ")) or "") .. d.Victim
-	local t = text(row, { Size = UDim2.new(1, -12, 1, -4), Position = UDim2.new(0, 6, 0, 2), Text = txt, Font = Enum.Font.GothamBold,
-		TextXAlignment = Enum.TextXAlignment.Right, TextStrokeTransparency = 1 })
-	t.RichText = true
-	local function hex(c)
-		return string.format("#%02X%02X%02X", math.floor(c.R * 255), math.floor(c.G * 255), math.floor(c.B * 255))
+	local row = make("Frame", { Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, LayoutOrder = -math.floor(os.clock() * 100) }, feed)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 4),
+		VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, row)
+	if d.Killer then
+		if (d.KillerStreak or 0) >= 2 then
+			chip(row, "🔥x" .. d.KillerStreak, Color3.fromRGB(255, 200, 40), Color3.fromRGB(120, 20, 10), 64, 1)
+		end
+		local kc = chip(row, d.Killer, d.KillerColor or Color3.fromRGB(80, 80, 100), Color3.new(1, 1, 1), 140, 2)
+		make("UIStroke", { Thickness = 1.5, Color = Color3.new(1, 1, 1), Transparency = (d.KillerPlayer == player) and 0 or 1 }, kc)
+		local gun = make("Frame", { Size = UDim2.fromOffset(70, 30), BackgroundColor3 = Color3.fromRGB(245, 245, 250), LayoutOrder = 3 }, row)
+		corner(gun, 8)
+		if d.WeaponId then
+			UI.GunImage(gun, d.WeaponId, Color3.fromRGB(60, 60, 70))
+		end
+		if d.Head then
+			text(gun, { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -18, 0, 0), Text = "🎯", TextStrokeTransparency = 1, ZIndex = 3 })
+		end
 	end
-	if d.Killer and d.KillerColor then
-		local gun = d.Weapon and string.format('  <font color="#D8D8E8">[%s]</font>', d.WeaponClass or d.Weapon) or ""
-		t.Text = string.format('<font color="%s">%s</font>%s%s<font color="%s">%s</font>', hex(d.KillerColor), d.Killer, gun,
-			d.Head and "  ◎  " or "  ▶  ", hex(d.VictimColor), d.Victim)
-	else
-		t.Text = string.format('<font color="%s">%s</font> 탈락', hex(d.VictimColor), d.Victim)
-	end
-	if d.KillerPlayer == player or d.VictimPlayer == player then
-		make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 1.5 }, row)
-	end
+	local vc = chip(row, d.Victim, Color3.fromRGB(40, 38, 58), d.VictimColor, 140, 4)
+	make("UIStroke", { Thickness = 2, Color = d.VictimColor or Color3.new(1, 1, 1) }, vc)
 	local kids = {}
 	for _, c in ipairs(feed:GetChildren()) do
 		if c:IsA("Frame") then
 			table.insert(kids, c)
 		end
 	end
+	table.sort(kids, function(a, b)
+		return a.LayoutOrder > b.LayoutOrder
+	end)
 	if #kids > 6 then
 		kids[1]:Destroy()
 	end
-	task.delay(6, function()
+	task.delay(7, function()
 		if row.Parent then
 			row:Destroy()
 		end
 	end)
 	if d.VictimPlayer == player then
-		local gun = d.Weapon and string.format("의 %s(%s)", d.Weapon, d.WeaponClass or "") or "에게"
-		local head = d.Head and " · 헤드샷" or ""
-		HUD.Banner(string.format("%s%s 스플래시!%s  %d초 후 부활", d.Killer or "?", gun, head, Config.RespawnTime), d.KillerColor)
-	elseif d.KillerPlayer == player and d.Victim then
-		HUD.Banner(string.format("%s 처치! (%s)", d.Victim, d.Weapon or ""), player:GetAttribute("TeamColor"))
+		myStreak = 0
+		streakFrame.Visible = false
+		HUD.DeathCard(d)
 	end
 end
+
+-- 내가 당했을 때: [처치자 이름] + 총 그림(텍스트 대신 3D 이미지) + 헤드샷 표시 + 부활 카운트다운
+local deathCard = nil
+function HUD.DeathCard(d)
+	if deathCard then
+		deathCard:Destroy()
+	end
+	local parent = elimGui or gui
+	local c = make("Frame", { Size = UDim2.fromOffset(400, 150), Position = UDim2.new(0.5, -200, 0.26, 0), BackgroundColor3 = DARKP, BackgroundTransparency = 0.1 }, parent)
+	deathCard = c
+	corner(c, 16)
+	make("UIStroke", { Thickness = 3, Color = d.KillerColor or Color3.fromRGB(255, 80, 110) }, c)
+	text(c, { Size = UDim2.new(1, -20, 0, 26), Position = UDim2.fromOffset(10, 8), Text = "💀 스플래시 당했다!", Font = Enum.Font.FredokaOne,
+		TextColor3 = Color3.fromRGB(255, 120, 150) })
+	local who = make("Frame", { Size = UDim2.fromOffset(170, 36), Position = UDim2.fromOffset(16, 46), BackgroundColor3 = d.KillerColor or Color3.fromRGB(90, 90, 110) }, c)
+	corner(who, 10)
+	text(who, { Size = UDim2.new(1, -12, 1, -8), Position = UDim2.fromOffset(6, 4), Text = d.Killer or "낙사", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.6,
+		TextTruncate = Enum.TextTruncate.AtEnd })
+	local pic = make("Frame", { Size = UDim2.fromOffset(190, 80), Position = UDim2.fromOffset(196, 40), BackgroundColor3 = Color3.fromRGB(240, 240, 248) }, c)
+	corner(pic, 12)
+	make("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 192, 210)), Rotation = 90 }, pic)
+	if d.WeaponId then
+		UI.GunImage(pic, d.WeaponId, d.KillerColor or Color3.fromRGB(60, 60, 70))
+	else
+		text(pic, { Size = UDim2.fromScale(1, 1), Text = "🕳", TextStrokeTransparency = 1 })
+	end
+	if d.Head then
+		local hb = make("Frame", { Size = UDim2.fromOffset(84, 26), Position = UDim2.new(1, -90, 0, 4), BackgroundColor3 = Color3.fromRGB(255, 200, 40), ZIndex = 3 }, pic)
+		corner(hb, 8)
+		text(hb, { Size = UDim2.new(1, -8, 1, -6), Position = UDim2.fromOffset(4, 3), Text = "🎯 헤드샷", TextColor3 = Color3.fromRGB(60, 30, 0),
+			TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack, ZIndex = 4 })
+	end
+	local cd = text(c, { Size = UDim2.fromOffset(170, 30), Position = UDim2.fromOffset(16, 90), Text = "", Font = Enum.Font.GothamBold, TextColor3 = Color3.fromRGB(210, 210, 230) })
+	task.spawn(function()
+		for t = Config.RespawnTime, 1, -1 do
+			if not c.Parent then
+				return
+			end
+			cd.Text = t .. "초 후 부활"
+			task.wait(1)
+		end
+		if c.Parent then
+			c:Destroy()
+		end
+	end)
+end
+
+-- 내가 처치했을 때: 화면 가운데 '제거됨' 배너 + 보상 줄 + 연속 처치 불꽃
+local MULTI = { [2] = "더블 킬", [3] = "트리플 킬", [4] = "쿼드 킬", [5] = "펜타 킬" }
+function HUD.Elim(d)
+	myStreak = d.Streak or (myStreak + 1)
+	for _, c in ipairs(elimFrame:GetChildren()) do
+		c:Destroy()
+	end
+	elimFrame.Visible = true
+	local y = 0
+	local m = (d.Multi or 1) >= 2 and (MULTI[math.min(d.Multi, 5)] or (d.Multi .. "연속 킬")) or nil
+	if m then
+		local mc = make("Frame", { Size = UDim2.fromOffset(110, 28), Position = UDim2.new(0.5, -55, 0, 0), BackgroundColor3 = Color3.fromRGB(255, 70, 120) }, elimFrame)
+		corner(mc, 8)
+		text(mc, { Size = UDim2.new(1, -10, 1, -6), Position = UDim2.fromOffset(5, 3), Text = m, TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack })
+		y = 32
+	end
+	local big = text(elimFrame, { Size = UDim2.new(1, 0, 0, 58), Position = UDim2.fromOffset(0, y), Text = "제거됨", Font = Enum.Font.FredokaOne,
+		TextStrokeTransparency = 1 })
+	make("UIStroke", { Thickness = 4, Color = Color3.fromRGB(230, 40, 110) }, big)
+	for _, side in ipairs({ -1, 1 }) do
+		text(elimFrame, { Size = UDim2.fromOffset(70, 44), Position = UDim2.new(0.5, side * 150 - 35, 0, y + 8), Text = "///", Font = Enum.Font.GothamBlack,
+			TextColor3 = Color3.fromRGB(255, 70, 120), TextStrokeTransparency = 1 })
+	end
+	text(elimFrame, { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, y + 60), Text = "💀 " .. tostring(d.Victim), Font = Enum.Font.GothamBlack,
+		TextColor3 = d.VictimColor or Color3.fromRGB(255, 120, 160), TextStrokeTransparency = 0.6 })
+	local scale = make("UIScale", { Scale = 1.35 }, elimFrame)
+	TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	local token = {}
+	HUD._elimToken = token
+	task.delay(2.2, function()
+		if HUD._elimToken == token then
+			elimFrame.Visible = false
+		end
+	end)
+	-- 보상 줄
+	local line = text(rewardList, { Size = UDim2.new(1, 0, 0, 24), Text = string.format("%s %s 제거  🪙 +%d  ·  +%d XP", d.Head and "🎯 헤드샷!" or "💀", tostring(d.Victim),
+		d.Coins or 0, d.XP or 0), Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 19, LayoutOrder = -math.floor(os.clock() * 100) })
+	task.delay(3, function()
+		if line.Parent then
+			TweenService:Create(line, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+			task.delay(0.45, function()
+				line:Destroy()
+			end)
+		end
+	end)
+	local n = 0
+	for _, c in ipairs(rewardList:GetChildren()) do
+		if c:IsA("TextLabel") then
+			n = n + 1
+		end
+	end
+	if n > 3 then
+		local oldest, ol = nil, math.huge
+		for _, c in ipairs(rewardList:GetChildren()) do
+			if c:IsA("TextLabel") and -c.LayoutOrder < ol then
+				oldest, ol = c, -c.LayoutOrder
+			end
+		end
+		if oldest then
+			oldest:Destroy()
+		end
+	end
+	-- 연속 처치 불꽃
+	streakFrame.Visible = myStreak >= 2
+	streakLbl.Text = "x" .. myStreak
+	if myStreak >= 2 then
+		local sc = streakFrame:FindFirstChildOfClass("UIScale") or make("UIScale", {}, streakFrame)
+		sc.Scale = 1.4
+		TweenService:Create(sc, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+end
+
+-- 상단 TOP 5 초상화 (플레이어는 Roblox 얼굴 사진, 봇은 팀 색 카드)
+local function thumb(userId, img)
+	if thumbCache[userId] then
+		img.Image = thumbCache[userId]
+		return
+	end
+	task.spawn(function()
+		local ok, url = pcall(function()
+			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+		end)
+		if ok and url then
+			thumbCache[userId] = url
+			if img.Parent then
+				img.Image = url
+			end
+		end
+	end)
+end
+
+function HUD.RenderBoard(board)
+	local sig = ""
+	for _, b in ipairs(board) do
+		sig = sig .. b.Name .. b.Kills .. (b.Streak or 0) .. tostring(b.OwnerId)
+	end
+	if sig == boardSig then
+		return
+	end
+	boardSig = sig
+	for _, c in ipairs(portraits:GetChildren()) do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	for i, b in ipairs(board) do
+		local cardF = make("Frame", { Size = UDim2.fromOffset(72, 100), BackgroundTransparency = 1, LayoutOrder = i }, portraits)
+		text(cardF, { Size = UDim2.new(1, 0, 0, 26), Text = tostring(b.Kills), Font = Enum.Font.FredokaOne })
+		local pic = make("Frame", { Size = UDim2.fromOffset(68, 68), Position = UDim2.fromOffset(2, 28), BackgroundColor3 = b.Color }, cardF)
+		corner(pic, 10)
+		make("UIStroke", { Thickness = 3, Color = (i == 1) and Color3.fromRGB(255, 210, 60) or Color3.new(1, 1, 1) }, pic)
+		make("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(150, 150, 170)), Rotation = 90 }, pic)
+		if b.UserId then
+			local img = make("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Crop }, pic)
+			corner(img, 10)
+			thumb(b.UserId, img)
+		else
+			text(pic, { Size = UDim2.fromScale(0.7, 0.7), Position = UDim2.fromScale(0.15, 0.1), Text = string.upper(string.sub(b.Name, 1, 1)),
+				Font = Enum.Font.FredokaOne })
+			text(pic, { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -16), Text = "BOT", Font = Enum.Font.GothamBlack, TextStrokeTransparency = 0.4 })
+		end
+		text(cardF, { Size = UDim2.fromOffset(34, 22), Position = UDim2.new(1, -30, 1, -20), Text = "#" .. i, Font = Enum.Font.FredokaOne, ZIndex = 3,
+			TextColor3 = (i == 1) and Color3.fromRGB(255, 220, 80) or Color3.new(1, 1, 1) })
+		if i == 1 then
+			text(cardF, { Size = UDim2.fromOffset(28, 26), Position = UDim2.fromOffset(-8, 16), Text = "👑", TextStrokeTransparency = 1, ZIndex = 3, Rotation = -20 })
+		end
+		if (b.Streak or 0) >= 3 then
+			text(cardF, { Size = UDim2.fromOffset(40, 22), Position = UDim2.new(0, -6, 1, -20), Text = "🔥" .. b.Streak, ZIndex = 3, Font = Enum.Font.GothamBlack })
+		end
+	end
+end
+
+-- 왼쪽 위 퀘스트 카드 (미완료 우선 3개)
+function HUD.UpdateQuests()
+	if not questBox then
+		return
+	end
+	local ok, list = pcall(function()
+		return HttpService:JSONDecode(player:GetAttribute("Quests") or "[]")
+	end)
+	if not ok or type(list) ~= "table" then
+		return
+	end
+	table.sort(list, function(a, b)
+		if a.Done ~= b.Done then
+			return not a.Done
+		end
+		if a.Period ~= b.Period then
+			return a.Period == "Daily"
+		end
+		return (a.P / math.max(1, a.Goal)) > (b.P / math.max(1, b.Goal))
+	end)
+	for _, c in ipairs(questBox:GetChildren()) do
+		if c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+	for i = 1, math.min(3, #list) do
+		local q = list[i]
+		local cardF = make("Frame", { Size = UDim2.fromOffset(380, 58), BackgroundColor3 = DARKP, BackgroundTransparency = 0.2, LayoutOrder = i }, questBox)
+		corner(cardF, 10)
+		text(cardF, { Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(8, 9), Text = q.Done and "✅" or "📅", TextStrokeTransparency = 1 })
+		text(cardF, { Size = UDim2.new(1, -170, 0, 20), Position = UDim2.fromOffset(54, 8), Text = string.format("[%s] %s", q.Period == "Daily" and "일일" or "주간", q.Name),
+			Font = Enum.Font.GothamBlack, TextScaled = false, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Left, TextStrokeTransparency = 1 })
+		text(cardF, { Size = UDim2.fromOffset(100, 18), Position = UDim2.new(1, -184, 0, 9), Text = string.format("%d / %d", q.P, q.Goal), TextScaled = false,
+			TextSize = 14, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Right, TextStrokeTransparency = 1 })
+		local bar = make("Frame", { Size = UDim2.new(1, -150, 0, 7), Position = UDim2.fromOffset(54, 36), BackgroundColor3 = Color3.fromRGB(60, 58, 82) }, cardF)
+		corner(bar, 4)
+		local fill = make("Frame", { Size = UDim2.fromScale(math.clamp(q.P / math.max(1, q.Goal), 0, 1), 1),
+			BackgroundColor3 = q.Done and Color3.fromRGB(120, 255, 170) or Color3.fromRGB(80, 210, 255), BorderSizePixel = 0 }, bar)
+		corner(fill, 4)
+		text(cardF, { Size = UDim2.fromOffset(80, 30), Position = UDim2.new(1, -86, 0.5, -15), Text = "🪙 +" .. q.Reward, Font = Enum.Font.GothamBlack,
+			TextColor3 = Color3.fromRGB(255, 220, 90) })
+	end
+end
+player:GetAttributeChangedSignal("Quests"):Connect(function()
+	HUD.UpdateQuests()
+end)
+
+-- 무기 카드 그림 (무기·스킨·황금총이 바뀔 때)
+function HUD.RefreshWeaponCard()
+	if not weaponCard then
+		return
+	end
+	for _, c in ipairs(weaponCard.Pic:GetChildren()) do
+		c:Destroy()
+	end
+	local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+	if player:GetAttribute("Golden") then
+		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
+	else
+		UI.GunImage(weaponCard.Pic, player:GetAttribute("Weapon") or "Pistol", player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""])
+	end
+end
+for _, a in ipairs({ "Weapon", "Skin", "Golden", "TeamColor" }) do
+	player:GetAttributeChangedSignal(a):Connect(function()
+		HUD.RefreshWeaponCard()
+	end)
+end
+-- 경기 중엔 채팅창을 왼쪽 가운데로 (왼쪽 아래는 조작키 안내), 로비에선 왼쪽 아래
+player:GetAttributeChangedSignal("InMatch"):Connect(function()
+	local cfg = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration")
+	if cfg then
+		cfg.VerticalAlignment = player:GetAttribute("InMatch") and Enum.VerticalAlignment.Center or Enum.VerticalAlignment.Bottom
+	end
+	if not player:GetAttribute("InMatch") and leaveConfirm and leaveConfirm.Visible then
+		leaveConfirm.Visible = false
+		leaveModal(false)
+	end
+	if player:GetAttribute("InMatch") then
+		myStreak = 0
+		if streakFrame then
+			streakFrame.Visible = false
+		end
+		HUD.RefreshWeaponCard()
+		HUD.UpdateQuests()
+	end
+end)
 
 -- 첫 경기 안내 (온보딩)
 local TIPS = {
@@ -6666,12 +8377,14 @@ function HUD.ShowResults(r)
 				end
 			end
 			local title = (i == 1 and mine == t.OwnerId) and ("우리 팀 · " .. t.Name) or ((mine and i == 2) and ("상대 팀 · " .. t.Name) or t.Name)
-			teamTable(results, 20 + (i - 1) * 490, 470, title, t.Color, string.format("%.1f%s", t.Score, unit), sortRows(rows))
+			local st = (r.Mode == "Flag") and string.format("%.0f점", t.Score)
+				or string.format("%.1f점 (칠 %.1f%% · 처치 %d)", t.Score, t.Coverage or 0, t.Kills or 0)
+			teamTable(results, 20 + (i - 1) * 490, 470, title, t.Color, st, sortRows(rows))
 		end
 		text(results, { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0.5, -20, 0, 112), Text = "VS", ZIndex = 13, TextColor3 = Color3.fromRGB(255, 255, 255) })
 	end
 	text(results, { Size = UDim2.new(1, -40, 0, 20), Position = UDim2.new(0, 20, 1, -32), Font = Enum.Font.Gotham, ZIndex = 11, TextScaled = false, TextSize = 15,
-		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. "점수 = 칠한 셀 + 처치×30" })
+		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패" or "승패 = 페인트 면적 80% + 처치·미션 20%") .. " · 개인 점수 = 칠한 셀 + 처치×30" })
 	task.delay(Config.ResultsTime, function()
 		results.Visible = false
 	end)
@@ -6709,8 +8422,183 @@ function HUD.UpdateSwitch()
 		TextColor3 = Color3.fromRGB(200, 200, 220) })
 end
 
+-- 아이템 카드 [F]: 맨 앞 아이템 그림 + 이름 + 남은 개수 (G로 순서 바꾸기)
+function HUD.UpdateItems()
+	if not itemCard then
+		return
+	end
+	local list = {}
+	for x in string.gmatch(player:GetAttribute("Items") or "", "[^,]+") do
+		table.insert(list, x)
+	end
+	for _, c in ipairs(itemCard.Pic:GetChildren()) do
+		c:Destroy()
+	end
+	local id = list[1]
+	if id then
+		UI.ModelImage(itemCard.Pic, ModelKit.Item(id, player:GetAttribute("TeamColor")), UDim2.fromScale(1, 1), math.rad(35))
+		itemCard.Name.Text = ((ITEM_DEF[id] and ITEM_DEF[id].Name) or id) .. ((#list > 1) and ("  +" .. (#list - 1)) or "")
+		itemCard.Name.TextColor3 = Color3.fromRGB(255, 225, 100)
+	else
+		text(itemCard.Pic, { Size = UDim2.fromScale(1, 1), Text = "🎁", TextTransparency = 0.6, TextStrokeTransparency = 1 })
+		itemCard.Name.Text = "미션 보상"
+		itemCard.Name.TextColor3 = Color3.fromRGB(170, 170, 190)
+	end
+end
+
+-- 새 아이템 획득 카드 (화면 가운데 아래, 2.5초)
+function HUD.ItemToast(id)
+	local def = ITEM_DEF[id]
+	if not def then
+		return
+	end
+	if toast then
+		toast:Destroy()
+	end
+	local notifyGui = player.PlayerGui:FindFirstChild("SplashNotify")
+	toast = make("Frame", { Size = UDim2.fromOffset(380, 110), Position = UDim2.new(0.5, -190, 0.68, 0), BackgroundColor3 = Color3.fromRGB(20, 16, 34),
+		BackgroundTransparency = 0.05 }, notifyGui)
+	corner(toast, 16)
+	make("UIStroke", { Thickness = 3, Color = Color3.fromRGB(255, 210, 70) }, toast)
+	local pic = make("Frame", { Size = UDim2.fromOffset(94, 94), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.fromRGB(50, 44, 80) }, toast)
+	corner(pic, 12)
+	UI.ModelImage(pic, ModelKit.Item(id, player:GetAttribute("TeamColor")), UDim2.fromScale(1, 1), math.rad(35))
+	text(toast, { Size = UDim2.new(1, -120, 0, 34), Position = UDim2.fromOffset(112, 12), Text = "획득! " .. def.Name, TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Color3.fromRGB(255, 220, 80) })
+	text(toast, { Size = UDim2.new(1, -120, 0, 44), Position = UDim2.fromOffset(112, 50), Text = def.Desc, TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = false, TextSize = 14, TextWrapped = true, Font = Enum.Font.GothamBold, TextStrokeTransparency = 1 })
+	local me = toast
+	me.Size = UDim2.fromOffset(40, 110)
+	TweenService:Create(me, TweenInfo.new(0.25, Enum.EasingStyle.Back), { Size = UDim2.fromOffset(380, 110) }):Play()
+	task.delay(2.6, function()
+		if me.Parent then
+			me:Destroy()
+		end
+	end)
+end
+
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage.Shared.Config)
+local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
+
+local player = Players.LocalPlayer
+local ItemClient = {}
+
+local remotes, HUD
+local lastJetSound = 0
+
+local function aimPoint()
+	local cam = workspace.CurrentCamera
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character, workspace:FindFirstChild("ClientFX"), workspace:FindFirstChild("PaintLayer") }
+	local hit = workspace:Raycast(cam.CFrame.Position, cam.CFrame.LookVector * 75, params)
+	return hit and hit.Position or (cam.CFrame.Position + cam.CFrame.LookVector * 75)
+end
+
+local function items()
+	local s = player:GetAttribute("Items") or ""
+	local out = {}
+	for x in string.gmatch(s, "[^,]+") do
+		table.insert(out, x)
+	end
+	return out
+end
+
+local function useItem()
+	if not player:GetAttribute("InMatch") then
+		return
+	end
+	local list = items()
+	if #list == 0 then
+		HUD.Banner("아이템이 없어요 — 미션을 성공하면 받아요", Color3.fromRGB(200, 200, 220))
+		return
+	end
+	remotes.UseItem:FireServer("use", aimPoint())
+	SoundBank.Play("ui_buy", nil, 0.5)
+end
+
+local function onAction(name, state)
+	if state ~= Enum.UserInputState.Begin then
+		return Enum.ContextActionResult.Pass
+	end
+	if name == "SF_UseItem" then
+		useItem()
+	elseif name == "SF_CycleItem" then
+		remotes.UseItem:FireServer("cycle")
+	end
+	return Enum.ContextActionResult.Sink
+end
+
+function ItemClient.Init(remoteFolder, hud)
+	remotes = remoteFolder
+	HUD = hud
+	local function bind()
+		if player:GetAttribute("InMatch") then
+			ContextActionService:BindAction("SF_UseItem", onAction, true, Enum.KeyCode.F, Enum.KeyCode.ButtonX)
+			ContextActionService:BindAction("SF_CycleItem", onAction, false, Enum.KeyCode.G, Enum.KeyCode.DPadRight)
+			ContextActionService:SetTitle("SF_UseItem", "아이템")
+			ContextActionService:SetPosition("SF_UseItem", UDim2.new(1, -170, 1, -300))
+		else
+			ContextActionService:UnbindAction("SF_UseItem")
+			ContextActionService:UnbindAction("SF_CycleItem")
+		end
+	end
+	player:GetAttributeChangedSignal("InMatch"):Connect(bind)
+	bind()
+
+	-- 새 아이템 획득 연출
+	player:GetAttributeChangedSignal("LastItem"):Connect(function()
+		local v = player:GetAttribute("LastItem")
+		local id = v and string.match(v, "^(%w+):")
+		if id then
+			HUD.ItemToast(id)
+		end
+	end)
+	for _, a in ipairs({ "Items", "JetpackUntil", "ShieldUntil", "ZoomBuff", "Golden" }) do
+		player:GetAttributeChangedSignal(a):Connect(function()
+			HUD.UpdateItems()
+		end)
+	end
+
+	-- 제트팩: 효과 시간 동안 Space(모바일은 점프 버튼)를 누르고 있으면 상승
+	RunService.Heartbeat:Connect(function(dt)
+		local untilT = player:GetAttribute("JetpackUntil")
+		if not untilT or workspace:GetServerTimeNow() > untilT then
+			return
+		end
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not root or not hum or hum.Health <= 0 then
+			return
+		end
+		local thrusting = UserInputService:IsKeyDown(Enum.KeyCode.Space) or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonA)
+			or (UserInputService.TouchEnabled and hum.Jump)
+		if thrusting then
+			local v = root.AssemblyLinearVelocity
+			local up = math.min(v.Y + (workspace.Gravity + Config.JetpackThrust) * dt, Config.JetpackMaxRise)
+			root.AssemblyLinearVelocity = Vector3.new(v.X, up, v.Z)
+			if hum:GetState() ~= Enum.HumanoidStateType.Freefall and hum:GetState() ~= Enum.HumanoidStateType.Jumping then
+				hum:ChangeState(Enum.HumanoidStateType.Freefall)
+			end
+			if os.clock() - lastJetSound > 0.35 then
+				lastJetSound = os.clock()
+				SoundBank.Play("zipline_ride", root.Position, 0.35, 1.6)
+			end
+		end
+	end)
+	HUD.UpdateItems()
+end
+
+return ItemClient
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -6731,7 +8619,8 @@ local C = UI.Colors
 local make, corner, label, button = UI.make, UI.corner, UI.label, UI.button
 
 local remotes, HUD
-local gui, profileLbl, matchFrame, matchBody, statusLbl, shop, pages, tabButtons, reveal, board, boardList, peopleList
+local gui, profileLbl, matchFrame, matchBody, statusLbl, shop, pages, tabButtons, reveal, board, boardList, peopleList, questPanel, questList
+local HttpService = game:GetService("HttpService")
 local lastState = nil
 local matchSig, peopleSig = "", ""
 local randomItemsRestricted = false
@@ -6772,7 +8661,7 @@ local function clear(page)
 end
 
 local function updateModal()
-	modalHandler((shop and shop.Visible) or (board and board.Visible) or (reveal and reveal.Visible) or false)
+	modalHandler((shop and shop.Visible) or (board and board.Visible) or (reveal and reveal.Visible) or (questPanel and questPanel.Visible) or false)
 end
 
 ------------------------------------------------------------------------
@@ -6922,7 +8811,52 @@ local function buildCollection(page)
 	end
 end
 
-local builders = { Weapons = buildWeapons, Crate = buildCrate, Collection = buildCollection }
+-- 포인트(코인)로 사는 스킨: 크레이트 아이템을 등급별 가격으로 바로 구매
+local function buildSkins(page)
+	clear(page)
+	local coins = player:GetAttribute("Coins") or 0
+	label(page, { Text = string.format("🪙 보유 코인 %d  —  일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
+		Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 0, TextWrapped = true })
+	local order = 1
+	for _, r in ipairs(Cosmetics.Rarities) do
+		local price = Config.SkinPrices[r.Id]
+		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 40), BackgroundColor3 = r.Color, LayoutOrder = order }, page)
+		corner(head, 10)
+		label(head, { Text = string.format("%s  ·  🪙 %d", r.Name, price), Font = Enum.Font.GothamBlack, TextSize = 20, Position = UDim2.fromOffset(14, 0),
+			Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
+		order = order + 1
+		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+		make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		order = order + 1
+		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
+			local have = owned("OwnedCosmetics", item.Id)
+			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
+			local cardF = make("Frame", { BackgroundColor3 = C.Panel }, grid)
+			corner(cardF, 12)
+			UI.stroke(cardF, r.Color, 2, have and 0 or 0.4)
+			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 100), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+			corner(pic, 10)
+			UI.gradient(pic, r.Color:Lerp(Color3.new(0, 0, 0), 0.5), Color3.fromRGB(26, 24, 40), 90)
+			UI.ItemImage(pic, item)
+			label(cardF, { Text = item.Name, TextSize = 18, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 112), Size = UDim2.new(1, -20, 0, 22),
+				TextTruncate = Enum.TextTruncate.AtEnd })
+			label(cardF, { Text = kindName, TextSize = 15, TextColor3 = C.Sub, Position = UDim2.fromOffset(10, 136), Size = UDim2.new(1, -20, 0, 18) })
+			local can = coins >= price
+			local b = button(cardF, have and "✔ 보유" or ("🪙 " .. price), have and C.Dim or (can and C.Green or Color3.fromRGB(90, 60, 80)),
+				{ Size = UDim2.new(1, -16, 0, 42), Position = UDim2.new(0, 8, 1, -50), TextSize = 19 })
+			b.MouseButton1Click:Connect(function()
+				if have then
+					return
+				end
+				shopCall("buyCosmetic", item.Id)
+				task.wait(0.25)
+				buildSkins(page)
+			end)
+		end
+	end
+end
+
+local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection }
 local currentTab = "Weapons"
 
 local function showTab(name)
@@ -6947,9 +8881,80 @@ local function toggleShop(force)
 	shop.Visible = on
 	if on then
 		board.Visible = false
+		questPanel.Visible = false
 		remotes.Telemetry:FireServer("OpenedShop")
 		showTab(currentTab)
 	end
+	updateModal()
+end
+
+------------------------------------------------------------------------
+-- 일일·주간 미션 창
+------------------------------------------------------------------------
+local function fmtLeft(sec)
+	sec = math.max(0, math.floor(sec or 0))
+	local d = math.floor(sec / 86400)
+	local h = math.floor((sec % 86400) / 3600)
+	local m = math.floor((sec % 3600) / 60)
+	if d > 0 then
+		return string.format("%d일 %d시간", d, h)
+	end
+	return string.format("%d시간 %d분", h, m)
+end
+
+function Lobby.UpdateQuests()
+	if not questList then
+		return
+	end
+	local ok, list = pcall(function()
+		return HttpService:JSONDecode(player:GetAttribute("Quests") or "[]")
+	end)
+	if not ok or type(list) ~= "table" then
+		return
+	end
+	clear(questList)
+	local order = 0
+	for _, period in ipairs({ "Daily", "Weekly" }) do
+		local left = nil
+		for _, q in ipairs(list) do
+			if q.Period == period then
+				left = q.Left
+			end
+		end
+		order = order + 1
+		label(questList, { Text = string.format("%s  ·  초기화까지 %s", period == "Daily" and "📅 일일 미션" or "🗓 주간 미션", fmtLeft(left)), TextSize = 21,
+			Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 32), LayoutOrder = order })
+		for _, q in ipairs(list) do
+			if q.Period == period then
+				order = order + 1
+				local row = make("Frame", { Size = UDim2.new(1, -10, 0, 70), BackgroundColor3 = q.Done and Color3.fromRGB(34, 60, 50) or C.Panel, LayoutOrder = order }, questList)
+				corner(row, 12)
+				UI.stroke(row, q.Done and Color3.fromRGB(120, 255, 170) or C.Dim, 2, 0.3)
+				label(row, { Text = q.Done and "✅" or "🎯", TextScaled = true, Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(12, 15),
+					TextXAlignment = Enum.TextXAlignment.Center })
+				label(row, { Text = q.Name, TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(62, 10), Size = UDim2.new(1, -230, 0, 24) })
+				local bar = make("Frame", { Size = UDim2.new(1, -230, 0, 10), Position = UDim2.fromOffset(62, 44), BackgroundColor3 = C.Dim }, row)
+				corner(bar, 5)
+				local fill = make("Frame", { Size = UDim2.fromScale(math.clamp(q.P / math.max(1, q.Goal), 0, 1), 1), BorderSizePixel = 0,
+					BackgroundColor3 = q.Done and Color3.fromRGB(120, 255, 170) or C.Cyan }, bar)
+				corner(fill, 5)
+				label(row, { Text = string.format("%d / %d", q.P, q.Goal), TextSize = 16, TextColor3 = C.Sub, Position = UDim2.new(1, -164, 0, 10),
+					Size = UDim2.fromOffset(70, 22), TextXAlignment = Enum.TextXAlignment.Right })
+				label(row, { Text = (q.Done and "받음 " or "") .. "🪙 +" .. q.Reward, TextSize = 19, Font = Enum.Font.GothamBlack, TextColor3 = C.Gold,
+					Position = UDim2.new(1, -150, 0, 34), Size = UDim2.fromOffset(136, 26), TextXAlignment = Enum.TextXAlignment.Right })
+			end
+		end
+	end
+end
+
+local function openQuests()
+	if player:GetAttribute("InMatch") then
+		return
+	end
+	shop.Visible = false
+	board.Visible = false
+	questPanel.Visible = true
+	Lobby.UpdateQuests()
 	updateModal()
 end
 
@@ -6972,6 +8977,7 @@ local function openBoard()
 		return
 	end
 	shop.Visible = false
+	questPanel.Visible = false
 	board.Visible = true
 	updateModal()
 	clear(boardList)
@@ -7160,6 +9166,18 @@ local function rebuildMatch()
 					remotes.Queue:FireServer("map", o[1])
 				end)
 			end
+			-- 정원이 다 모이면 카운트다운 없이 바로 시작
+			local n = counts[mine] or 0
+			if qi.Full then
+				local go = button(matchBody, "▶ 바로 시작 (정원 " .. n .. "/" .. tostring(qi.Capacity) .. ")", C.Pink,
+					{ Size = UDim2.new(1, 0, 0, 46), LayoutOrder = nextOrder(), TextSize = 19 })
+				go.MouseButton1Click:Connect(function()
+					remotes.Queue:FireServer("startNow")
+				end)
+			else
+				label(matchBody, { Text = string.format("정원 %d / %d — 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
+					TextColor3 = C.Sub, TextWrapped = true, Size = UDim2.new(1, 0, 0, 36), LayoutOrder = nextOrder() })
+			end
 		end
 	end
 
@@ -7234,18 +9252,19 @@ end
 local function refreshProfile()
 	local vip = player:GetAttribute("Vip") and "  ·  VIP" or ""
 	local tier = player:GetAttribute("Tier") or "브론즈"
-	profileLbl.Text = string.format('<font size="22"><b>%s</b></font>%s\n💰 %d 코인\n🏆 <font color="#%s">%s</font>  %d  ·  %d승', player.DisplayName, vip,
-		player:GetAttribute("Coins") or 0, (TIER_COLOR[tier] or C.Text):ToHex(), tier, player:GetAttribute("Rating") or Config.Rating.Start,
-		player:GetAttribute("Wins") or 0)
+	profileLbl.Text = string.format('<font size="22"><b>%s</b></font>%s  <font color="#FFC850">Lv.%d</font>\n🪙 %d 코인\n🏆 <font color="#%s">%s</font>  %d  ·  %d승',
+		player.DisplayName, vip, player:GetAttribute("Level") or 1, player:GetAttribute("Coins") or 0, (TIER_COLOR[tier] or C.Text):ToHex(), tier,
+		player:GetAttribute("Rating") or Config.Rating.Start, player:GetAttribute("Wins") or 0)
 end
 
 function Lobby.OnState(s)
 	lastState = s
 	local inMatch = player:GetAttribute("InMatch") == true
 	gui.Enabled = not inMatch
-	if inMatch and (shop.Visible or board.Visible) then
+	if inMatch and (shop.Visible or board.Visible or questPanel.Visible) then
 		shop.Visible = false
 		board.Visible = false
+		questPanel.Visible = false
 		updateModal()
 	end
 	rebuildMatch()
@@ -7277,11 +9296,15 @@ function Lobby.Init(remoteFolder, hud)
 		RichText = true })
 
 	-- 상점 · 랭킹 버튼
-	local shopBtn = button(gui, "🛒 상점 [B]", C.Pink, { Size = UDim2.fromOffset(146, 46), Position = UDim2.fromOffset(16, 128), TextSize = 19 })
+	local shopBtn = button(gui, "🛒 상점", C.Pink, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(16, 128), TextSize = 18 })
 	shopBtn.MouseButton1Click:Connect(function()
 		toggleShop()
 	end)
-	local rankBtn = button(gui, "🏆 랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(146, 46), Position = UDim2.fromOffset(170, 128), TextSize = 19 })
+	local questBtn = button(gui, "📋 미션", C.Green, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(118, 128), TextSize = 18 })
+	questBtn.MouseButton1Click:Connect(function()
+		openQuests()
+	end)
+	local rankBtn = button(gui, "🏆 랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(220, 128), TextSize = 18 })
 	rankBtn.MouseButton1Click:Connect(openBoard)
 
 	-- 접속자 목록 (왼쪽, 채팅창 위)
@@ -7314,9 +9337,9 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	tabButtons = {}
 	pages = {}
-	local tabs = { { "Weapons", "🔫 무기" }, { "Crate", "🎁 크로마 크레이트" }, { "Collection", "🎨 컬렉션" } }
+	local tabs = { { "Weapons", "🔫 무기" }, { "Skins", "🪙 스킨 상점" }, { "Crate", "🎁 크레이트" }, { "Collection", "🎨 컬렉션" } }
 	for i, t in ipairs(tabs) do
-		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(250, 48), Position = UDim2.fromOffset(20 + (i - 1) * 262, 76), TextSize = 21 })
+		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(196, 48), Position = UDim2.fromOffset(20 + (i - 1) * 206, 76), TextSize = 20 })
 		b.MouseButton1Click:Connect(function()
 			showTab(t[1])
 		end)
@@ -7340,6 +9363,19 @@ function Lobby.Init(remoteFolder, hud)
 	boardList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -136), Position = UDim2.fromOffset(16, 120), BackgroundTransparency = 1, BorderSizePixel = 0,
 		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, board)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, boardList)
+
+	-- 미션 창
+	questPanel = UI.Panel(gui, "📋 일일 · 주간 미션", UDim2.fromOffset(720, 640), C.Green)
+	questPanel.Visible = false
+	UI.CloseButton(questPanel, function()
+		questPanel.Visible = false
+		updateModal()
+	end, 44)
+	label(questPanel, { Text = "미션을 달성하면 코인이 자동으로 들어와요 · 코인으로 스킨 상점에서 원하는 스킨을 구매", TextSize = 16, TextColor3 = C.Sub,
+		Position = UDim2.fromOffset(20, 72), Size = UDim2.new(1, -40, 0, 22) })
+	questList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -120), Position = UDim2.fromOffset(16, 104), BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, questPanel)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, questList)
 
 	reveal = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(6, 4, 14), BackgroundTransparency = 0.25, Visible = false, ZIndex = 20 }, gui)
 
@@ -7368,13 +9404,19 @@ function Lobby.Init(remoteFolder, hud)
 		end
 		if input.KeyCode == Enum.KeyCode.B then
 			toggleShop()
-		elseif input.KeyCode == Enum.KeyCode.Escape and (shop.Visible or board.Visible) then
+		elseif input.KeyCode == Enum.KeyCode.Escape and (shop.Visible or board.Visible or questPanel.Visible) then
 			shop.Visible = false
 			board.Visible = false
+			questPanel.Visible = false
 			updateModal()
 		end
 	end)
-	for _, attr in ipairs({ "Coins", "Rating", "Tier", "Wins", "Vip" }) do
+	player:GetAttributeChangedSignal("Quests"):Connect(function()
+		if questPanel.Visible then
+			Lobby.UpdateQuests()
+		end
+	end)
+	for _, attr in ipairs({ "Coins", "Rating", "Tier", "Wins", "Vip", "Level" }) do
 		player:GetAttributeChangedSignal(attr):Connect(refreshProfile)
 	end
 	player:GetAttributeChangedSignal("Queue"):Connect(function()
@@ -7395,7 +9437,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -7538,7 +9580,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -7631,7 +9673,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -7778,19 +9820,83 @@ local function bind(folder)
 	end
 end
 
+------------------------------------------------------------------------
+-- 벽·엄폐물 페인트 자국: 총알이 벽·상자·컨테이너에 맞으면 둥근 자국 + 흘러내린 방울
+-- (바닥 셀이 없는 곳에도 색이 묻어 맵 전체가 칠해지는 느낌. 판정·점수와는 무관)
+------------------------------------------------------------------------
+local walls = {}
+local MAX_WALL = 900
+local function isCharacter(inst)
+	local m = inst:FindFirstAncestorOfClass("Model")
+	while m do
+		if m:FindFirstChildOfClass("Humanoid") then
+			return true
+		end
+		m = m.Parent and m.Parent:FindFirstAncestorOfClass("Model")
+	end
+	return false
+end
+
+function PV.WallSplat(inst, pos, normal, color)
+	if not layer or not inst or not inst:IsA("BasePart") or inst.Name == "Cell" or inst.Transparency > 0.8 then
+		return
+	end
+	local lobby = workspace:FindFirstChild("Lobby")
+	if (lobby and inst:IsDescendantOf(lobby)) or isCharacter(inst) then
+		return
+	end
+	local active = ReplicatedStorage:FindFirstChild("ActiveCells")
+	local mapRoot = active and active.Value and active.Value.Parent
+	if mapRoot and not inst:IsDescendantOf(mapRoot) then
+		return
+	end
+	local n = normal.Unit
+	local up = (math.abs(n.Y) < 0.95) and Vector3.yAxis or Vector3.xAxis
+	local vy = (up - n * up:Dot(n)).Unit
+	local vz = n:Cross(vy)
+	local d = rng:NextNumber(1.6, 3.2)
+	local cf = CFrame.fromMatrix(pos + n * (0.03 + rng:NextNumber(0, 0.02)), n, vy, vz)
+	local splat = disc(Vector3.zero, 0.3, color, Enum.Material.SmoothPlastic)
+	splat.CFrame = cf
+	TweenService:Create(splat, GROW, { Size = Vector3.new(0.05, d, d) }):Play()
+	table.insert(walls, splat)
+	-- 세로 벽이면 아래로 흘러내린 방울 1~2개
+	if math.abs(n.Y) < 0.4 then
+		for k = 1, rng:NextInteger(1, 2) do
+			local dd = rng:NextNumber(0.4, 0.9)
+			local drop = disc(Vector3.zero, dd, color, Enum.Material.SmoothPlastic)
+			drop.CFrame = cf * CFrame.new(0.01, -(d * 0.45 + k * dd * 0.9), rng:NextNumber(-d * 0.25, d * 0.25))
+			table.insert(walls, drop)
+		end
+	end
+	while #walls > MAX_WALL do
+		local old = table.remove(walls, 1)
+		old:Destroy()
+	end
+end
+
+local function clearWalls()
+	for _, p in ipairs(walls) do
+		p:Destroy()
+	end
+	walls = {}
+end
+
 function PV.Init()
 	layer = Instance.new("Folder")
 	layer.Name = "PaintLayer"
 	layer.Parent = workspace
 	local active = ReplicatedStorage:WaitForChild("ActiveCells")
 	active.Changed:Connect(function()
+		clearWalls()
 		bind(active.Value)
 	end)
+	game:GetService("Players").LocalPlayer:GetAttributeChangedSignal("InMatch"):Connect(clearWalls)
 	bind(active.Value)
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -7867,7 +9973,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -8002,6 +10108,10 @@ local function viewportModel(parent, model, size, rotY)
 	return vp
 end
 
+function UI.ModelImage(parent, model, size, rotY)
+	return viewportModel(parent, model, size, rotY)
+end
+
 function UI.GunImage(parent, weaponId, accent, skin, size)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
 	return viewportModel(parent, model, size, math.rad(90))
@@ -8038,7 +10148,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -8061,6 +10171,9 @@ local firing = false
 local firedThisPress = false
 local aiming = false
 local crouched = false
+local running = false      -- Shift 누르는 동안
+local walking = false      -- Z로 켜고 끔
+local runBlockedUntil = 0  -- 쏜 직후 잠깐은 달리기 속도 안 붙음
 local lastFire = 0
 local spreadExtra = 0
 local localInk = Config.InkMax
@@ -8104,13 +10217,32 @@ end
 local vmMuzzle = nil      -- 총구 표식 파트 (Blender 모델의 _Muzzle 또는 대체 모델)
 local vmLength = 1.5
 
--- 1인칭 총 모형은 1인칭일 때만, 저격 조준경을 볼 때는 숨김
+-- 조준 배율: 총마다 ZoomFov, 3배·6배 스코프 아이템이 있으면 더 크게. 반환: 시야각, 조준점 모양, 배율 글자
+local function zoomInfo(w)
+	local fov = w.ZoomFov or 56
+	local buff = player:GetAttribute("ZoomBuff")
+	local untilT = player:GetAttribute("ZoomUntil")
+	if buff and untilT and untilT > workspace:GetServerTimeNow() then
+		fov = math.min(fov, 70 / buff)
+	else
+		buff = nil
+	end
+	local sight = (w.Scope or buff) and "Scope" or (w.Sight or "Dot")
+	local mag = 70 / fov
+	local txt = (sight == "Scope") and string.format("%.1fx", mag) or nil
+	return fov, sight, txt
+end
+WC.ZoomInfo = zoomInfo
+local goldenSpent = false
+
+-- 1인칭 총 모형은 1인칭일 때만, 스코프로 볼 때는 숨김
 function WC.UpdateViewmodelParent()
 	if not viewmodel then
 		return
 	end
 	local w = weapon()
-	local show = enabled and not tpActive() and not (aiming and w.Scope)
+	local _, sight = zoomInfo(w)
+	local show = enabled and not tpActive() and not (aiming and sight == "Scope")
 	viewmodel.Parent = show and camera() or nil
 end
 
@@ -8126,6 +10258,16 @@ local function buildViewmodel()
 	local _, size = m:GetBoundingBox()
 	vmLength = math.max(size.Z, 0.8)
 	vmMuzzle = muzzle
+	-- 카툰 외곽선 (셀 셰이딩 느낌)
+	local hl = Instance.new("Highlight")
+	hl.FillTransparency = 1
+	hl.OutlineColor = Color3.fromRGB(18, 16, 28)
+	hl.OutlineTransparency = 0
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.Parent = m
+	if player:GetAttribute("Golden") then
+		ModelKit.SetGolden(m, true)
+	end
 	viewmodel = m
 	WC.UpdateViewmodelParent()
 end
@@ -8144,7 +10286,7 @@ local function placeViewmodel(dt)
 	end
 	-- Anchor(손잡이) 기준 위치: 오른쪽 아래(허리 사격) / 화면 가운데(조준)
 	local hipOffset = CFrame.new(0.85, -0.95, -1.25)
-	local adsOffset = CFrame.new(0, -0.62, -0.95)
+	local adsOffset = CFrame.new(0, -0.8, -1.0) -- 조준점 아래로 내려 표적이 가리지 않게
 	local offset = aiming and adsOffset or hipOffset
 	local t = os.clock()
 	local hum = humanoid()
@@ -8195,8 +10337,16 @@ local function currentSpread(w)
 		s = s * 0.5
 	end
 	local hum = humanoid()
-	if hum and hum.MoveDirection.Magnitude > 0.1 and not crouched then
-		s = s + 0.6
+	local moving = hum and hum.MoveDirection.Magnitude > 0.1
+	if moving and not crouched then
+		if running and not aiming then
+			s = s + 1.4
+		elseif not walking then
+			s = s + 0.6
+		end
+	end
+	if walking then
+		s = s * 0.7
 	end
 	if crouched then
 		s = s * 0.8
@@ -8210,7 +10360,8 @@ local function fire()
 	if now - lastFire < w.FireInterval then
 		return
 	end
-	if localInk < w.InkCost then
+	local golden = player:GetAttribute("Golden") == true and not goldenSpent
+	if not golden and localInk < w.InkCost then
 		if now - lastFire > 0.35 then
 			lastFire = now
 			SoundBank.Play("low_ink", nil, 0.6)
@@ -8223,12 +10374,19 @@ local function fire()
 		return
 	end
 	lastFire = now
-	localInk = localInk - w.InkCost
+	runBlockedUntil = now + 0.4
+	if golden then
+		goldenSpent = true
+	else
+		localInk = localInk - w.InkCost
+	end
 
 	local cam = camera()
 	local origin = cam.CFrame.Position
 	local look = cam.CFrame.LookVector
-	local spread = currentSpread(w)
+	local spread = golden and 0 or currentSpread(w)
+	local range = golden and Config.GoldenRange or w.Range
+	local pellets = golden and 1 or w.Pellets
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character, viewmodel, workspace:FindFirstChild("ClientFX"), workspace:FindFirstChild("FX") }
@@ -8246,15 +10404,18 @@ local function fire()
 		end
 	end
 	local dirs = {}
-	local color = teamColor()
+	local color = golden and Color3.fromRGB(255, 205, 40) or teamColor()
 	local muzzle = muzzleCFrame().Position
 	local claims = {}
-	for i = 1, w.Pellets do
+	for i = 1, pellets do
 		local d = coneDir(look, spread)
 		dirs[i] = d
-		local hit = workspace:Raycast(origin, d * w.Range, params)
-		local to = hit and hit.Position or (origin + d * w.Range)
-		Effects.Tracer(muzzle, to, color, w.Id == "Sniper" and 0.3 or 0.16)
+		local hit = workspace:Raycast(origin, d * range, params)
+		local to = hit and hit.Position or (origin + d * range)
+		Effects.Tracer(muzzle, to, color, golden and 0.6 or (w.Id == "Sniper" and 0.3 or 0.16))
+		if hit then
+			Effects.WallSplat(hit.Instance, hit.Position, hit.Normal, color)
+		end
 		-- 내 화면에서 캐릭터를 맞혔으면 서버에 알림 (서버가 위치·시야를 검증해 인정)
 		if hit then
 			local model = hit.Instance:FindFirstAncestorOfClass("Model")
@@ -8298,10 +10459,11 @@ local function setAim(on)
 	local w = weapon()
 	local fov = 70
 	if on then
-		fov = w.Scope and w.ScopeFov or 56
+		fov = zoomInfo(w)
 	end
 	TweenService:Create(camera(), TweenInfo.new(0.12), { FieldOfView = fov }):Play()
-	UserInputService.MouseDeltaSensitivity = (on and w.Scope) and 0.3 or 1
+	-- 확대한 만큼 감도를 낮춰 정밀 조준
+	UserInputService.MouseDeltaSensitivity = on and math.clamp(fov / 70, 0.15, 1) or 1
 	if thirdPerson and applyViewRef then
 		applyViewRef() -- 3인칭 ↔ 1인칭 조준 전환
 	end
@@ -8346,13 +10508,24 @@ local function updateSpeed()
 	elseif owner ~= 0 then
 		speed = Config.WalkSpeedEnemy
 	end
+	local mode = "일반"
 	if crouched then
 		speed = speed * Config.CrouchSpeedMul
+		mode = "앉기"
+	elseif running and not aiming and os.clock() > runBlockedUntil and hum.MoveDirection.Magnitude > 0.1 then
+		speed = speed * Config.RunSpeedMul
+		mode = "달리기"
+	elseif walking then
+		speed = speed * Config.WalkSpeedMul
+		mode = "걷기"
 	end
 	if aiming then
 		speed = speed * 0.75
 	end
 	hum.WalkSpeed = speed
+	if HUD and HUD.SetMove then
+		HUD.SetMove(mode)
+	end
 end
 
 ------------------------------------------------------------------------
@@ -8488,6 +10661,19 @@ local function onAction(name, inputState)
 		special()
 	elseif name == "SF_Crouch" and began then
 		setCrouch(not crouched)
+		if crouched then
+			running = false
+		end
+	elseif name == "SF_Run" then
+		running = (inputState == Enum.UserInputState.Begin)
+		if running and crouched then
+			setCrouch(false)
+		end
+		updateSpeed()
+	elseif name == "SF_Walk" and began then
+		walking = not walking
+		HUD.Banner(walking and "🚶 걷기 (조용히 · 정밀 사격) [Z]" or "일반 이동", Color3.fromRGB(200, 220, 255))
+		updateSpeed()
 	elseif name == "SF_View" and began then
 		WC.ToggleView()
 	end
@@ -8499,6 +10685,10 @@ bindAll = function()
 	ContextActionService:BindAction("SF_Aim", onAction, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
 	ContextActionService:BindAction("SF_Special", onAction, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonY)
 	ContextActionService:BindAction("SF_Crouch", onAction, true, Enum.KeyCode.C, Enum.KeyCode.LeftControl, Enum.KeyCode.ButtonB)
+	ContextActionService:BindAction("SF_Run", onAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+	ContextActionService:BindAction("SF_Walk", onAction, false, Enum.KeyCode.Z)
+	ContextActionService:SetTitle("SF_Run", "달리기")
+	ContextActionService:SetPosition("SF_Run", UDim2.new(1, -170, 1, -220))
 	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
@@ -8513,7 +10703,8 @@ bindAll = function()
 end
 
 unbindAll = function()
-	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View" }) do
+	running = false
+	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk" }) do
 		ContextActionService:UnbindAction(n)
 	end
 end
@@ -8554,6 +10745,20 @@ function WC.Init(remoteFolder, hud, effects)
 	end)
 	player:GetAttributeChangedSignal("Ink"):Connect(function()
 		localInk = player:GetAttribute("Ink") or localInk
+	end)
+	player:GetAttributeChangedSignal("Golden"):Connect(function()
+		if player:GetAttribute("Golden") then
+			goldenSpent = false
+			HUD.Banner("✨ 황금총 장전! 다음 1발은 맞으면 즉사", Color3.fromRGB(255, 210, 60))
+		end
+		if enabled then
+			buildViewmodel()
+		end
+	end)
+	player:GetAttributeChangedSignal("ZoomBuff"):Connect(function()
+		if aiming then
+			setAim(true)
+		end
 	end)
 	player:GetAttributeChangedSignal("Skin"):Connect(function()
 		if enabled then
@@ -8706,7 +10911,8 @@ function WC.Init(remoteFolder, hud, effects)
 			speedTimer = 0
 			updateSpeed()
 		end
-		HUD.Update(currentSpread(w) * 7, w.Id, aiming and w.Scope == true)
+		local _, sight, ztxt = zoomInfo(w)
+		HUD.Update(currentSpread(w) * 7, w.Id, aiming and sight or nil, aiming and ztxt or nil)
 	end)
 end
 

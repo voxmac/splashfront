@@ -218,7 +218,9 @@ function CombatService.Fire(e, origin, directions, claims)
 	if now - e.LastFire < w.FireInterval * 0.75 then
 		return false
 	end
-	if e.Ink < w.InkCost then
+	-- 황금총: 잉크 없이 1발, 맞으면 무조건 처치, 쏘면 사라짐
+	local golden = e.Golden == true
+	if not golden and e.Ink < w.InkCost then
 		return false
 	end
 	local head = headOf(e)
@@ -226,30 +228,39 @@ function CombatService.Fire(e, origin, directions, claims)
 		return false
 	end
 	e.LastFire = now
-	e.Ink = e.Ink - w.InkCost
+	local range = w.Range
+	if golden then
+		e.Golden = false
+		if e.Player then
+			e.Player:SetAttribute("Golden", false)
+		end
+		range = Config.GoldenRange
+	else
+		e.Ink = e.Ink - w.InkCost
+	end
 
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby") }
 
 	local endpoints = {}
-	local count = math.min(#directions, w.Pellets)
+	local count = golden and math.min(#directions, 1) or math.min(#directions, w.Pellets)
 	for i = 1, count do
 		local dir = directions[i]
 		if typeof(dir) == "Vector3" and dir.Magnitude > 0.5 then
 			dir = dir.Unit
 			e.Shots = (e.Shots or 0) + 1
-			local result = workspace:Raycast(origin, dir * w.Range, params)
+			local result = workspace:Raycast(origin, dir * range, params)
 			local endPos
 			-- 서버 레이가 빗나갔으면(지연 때문에 적이 서버에서 조금 옆에 있음) 플레이어 사격에 한해
 			-- 1) 쏜 사람 화면의 명중 판정을 검증해 인정  2) 그래도 없으면 탄도 근처 적 보정
 			local directVictim = result and Combatants.FromPart(result.Instance)
 			if e.Player and not (directVictim and Combatants.IsEnemy(e, directVictim)) then
-				local claimed = verifyClaim(e, origin, dir, w.Range, type(claims) == "table" and claims[i] or nil)
+				local claimed = verifyClaim(e, origin, dir, range, type(claims) == "table" and claims[i] or nil)
 				if claimed then
 					result = claimed
 				else
-					local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
+					local maxDist = result and ((result.Position - origin).Magnitude + 1) or range
 					local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
 					if v then
 						local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
@@ -267,7 +278,7 @@ function CombatService.Fire(e, origin, directions, claims)
 						if isHead then
 							e.Headshots = (e.Headshots or 0) + 1
 						end
-						local dmg = w.Damage * (isHead and w.HeadMul or 1)
+						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or 1))
 						CombatService.Damage(e, victim, dmg, isHead, endPos)
 						PaintService.PaintBelow(endPos, 2.5, e.OwnerId, e)
 					end
@@ -282,7 +293,7 @@ function CombatService.Fire(e, origin, directions, claims)
 					PaintService.PaintBelow(endPos + Vector3.new(0, 2, 0), w.PaintRadius, e.OwnerId, e)
 				end
 			else
-				endPos = origin + dir * w.Range
+				endPos = origin + dir * range
 				PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
 			end
 			if w.PathPaint then
@@ -299,8 +310,8 @@ function CombatService.Fire(e, origin, directions, claims)
 	end
 
 	remotes.FX:FireAllClients("Tracer", {
-		Shooter = e.Player, From = origin, To = endpoints, Color = colorOf(e.OwnerId), Weapon = w.Id,
-		Model = e.Model,
+		Shooter = e.Player, From = origin, To = endpoints, Color = golden and Color3.fromRGB(255, 205, 40) or colorOf(e.OwnerId), Weapon = w.Id,
+		Model = e.Model, Golden = golden,
 	})
 	Combatants.Sync(e)
 	return true
@@ -320,28 +331,88 @@ end
 ------------------------------------------------------------------------
 -- 스페셜: 크로마 봄
 ------------------------------------------------------------------------
-function CombatService.UseSpecial(e, target)
-	if not active or not e.Alive or e.Special < Config.SpecialCells then
-		return false
-	end
+-- 투척물: 포물선으로 날아가다 바닥·벽·캐릭터에 닿는 순간 onLand(위치) 호출
+-- 클라이언트는 같은 초기값(From·Vel·G)으로 공을 그리고 ProjEnd에서 터뜨림
+local projCount = 0
+function CombatService.Throw(e, target, kind, color, onLand)
 	local head = headOf(e)
 	if not head or typeof(target) ~= "Vector3" then
 		return false
 	end
-	local offset = target - head.Position
-	if offset.Magnitude > 70 then
-		target = head.Position + offset.Unit * 70
+	local T = Config.Throw
+	local from = head.Position + Vector3.new(0, 0.6, 0)
+	local offset = target - from
+	if offset.Magnitude > 75 then
+		target = from + offset.Unit * 75
+		offset = target - from
+	end
+	local g = Vector3.new(0, -T.Gravity, 0)
+	local flight = math.clamp(offset.Magnitude / T.Speed, 0.25, 1.4)
+	local vel = offset / flight - g * (0.5 * flight)
+	projCount = projCount + 1
+	local id = projCount
+	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind })
+	task.spawn(function()
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby") }
+		local pos, v, t = from, vel, 0
+		local hitPos = nil
+		local last = os.clock()
+		while t < T.MaxTime and active do
+			task.wait()
+			local step = math.min(os.clock() - last, 0.1)
+			last = os.clock()
+			local nv = v + g * step
+			local np = pos + (v + nv) * (0.5 * step)
+			local r = workspace:Raycast(pos, np - pos, params)
+			if r then
+				hitPos = r.Position + r.Normal * 0.3
+				break
+			end
+			-- 몸에 스치듯 지나가도 터지게 (근접 신관)
+			for _, o in ipairs(Combatants.All()) do
+				if o ~= e and o.Alive then
+					local root = rootOf(o)
+					if root and (root.Position - np).Magnitude < 2.6 then
+						hitPos = np
+					end
+				end
+			end
+			if hitPos then
+				break
+			end
+			pos, v, t = np, nv, t + step
+		end
+		hitPos = hitPos or pos
+		remotes.FX:FireAllClients("ProjEnd", { Id = id, Pos = hitPos, Kind = kind, Color = color, Radius = Config.SpecialRadius })
+		if onLand then
+			onLand(hitPos)
+		end
+	end)
+	return true
+end
+
+function CombatService.UseSpecial(e, target)
+	if not active or not e.Alive or e.Special < Config.SpecialCells then
+		return false
+	end
+	if not headOf(e) or typeof(target) ~= "Vector3" then
+		return false
 	end
 	e.Special = 0
 	Combatants.Sync(e)
 	local color = colorOf(e.OwnerId)
-	remotes.FX:FireAllClients("Bomb", { From = head.Position, To = target, Color = color, Radius = Config.SpecialRadius })
-	task.delay(0.7, function()
+	if CombatService.OnSpecialUsed and e.Player then
+		CombatService.OnSpecialUsed(e.Player)
+	end
+	CombatService.Throw(e, target, "Bomb", color, function(pos)
 		if not active then
 			return
 		end
-		PaintService.PaintBelow(target + Vector3.new(0, 3, 0), Config.SpecialRadius, e.OwnerId, e)
-		splashDamage(e, target, Config.SpecialRadius, Config.SpecialDamage)
+		PaintService.PaintBelow(pos + Vector3.new(0, 3, 0), Config.SpecialRadius, e.OwnerId, e)
+		PaintService.PaintAt(pos, Config.SpecialRadius * 0.6, e.OwnerId, e)
+		splashDamage(e, pos, Config.SpecialRadius, Config.SpecialDamage)
 	end)
 	return true
 end

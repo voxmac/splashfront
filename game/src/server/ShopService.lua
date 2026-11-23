@@ -16,6 +16,28 @@ local function handle(player, action, weaponId)
 		return CrateService.TestOpen(player)
 	elseif action == "equipCosmetic" then
 		return CrateService.Equip(player, weaponId)
+	elseif action == "buyCosmetic" then
+		-- 포인트(코인)로 외형 직접 구매
+		local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+		local item = Cosmetics.ById[weaponId]
+		local p = DataService.Get(player)
+		local price = item and Config.SkinPrices[item.Rarity]
+		if not item or not p or not price then
+			return { ok = false, msg = "알 수 없는 아이템" }
+		end
+		p.Cosmetics = p.Cosmetics or {}
+		if p.Cosmetics[item.Id] then
+			return { ok = false, msg = "이미 보유 중" }
+		end
+		if p.Coins < price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - price
+		p.Cosmetics[item.Id] = true
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, price, p.Coins, "Shop", "Cosmetic_" .. item.Id)
+		return { ok = true, msg = item.Name .. " 구매 완료! 컬렉션에서 장착하세요" }
 	end
 	local p = DataService.Get(player)
 	local w = Weapons.ById[weaponId]

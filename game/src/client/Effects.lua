@@ -6,9 +6,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
+local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
+
 
 local player = Players.LocalPlayer
 local Effects = {}
+function Effects.WallSplat(inst, pos, normal, color)
+	PaintVisual.WallSplat(inst, pos, normal, color)
+end
 
 local function folder()
 	local f = workspace:FindFirstChild("ClientFX")
@@ -195,6 +200,91 @@ function Effects.ShakeOffset(dt)
 	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 1.6), math.rad((math.random() - 0.5) * s * 1.6), 0)
 end
 
+-- 투척물 (스페셜 크로마 봄 · 연막탄): 서버와 같은 초기값으로 포물선을 그리다 ProjEnd에서 터짐
+local projs = {}
+local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+local function startProj(d)
+	local visual
+	if d.Kind == "Smoke" then
+		visual = ModelKit.Item("Smoke")
+		for _, p in ipairs(visual:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+			end
+		end
+		visual.Parent = folder()
+	else
+		visual = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.7, Color = d.Color, Position = d.From })
+		local a0 = Instance.new("Attachment")
+		a0.Position = Vector3.new(0, 0.5, 0)
+		a0.Parent = visual
+		local a1 = Instance.new("Attachment")
+		a1.Position = Vector3.new(0, -0.5, 0)
+		a1.Parent = visual
+		local trail = Instance.new("Trail")
+		trail.Attachment0, trail.Attachment1 = a0, a1
+		trail.Color = ColorSequence.new(d.Color)
+		trail.LightEmission = 0.8
+		trail.Lifetime = 0.25
+		trail.Transparency = NumberSequence.new(0.2, 1)
+		trail.Parent = visual
+		local l = Instance.new("PointLight")
+		l.Color = d.Color
+		l.Range = 10
+		l.Brightness = 3
+		l.Parent = visual
+	end
+	local t0 = os.clock()
+	local rec = { Visual = visual }
+	projs[d.Id] = rec
+	rec.Conn = game:GetService("RunService").RenderStepped:Connect(function()
+		local t = os.clock() - t0
+		if t > (Config.Throw.MaxTime + 0.5) then
+			rec.Conn:Disconnect()
+			visual:Destroy()
+			projs[d.Id] = nil
+			return
+		end
+		local pos = d.From + d.Vel * t + d.G * (0.5 * t * t)
+		local cf = CFrame.new(pos) * CFrame.Angles(t * 9, t * 5, 0)
+		if visual:IsA("Model") then
+			visual:PivotTo(cf)
+		else
+			visual.CFrame = cf
+		end
+	end)
+	SoundBank.Play("special_throw", d.From, 0.7)
+end
+
+local function endProj(d)
+	local rec = projs[d.Id]
+	if rec then
+		rec.Conn:Disconnect()
+		rec.Visual:Destroy()
+		projs[d.Id] = nil
+	end
+	local pos = d.Pos
+	if d.Kind == "Smoke" then
+		SoundBank.Play("land", pos, 0.8)
+		Effects.Splash(pos, Color3.fromRGB(230, 232, 240), 3)
+		return
+	end
+	local radius = d.Radius or Config.SpecialRadius
+	local ring = fxPart({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 2, 2), Color = d.Color,
+		CFrame = CFrame.new(pos + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)) })
+	TweenService:Create(ring, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { Size = Vector3.new(0.3, radius * 2, radius * 2), Transparency = 1 }):Play()
+	Debris:AddItem(ring, 0.4)
+	local ball = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 2, Color = d.Color, Position = pos })
+	TweenService:Create(ball, TweenInfo.new(0.3, Enum.EasingStyle.Quad), { Size = Vector3.one * radius * 1.4, Transparency = 1 }):Play()
+	Debris:AddItem(ball, 0.35)
+	Effects.Splash(pos + Vector3.new(0, 1, 0), d.Color, 4)
+	SoundBank.Play("special_boom", pos, 1)
+	local cam = workspace.CurrentCamera
+	if cam and (cam.CFrame.Position - pos).Magnitude < radius * 2.5 then
+		Effects.Shake(0.4)
+	end
+end
+
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
 	if kind == "Tracer" then
@@ -219,10 +309,25 @@ function Effects.OnFX(kind, d)
 				from = hand.Position
 			end
 		end
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { d.Model, folder(), workspace:FindFirstChild("PaintLayer") }
 		for _, to in ipairs(d.To) do
-			Effects.Tracer(from, to, d.Color, d.Weapon == "Sniper" and 0.35 or 0.18)
+			Effects.Tracer(from, to, d.Color, (d.Golden and 0.6) or (d.Weapon == "Sniper" and 0.35) or 0.18)
+			-- 다른 사람 총알도 벽에 맞은 자리에 페인트 자국
+			local dir = to - d.From
+			if dir.Magnitude > 0.5 then
+				local hit = workspace:Raycast(d.From, dir + dir.Unit * 0.6, params)
+				if hit then
+					PaintVisual.WallSplat(hit.Instance, hit.Position, hit.Normal, d.Color)
+				end
+			end
 		end
 		SoundBank.Play("fire_" .. string.lower(d.Weapon or "pistol"), d.From, 0.55)
+	elseif kind == "Proj" then
+		startProj(d)
+	elseif kind == "ProjEnd" then
+		endProj(d)
 	elseif kind == "Bomb" then
 		Effects.Bomb(d.From, d.To, d.Color, d.Radius)
 		SoundBank.Play("special_throw", d.From, 0.7)

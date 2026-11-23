@@ -2,7 +2,7 @@
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.5.1-CBT"
+Config.Build = "0.6-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -68,6 +68,8 @@ Config.WalkSpeed = 16
 Config.WalkSpeedOwn = 21
 Config.WalkSpeedEnemy = 11
 Config.CrouchSpeedMul = 0.6
+Config.RunSpeedMul = 1.4    -- 달리기(Shift 누르는 동안) · 조준·앉기·사격 직후엔 안 됨
+Config.WalkSpeedMul = 0.55  -- 걷기(Z 전환) · 탄 퍼짐이 줄어 정밀 사격
 
 Config.SpecialCells = 150       -- 이만큼 칠하면 스페셜 충전
 Config.SpecialRadius = 14
@@ -87,6 +89,11 @@ Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판�
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
 Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)
+
+-- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
+-- 플래그 러시는 깃발 점수로 판정
+Config.WinWeights = { Paint = 0.8, Combat = 0.2 }
+Config.MissionKillValue = 1 -- 미션 보너스 1점 = 처치 몇 번어치인지 (미션 보너스는 보통 4점)
 
 Config.Modes = {
 	Turf = { Id = "Turf", Name = "터프 배틀", Desc = "더 넓게 칠한 팀이 승리" },
@@ -109,14 +116,68 @@ Config.Flag = {
 	Radius = 7,
 }
 
+-- 미션 보상 아이템 (미션 성공 팀원 전원에게 1개씩 무작위 지급, 최대 3개 보관 · F 사용 · G 순서 바꾸기)
+Config.Items = {
+	{ Id = "Jetpack", Name = "제트팩", Desc = "10초 동안 Space를 누르고 있으면 날아올라요", Duration = 10, Weight = 18 },
+	{ Id = "Shield", Name = "일시 무적", Desc = "6초 동안 어떤 공격도 받지 않아요", Duration = 6, Weight = 16 },
+	{ Id = "Smoke", Name = "연막탄", Desc = "조준한 곳에 12초 동안 연막을 펼쳐 시야를 가려요", Duration = 12, Weight = 20 },
+	{ Id = "Golden", Name = "황금총", Desc = "단 1발 · 맞으면 무조건 처치 · 쏘면 사라져요", Weight = 10 },
+	{ Id = "Zoom3", Name = "3배 스코프", Desc = "60초 동안 모든 총 조준이 3배 확대", Duration = 60, Zoom = 3, Weight = 20 },
+	{ Id = "Zoom6", Name = "6배 스코프", Desc = "60초 동안 모든 총 조준이 6배 확대", Duration = 60, Zoom = 6, Weight = 16 },
+}
+Config.ItemSlots = 3
+Config.JetpackThrust = 85   -- 초당 위로 가속 (중력 196을 상쇄하는 양만큼 추가로 줌)
+Config.JetpackMaxRise = 26  -- 최대 상승 속도
+Config.SmokeRadius = 14
+Config.GoldenRange = 320
+
+-- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐
+Config.Throw = { Speed = 55, Gravity = 70, MaxTime = 3 }
+
 -- 미션
 Config.MissionInterval = 35
 Config.MissionFirstDelay = 20
 
 -- 보상
 Config.Rewards = {
-	Win = 120, Lose = 60, Kill = 10, Per100Cells = 10, Mission = 30,
+	Win = 120, Lose = 60, Kill = 10, Headshot = 5, Per100Cells = 10, Mission = 30,
 }
+
+-- 경험치·레벨 (레벨업마다 코인 보너스)
+Config.XP = { Kill = 25, Headshot = 10, Win = 100, Lose = 50, PerCells = 40, Mission = 40, Quest = 60 }
+function Config.XPNeed(level)
+	return 100 + (level - 1) * 35
+end
+function Config.LevelReward(level)
+	return 100 + level * 10
+end
+Config.MultiKillWindow = 4 -- 초: 이 안에 연달아 처치하면 더블·트리플·쿼드 킬
+
+-- 일일·주간 퀘스트 (한국 시간 자정 / 월요일 0시 초기화, 모든 플레이어가 같은 퀘스트)
+-- Stat: Kills · Headshots · Cells · Wins · Matches · Missions · Specials · Items
+Config.Quests = {
+	Daily = {
+		{ Id = "d_kill20", Name = "20 처치 달성", Stat = "Kills", Goal = 20, Reward = 60 },
+		{ Id = "d_head5", Name = "헤드샷 5회", Stat = "Headshots", Goal = 5, Reward = 60 },
+		{ Id = "d_paint1500", Name = "바닥 1,500칸 칠하기", Stat = "Cells", Goal = 1500, Reward = 60 },
+		{ Id = "d_win2", Name = "2승 하기", Stat = "Wins", Goal = 2, Reward = 80 },
+		{ Id = "d_play3", Name = "경기 3판 하기", Stat = "Matches", Goal = 3, Reward = 50 },
+		{ Id = "d_mission2", Name = "랜덤 미션 2번 성공", Stat = "Missions", Goal = 2, Reward = 70 },
+		{ Id = "d_special3", Name = "크로마 봄 3번 터뜨리기", Stat = "Specials", Goal = 3, Reward = 50 },
+	},
+	Weekly = {
+		{ Id = "w_kill300", Name = "300 처치 달성", Stat = "Kills", Goal = 300, Reward = 500 },
+		{ Id = "w_win15", Name = "15승 하기", Stat = "Wins", Goal = 15, Reward = 600 },
+		{ Id = "w_paint20k", Name = "바닥 20,000칸 칠하기", Stat = "Cells", Goal = 20000, Reward = 500 },
+		{ Id = "w_head60", Name = "헤드샷 60회", Stat = "Headshots", Goal = 60, Reward = 450 },
+		{ Id = "w_item15", Name = "아이템 15번 사용", Stat = "Items", Goal = 15, Reward = 400 },
+		{ Id = "w_play30", Name = "경기 30판 하기", Stat = "Matches", Goal = 30, Reward = 450 },
+	},
+	PerPeriod = 3,
+}
+
+-- 포인트(코인)로 바로 사는 스킨 가격 (크레이트 아이템도 코인으로 직접 구매 가능)
+Config.SkinPrices = { Rare = 1500, Epic = 4000, Legendary = 9000 }
 Config.VipCoinMul = 1.25
 
 -- 랭크

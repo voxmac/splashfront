@@ -13,6 +13,8 @@ local BotService = require(script.Parent.BotService)
 local DataService = require(script.Parent.DataService)
 local RankService = require(script.Parent.RankService)
 local Telemetry = require(script.Parent.TelemetryService)
+local ItemService = require(script.Parent.ItemService)
+local QuestService = require(script.Parent.QuestService)
 
 local MatchService = {}
 
@@ -82,6 +84,19 @@ local missionApi = {
 			end
 		end
 	end,
+	-- 미션 성공 팀원(플레이어) 전원에게 무작위 아이템 1개
+	RewardItems = function(ownerId)
+		for _, e in ipairs(Combatants.All()) do
+			if e.OwnerId == ownerId and e.Player and e.Player.Parent then
+				QuestService.Add(e.Player, "Missions", 1)
+				DataService.AddXP(e.Player, Config.XP.Mission)
+				local it = ItemService.GrantRandom(e.Player)
+				if it then
+					remotes.Notify:FireClient(e.Player, "🎁 미션 보상: " .. it.Name .. " 획득! [F] 사용", Color3.fromRGB(255, 220, 90))
+				end
+			end
+		end
+	end,
 	SetMission = function(m)
 		S.Mission = m
 	end,
@@ -103,18 +118,33 @@ local missionApi = {
 ------------------------------------------------------------------------
 local function scores()
 	local coverage = PaintService.GetCoverage()
+	local kills = {}
+	for _, e in ipairs(Combatants.All()) do
+		kills[e.OwnerId] = (kills[e.OwnerId] or 0) + e.Kills
+	end
+	-- 전체 합계 (몫 계산용)
+	local sumCov, sumCombat = 0, 0
+	for _, o in ipairs(S.Owners) do
+		sumCov = sumCov + (coverage[o.OwnerId] or 0)
+		sumCombat = sumCombat + (kills[o.OwnerId] or 0) + (S.Bonus[o.OwnerId] or 0) * Config.MissionKillValue
+	end
+	local W = Config.WinWeights
 	local list = {}
 	for _, o in ipairs(S.Owners) do
 		local cov = coverage[o.OwnerId] or 0
 		local bonus = S.Bonus[o.OwnerId] or 0
+		local combat = (kills[o.OwnerId] or 0) + bonus * Config.MissionKillValue
 		local score
 		if S.Mode == "Flag" then
 			score = S.FlagScore[o.OwnerId] or 0
 		else
-			score = cov + bonus
+			-- 페인트 몫 80% + 전투(처치·미션) 몫 20% → 0~100점
+			local paintShare = (sumCov > 0) and (cov / sumCov) or 0
+			local combatShare = (sumCombat > 0) and (combat / sumCombat) or 0
+			score = 100 * (W.Paint * paintShare + W.Combat * combatShare)
 		end
 		table.insert(list, {
-			OwnerId = o.OwnerId, Name = o.Name, Color = o.Color,
+			OwnerId = o.OwnerId, Name = o.Name, Color = o.Color, Kills = kills[o.OwnerId] or 0,
 			Coverage = math.floor(cov * 10 + 0.5) / 10, Bonus = bonus, Score = math.floor(score * 10 + 0.5) / 10,
 		})
 	end
@@ -180,16 +210,37 @@ local function broadcast()
 				end
 			end
 		end
-		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice }
+		local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice,
+			Capacity = cap, Full = counts[q.Id] >= cap }
 		-- 로비 발판 위 안내판
 		local pl = lobby and lobby.QueueLabels and lobby.QueueLabels[q.Id]
 		if pl then
 			local n = counts[q.Id]
 			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n) or '<font color="#B0B0C8">발판을 밟아 참가</font>'
-			local txt = pl.Title .. (pl.Ranked and "  [랭크]" or "") .. "\n" .. line2
+			local txt = line2 .. (pl.Ranked and '  <font color="#FFC840">랭크</font>' or "")
 			if pl.Label.Text ~= txt then
 				pl.Label.Text = txt
 			end
+		end
+	end
+	-- 상단 TOP 5 (처치 → 칠한 셀 순)
+	local board = {}
+	if S.Phase == "Playing" or S.Phase == "Results" then
+		local all = {}
+		for _, e in ipairs(Combatants.All()) do
+			table.insert(all, e)
+		end
+		table.sort(all, function(a, b)
+			if a.Kills ~= b.Kills then
+				return a.Kills > b.Kills
+			end
+			return a.Cells > b.Cells
+		end)
+		for i = 1, math.min(5, #all) do
+			local e = all[i]
+			table.insert(board, { Name = e.Name, UserId = e.Player and e.Player.UserId or nil, Kills = e.Kills, Streak = e.Streak or 0,
+				Color = MatchService.ColorOf(e.OwnerId), OwnerId = e.OwnerId })
 		end
 	end
 	local mapList = {}
@@ -210,6 +261,7 @@ local function broadcast()
 		Flags = flags,
 		QueueCounts = counts,
 		QueueInfo = queueInfo,
+		Board = board,
 		Maps = mapList,
 		FinalSplash = S.FinalSplash,
 	})
@@ -309,6 +361,7 @@ local function activate(e, model)
 	if not okGear then
 		warn("[SplashFront] 장비 부착 실패:", gearErr)
 	end
+	ItemService.OnSpawn(e)
 	-- 기획서 4장: 적 색 위에 서 있으면 발밑에서 페인트가 튀어 위치가 드러남
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if root then
@@ -366,10 +419,33 @@ onDied = function(e, model)
 	end
 	e.Alive = false
 	e.Deaths = e.Deaths + 1
+	e.Streak = 0
 	local killer = e.LastAttacker
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if killer and killer ~= e then
 		killer.Kills = killer.Kills + 1
+		killer.Streak = (killer.Streak or 0) + 1
+		local t = os.clock()
+		if t - (killer.LastKillAt or -99) <= Config.MultiKillWindow then
+			killer.Multi = (killer.Multi or 1) + 1
+		else
+			killer.Multi = 1
+		end
+		killer.LastKillAt = t
+		if killer.Player then
+			local head = e.LastHeadshot == true
+			local coins = Config.Rewards.Kill + (head and Config.Rewards.Headshot or 0)
+			local xp = Config.XP.Kill + (head and Config.XP.Headshot or 0)
+			DataService.AddXP(killer.Player, xp)
+			QuestService.Add(killer.Player, "Kills", 1)
+			if head then
+				QuestService.Add(killer.Player, "Headshots", 1)
+			end
+			remotes.FX:FireClient(killer.Player, "Elim", {
+				Victim = e.Name, VictimColor = MatchService.ColorOf(e.OwnerId), Head = head, Multi = killer.Multi,
+				Streak = killer.Streak, Coins = coins, XP = xp,
+			})
+		end
 		Combatants.Killed:Fire(killer, e, e.LastHeadshot)
 		if root then
 			PaintService.PaintBelow(root.Position, 6, killer.OwnerId, killer)
@@ -383,6 +459,8 @@ onDied = function(e, model)
 		Head = e.LastHeadshot,
 		Effect = killer and killer.KillEffect or nil,
 		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
+		WeaponId = killer and killer.WeaponId or nil,
+		KillerStreak = killer and killer.Streak or 0,
 		WeaponClass = killer and Weapons.Get(killer.WeaponId).Class or nil,
 		Pos = root and root.Position or nil,
 		KillerPlayer = killer and killer.Player or nil,
@@ -745,6 +823,7 @@ local function endMatch()
 		local coins = (won and Config.Rewards.Win or Config.Rewards.Lose)
 			+ e.Kills * Config.Rewards.Kill
 			+ math.floor(e.Cells / 100) * Config.Rewards.Per100Cells
+			+ (e.Headshots or 0) * Config.Rewards.Headshot
 			+ e.Coins
 		local ratingDelta = nil
 		if e.Player and e.Player.Parent then
@@ -762,6 +841,12 @@ local function endMatch()
 				ratingDelta = RankService.Apply(e.Player, won, perf[e])
 			end
 			RankService.RecordMeta(e.Player)
+			DataService.AddXP(e.Player, (won and Config.XP.Win or Config.XP.Lose) + math.floor(e.Cells / Config.XP.PerCells))
+			QuestService.Add(e.Player, "Matches", 1)
+			QuestService.Add(e.Player, "Cells", e.Cells)
+			if won then
+				QuestService.Add(e.Player, "Wins", 1)
+			end
 			Telemetry.Funnel(e.Player, "MatchFinished")
 			Telemetry.Economy(e.Player, true, coins, p and p.Coins or 0, "Gameplay", "MatchReward")
 			Telemetry.Custom(e.Player, "MatchEnd", e.Cells, S.Mode .. "/" .. tostring(S.QueueId), e.WeaponId, won and "win" or "lose")
@@ -810,6 +895,7 @@ local function endMatch()
 			e.Player:SetAttribute("OwnerId", nil)
 			e.Player:SetAttribute("TeamColor", nil)
 			e.Player:SetAttribute("SpawnZone", false)
+			ItemService.Clear(e.Player)
 			e.Player:LoadCharacter()
 			DataService.Save(e.Player)
 		end
@@ -903,6 +989,48 @@ local function setHostMap(player, mapId)
 	queueMap[qid] = mapId
 end
 
+-- 방장: 발판에 정원이 모두 모였으면 카운트다운을 건너뛰고 바로 시작
+local function startNow(player)
+	local qid = player:GetAttribute("Queue")
+	local q = qid and queueDef(qid)
+	if not q or MatchService.QueueHost(qid) ~= player then
+		return
+	end
+	local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+	if queueCounts()[qid] < cap then
+		remotes.Notify:FireClient(player, "정원이 모두 모여야 바로 시작할 수 있어요", Color3.fromRGB(255, 200, 90))
+		return
+	end
+	if S.Phase == "Countdown" and S.QueueId == qid then
+		S.EndsAt = math.min(S.EndsAt, now() + 1)
+		announce("방장이 바로 시작을 눌렀어요!", Color3.fromRGB(140, 255, 200))
+	end
+end
+
+-- 경기 도중 로비로 나가기 (보상 없음, 자리는 남은 인원으로 계속)
+function MatchService.LeaveMatch(player)
+	if not player:GetAttribute("InMatch") or S.Phase ~= "Playing" then
+		return
+	end
+	local e = Combatants.FromPlayer(player)
+	if e then
+		e.Alive = false
+		Combatants.Remove(e)
+	end
+	if player.Character then
+		player.Character:Destroy()
+	end
+	for _, a in ipairs({ "Queue", "QueueTime", "OwnerId", "TeamId", "TeamColor" }) do
+		player:SetAttribute(a, nil)
+	end
+	player:SetAttribute("SpawnZone", false)
+	player:SetAttribute("InMatch", false)
+	ItemService.Clear(player)
+	Telemetry.Custom(player, "LeftMatch", 1, S.Mode or "", tostring(S.QueueId), "")
+	player:LoadCharacter()
+	remotes.Notify:FireClient(player, "경기에서 나와 로비로 돌아왔어요", Color3.fromRGB(200, 220, 255))
+end
+
 -- 경기 중 무기 교체: 부활 직후이거나 우리 스폰 근처일 때만
 local function nearOwnSpawn(e)
 	local r = e.Model and e.Model:FindFirstChild("HumanoidRootPart")
@@ -947,6 +1075,7 @@ local function switchWeapon(player, weaponId)
 	player:SetAttribute("Weapon", w.Id)
 	if e.Model then
 		pcall(attachGun, e, e.Model)
+		ItemService.OnSpawn(e)
 	end
 	Combatants.Sync(e)
 	remotes.Notify:FireClient(player, "무기 교체: " .. w.Name .. " (" .. w.Class .. ")", Color3.fromRGB(140, 255, 200))
@@ -1005,6 +1134,10 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 	remotes.Queue.OnServerEvent:Connect(function(player, a, b)
 		if a == "map" then
 			setHostMap(player, b)
+		elseif a == "startNow" then
+			startNow(player)
+		elseif a == "leaveMatch" then
+			MatchService.LeaveMatch(player)
 		elseif a == nil or type(a) == "string" then
 			setQueue(player, a, false)
 		end

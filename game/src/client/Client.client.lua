@@ -16,6 +16,7 @@ local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
+local ItemClient = require(script.Parent:WaitForChild("ItemClient"))
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
@@ -53,8 +54,26 @@ end)
 LobbyUI.SetModalHandler(function(on)
 	modal("lobby", on)
 end)
+HUD.SetLeaveHandler(function(on)
+	modal("leave", on)
+end, function()
+	remotes.Queue:FireServer("leaveMatch")
+end)
 CharacterPose.Init()
 PaintVisual.Init()
+ItemClient.Init(remotes, HUD)
+HUD.UpdateQuests()
+LobbyUI.UpdateQuests()
+
+-- 레벨 업 축하
+player:GetAttributeChangedSignal("LevelUp"):Connect(function()
+	local v = player:GetAttribute("LevelUp") or ""
+	local lv, coins = string.match(v, "^(%d+):(%d+)")
+	if lv then
+		HUD.Banner(string.format("⭐ 레벨 %s 달성!  🪙 +%s 코인", lv, coins), Color3.fromRGB(255, 210, 80))
+		SoundBank.Play("crate_epic", nil, 0.6)
+	end
+end)
 MusicPlayer.Init()
 
 -- 스페셜 충전 완료 / 부활
@@ -105,6 +124,8 @@ remotes.FX.OnClientEvent:Connect(function(kind, data)
 		if data.VictimPlayer == player then
 			SoundBank.Play("splashed", nil, 0.8)
 		end
+	elseif kind == "Elim" then
+		HUD.Elim(data)
 	elseif kind == "Cue" then
 		-- 서버가 알려주는 상황: 미션·깃발은 우리 팀이면 성공음, 아니면 실패음
 		local mine = player:GetAttribute("OwnerId")

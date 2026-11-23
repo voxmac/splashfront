@@ -96,16 +96,24 @@ local function ramp(parent, x1, x2, z, width, baseY, height)
 end
 
 function MapBuilder.SetupLighting()
-	Lighting.ClockTime = 17.6 -- 노을빛 네온 분위기
-	Lighting.Brightness = 2.2
-	Lighting.Ambient = Color3.fromRGB(90, 90, 110)
-	Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 160)
+	-- 0.6: 밝은 한낮 카툰 톤 (흰 구조물 위에 진한 팀 페인트가 또렷하게)
+	Lighting.ClockTime = 14.2
+	Lighting.GeographicLatitude = 35
+	Lighting.Brightness = 3
+	Lighting.Ambient = Color3.fromRGB(140, 146, 165)
+	Lighting.OutdoorAmbient = Color3.fromRGB(165, 172, 192)
+	Lighting.EnvironmentDiffuseScale = 1
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.ShadowSoftness = 0.25
 	Lighting.GlobalShadows = true
 	if not Lighting:FindFirstChildOfClass("Atmosphere") then
 		local a = Instance.new("Atmosphere")
-		a.Density = 0.25
-		a.Color = Color3.fromRGB(220, 200, 255)
-		a.Decay = Color3.fromRGB(120, 80, 160)
+		a.Density = 0.27
+		a.Offset = 0.15
+		a.Color = Color3.fromRGB(199, 222, 255)
+		a.Decay = Color3.fromRGB(110, 150, 215)
+		a.Glare = 0.2
+		a.Haze = 1.1
 		a.Parent = Lighting
 	end
 	if not Lighting:FindFirstChildOfClass("Sky") then
@@ -115,9 +123,10 @@ function MapBuilder.SetupLighting()
 	end
 	if not Lighting:FindFirstChildOfClass("ColorCorrectionEffect") then
 		local cc = Instance.new("ColorCorrectionEffect")
-		cc.Saturation = 0.18
-		cc.Contrast = 0.08
-		cc.TintColor = Color3.fromRGB(255, 244, 250)
+		cc.Saturation = 0.22
+		cc.Contrast = 0.06
+		cc.Brightness = 0.02
+		cc.TintColor = Color3.fromRGB(255, 252, 248)
 		cc.Parent = Lighting
 	end
 	if not Lighting:FindFirstChildOfClass("SunRaysEffect") then
@@ -127,21 +136,130 @@ function MapBuilder.SetupLighting()
 	end
 	if not Lighting:FindFirstChildOfClass("BloomEffect") then
 		local b = Instance.new("BloomEffect")
-		b.Intensity = 0.6
-		b.Threshold = 1.4
+		b.Intensity = 0.35
+		b.Threshold = 1.7
 		b.Parent = Lighting
 	end
 end
 
 -- 기획서 3장: 엄폐물은 어두운 외곽선으로 바닥과 구분
-local OUTLINED = { Crate = true, Wall = true, WarehouseWall = true, Container = true, Parapet = true, WallSill = true }
+local OUTLINED = { Crate = true, Wall = true, WarehouseWall = true, Container = true, Parapet = true, WallSill = true, Platform = true,
+	Ramp = true, Boundary = true, SpawnWall = true, Lintel = true, WarehouseRoof = true }
+
+------------------------------------------------------------------------
+-- 0.6 아트 패스: 밝은 카툰 팔레트 + 엄폐물 디테일(모서리 프레임·받침·캡)
+-- 판정용 모양은 그대로 두고 장식 파트만 덧붙임 (CanCollide·CanQuery 끔)
+------------------------------------------------------------------------
+local PALETTE = {
+	Floor = { Color3.fromRGB(238, 240, 247), Enum.Material.SmoothPlastic },
+	Boundary = { Color3.fromRGB(214, 220, 234), Enum.Material.SmoothPlastic },
+	Wall = { Color3.fromRGB(226, 230, 240), Enum.Material.SmoothPlastic },
+	WarehouseWall = { Color3.fromRGB(226, 230, 240), Enum.Material.SmoothPlastic },
+	Lintel = { Color3.fromRGB(214, 218, 230), Enum.Material.SmoothPlastic },
+	WallSill = { Color3.fromRGB(214, 218, 230), Enum.Material.SmoothPlastic },
+	Parapet = { Color3.fromRGB(230, 234, 244), Enum.Material.SmoothPlastic },
+	SpawnWall = { Color3.fromRGB(210, 216, 230), Enum.Material.SmoothPlastic },
+	Platform = { Color3.fromRGB(206, 212, 228), Enum.Material.SmoothPlastic },
+	MidTower = { Color3.fromRGB(196, 204, 222), Enum.Material.SmoothPlastic },
+	SpawnTower = { Color3.fromRGB(188, 196, 216), Enum.Material.SmoothPlastic },
+	Ramp = { Color3.fromRGB(186, 192, 210), Enum.Material.DiamondPlate },
+	Crate = { Color3.fromRGB(236, 176, 100), Enum.Material.WoodPlanks },
+	WarehouseRoof = { Color3.fromRGB(222, 218, 206), Enum.Material.SmoothPlastic },
+	CityGround = { Color3.fromRGB(150, 160, 178), Enum.Material.SmoothPlastic },
+	Street = { Color3.fromRGB(150, 160, 178), Enum.Material.SmoothPlastic },
+}
+local PASTEL = Color3.fromRGB(190, 210, 238)
+
+local function deco(parent, size, cf, color, mat)
+	local p = Instance.new("Part")
+	p.Name = "Detail"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+
+local function stylize(folder)
+	local detail = Instance.new("Folder")
+	detail.Name = "Detail"
+	detail.Parent = folder
+	for _, p in ipairs(folder:GetDescendants()) do
+		if p:IsA("BasePart") and p.Name ~= "Cell" and p.Parent ~= detail then
+			local pal = PALETTE[p.Name]
+			if pal then
+				p.Color = pal[1]
+				p.Material = pal[2]
+			elseif p.Name == "Building" or p.Name == "CityBuilding" then
+				p.Color = p.Color:Lerp(PASTEL, 0.75)
+				p.Material = Enum.Material.SmoothPlastic
+			elseif p.Name == "Container" then
+				p.Color = p.Color:Lerp(Color3.new(1, 1, 1), 0.25)
+				p.Material = Enum.Material.SmoothPlastic
+			end
+			local sz, cf = p.Size, p.CFrame
+			if p.Name == "Crate" then
+				-- 모서리 각재 4개 + 윗테 4개 + 가운데 X 대신 가로대
+				local dark = Color3.fromRGB(170, 108, 56)
+				for _, sx in ipairs({ -1, 1 }) do
+					for _, sz2 in ipairs({ -1, 1 }) do
+						deco(detail, Vector3.new(0.5, sz.Y + 0.04, 0.5), cf * CFrame.new(sx * (sz.X / 2 - 0.2), 0, sz2 * (sz.Z / 2 - 0.2)), dark, Enum.Material.Wood)
+					end
+				end
+				for _, sx in ipairs({ -1, 1 }) do
+					deco(detail, Vector3.new(0.4, 0.4, sz.Z + 0.06), cf * CFrame.new(sx * (sz.X / 2 - 0.15), sz.Y / 2 - 0.15, 0), dark, Enum.Material.Wood)
+					deco(detail, Vector3.new(sz.X + 0.06, 0.4, 0.4), cf * CFrame.new(0, sz.Y / 2 - 0.15, sx * (sz.Z / 2 - 0.15)), dark, Enum.Material.Wood)
+					deco(detail, Vector3.new(sz.X + 0.06, 0.35, 0.36), cf * CFrame.new(0, -0.1, sx * (sz.Z / 2 - 0.12)), dark, Enum.Material.Wood)
+				end
+			elseif p.Name == "Wall" or p.Name == "WarehouseWall" or p.Name == "Boundary" or p.Name == "SpawnWall" then
+				-- 아래 걸레받이 + 위 캡(살짝 넓게) + 일정 간격 패널 이음새
+				local long = (sz.X >= sz.Z) and "X" or "Z"
+				deco(detail, Vector3.new(sz.X + 0.12, 0.6, sz.Z + 0.12), cf * CFrame.new(0, -sz.Y / 2 + 0.3, 0), Color3.fromRGB(150, 158, 180))
+				deco(detail, Vector3.new(sz.X + 0.3, 0.35, sz.Z + 0.3), cf * CFrame.new(0, sz.Y / 2 + 0.17, 0), Color3.fromRGB(245, 247, 252))
+				local len = (long == "X") and sz.X or sz.Z
+				local n = math.floor(len / 8)
+				for k = 1, n - 1 do
+					local o = -len / 2 + k * (len / n)
+					local off = (long == "X") and CFrame.new(o, 0, 0) or CFrame.new(0, 0, o)
+					local s2 = (long == "X") and Vector3.new(0.18, sz.Y - 0.8, sz.Z + 0.06) or Vector3.new(sz.X + 0.06, sz.Y - 0.8, 0.18)
+					deco(detail, s2, cf * off, Color3.fromRGB(190, 196, 214))
+				end
+			elseif p.Name == "Platform" or p.Name == "Parapet" then
+				-- 윗면 가장자리 띠
+				deco(detail, Vector3.new(sz.X + 0.16, 0.3, sz.Z + 0.16), cf * CFrame.new(0, sz.Y / 2 - 0.12, 0), Color3.fromRGB(250, 250, 255))
+			elseif p.Name == "Container" then
+				-- 골판 무늬(세로 리브) + 문 손잡이
+				local long = (sz.X >= sz.Z) and "X" or "Z"
+				local len = (long == "X") and sz.X or sz.Z
+				local shade = p.Color:Lerp(Color3.new(0, 0, 0), 0.18)
+				for k = 1, math.floor(len / 1.6) do
+					local o = -len / 2 + (k - 0.5) * 1.6
+					local off = (long == "X") and CFrame.new(o, 0, 0) or CFrame.new(0, 0, o)
+					local s2 = (long == "X") and Vector3.new(0.35, sz.Y - 0.6, sz.Z + 0.1) or Vector3.new(sz.X + 0.1, sz.Y - 0.6, 0.35)
+					deco(detail, s2, cf * off, shade)
+				end
+				deco(detail, Vector3.new(sz.X + 0.14, 0.3, sz.Z + 0.14), cf * CFrame.new(0, sz.Y / 2 - 0.15, 0), shade)
+				deco(detail, Vector3.new(sz.X + 0.14, 0.3, sz.Z + 0.14), cf * CFrame.new(0, -sz.Y / 2 + 0.15, 0), shade)
+			end
+		end
+	end
+end
+
 local function addOutlines(folder)
+	stylize(folder)
 	for _, p in ipairs(folder:GetDescendants()) do
 		if p:IsA("BasePart") and OUTLINED[p.Name] then
 			local sb = Instance.new("SelectionBox")
 			sb.Adornee = p
-			sb.Color3 = Color3.fromRGB(12, 12, 20)
-			sb.LineThickness = 0.06
+			sb.Color3 = Color3.fromRGB(40, 44, 70)
+			sb.LineThickness = 0.05
 			sb.SurfaceTransparency = 1
 			sb.Parent = p
 		end
@@ -388,13 +506,50 @@ function MapBuilder.BuildLobby()
 		light.Parent = pad
 		local mode = Config.Modes[q.Mode]
 		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
-		local lbl = billboard(pad, title2, 9)
-		lbl.Name = "QueueLabel"
-		lbl.Parent.Size = UDim2.fromOffset(280, 90)
-		lbl.Parent.MaxDistance = 160
-		lbl.RichText = true
+		-- 안내판: 스터드 단위 크기라 멀리서 봐도 옆 발판 글씨와 겹치지 않음 (제목 크게 + 상태 작게)
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "QueueBoard"
+		bb.Size = UDim2.new(10, 0, 3, 0)
+		bb.StudsOffset = Vector3.new(0, 7.5, 0)
+		bb.MaxDistance = 140
+		bb.LightInfluence = 0
+		bb.Adornee = pad
+		bb.Parent = pad
+		local plate = Instance.new("Frame")
+		plate.Size = UDim2.fromScale(1, 1)
+		plate.BackgroundColor3 = Color3.fromRGB(16, 14, 28)
+		plate.BackgroundTransparency = 0.25
+		plate.Parent = bb
+		local pc = Instance.new("UICorner")
+		pc.CornerRadius = UDim.new(0.2, 0)
+		pc.Parent = plate
+		local ps = Instance.new("UIStroke")
+		ps.Color = c
+		ps.Thickness = 2
+		ps.Parent = plate
+		local tl = Instance.new("TextLabel")
+		tl.Name = "Title"
+		tl.BackgroundTransparency = 1
+		tl.Size = UDim2.new(0.92, 0, 0.56, 0)
+		tl.Position = UDim2.new(0.04, 0, 0.06, 0)
+		tl.Font = Enum.Font.GothamBlack
+		tl.TextScaled = true
+		tl.TextColor3 = Color3.new(1, 1, 1)
+		tl.Text = title2
+		tl.Parent = plate
+		local sub = Instance.new("TextLabel")
+		sub.Name = "Sub"
+		sub.BackgroundTransparency = 1
+		sub.Size = UDim2.new(0.86, 0, 0.3, 0)
+		sub.Position = UDim2.new(0.07, 0, 0.64, 0)
+		sub.Font = Enum.Font.GothamBold
+		sub.TextScaled = true
+		sub.RichText = true
+		sub.TextColor3 = Color3.fromRGB(200, 200, 220)
+		sub.Text = "발판을 밟아 참가"
+		sub.Parent = plate
 		pads[q.Id] = pad
-		labels[q.Id] = { Label = lbl, Title = title2, Ranked = q.Ranked }
+		labels[q.Id] = { Label = sub, Title = title2, Ranked = q.Ranked }
 	end
 
 	------------------------------------------------------------------
@@ -1213,6 +1368,7 @@ function MapBuilder.BuildSkyRooftop()
 		table.insert(solo, CFrame.lookAt(skyPos(p3[1], p3[2], p3[3]), skyPos(0, p3[2], 0)))
 	end
 
+	stylize(deco) -- 배경 빌딩도 파스텔 톤
 	addOutlines(geo)
 	return {
 		Id = "SkyRooftop",

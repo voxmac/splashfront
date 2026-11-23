@@ -19,7 +19,8 @@ local C = UI.Colors
 local make, corner, label, button = UI.make, UI.corner, UI.label, UI.button
 
 local remotes, HUD
-local gui, profileLbl, matchFrame, matchBody, statusLbl, shop, pages, tabButtons, reveal, board, boardList, peopleList
+local gui, profileLbl, matchFrame, matchBody, statusLbl, shop, pages, tabButtons, reveal, board, boardList, peopleList, questPanel, questList
+local HttpService = game:GetService("HttpService")
 local lastState = nil
 local matchSig, peopleSig = "", ""
 local randomItemsRestricted = false
@@ -60,7 +61,7 @@ local function clear(page)
 end
 
 local function updateModal()
-	modalHandler((shop and shop.Visible) or (board and board.Visible) or (reveal and reveal.Visible) or false)
+	modalHandler((shop and shop.Visible) or (board and board.Visible) or (reveal and reveal.Visible) or (questPanel and questPanel.Visible) or false)
 end
 
 ------------------------------------------------------------------------
@@ -210,7 +211,52 @@ local function buildCollection(page)
 	end
 end
 
-local builders = { Weapons = buildWeapons, Crate = buildCrate, Collection = buildCollection }
+-- 포인트(코인)로 사는 스킨: 크레이트 아이템을 등급별 가격으로 바로 구매
+local function buildSkins(page)
+	clear(page)
+	local coins = player:GetAttribute("Coins") or 0
+	label(page, { Text = string.format("🪙 보유 코인 %d  —  일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
+		Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 0, TextWrapped = true })
+	local order = 1
+	for _, r in ipairs(Cosmetics.Rarities) do
+		local price = Config.SkinPrices[r.Id]
+		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 40), BackgroundColor3 = r.Color, LayoutOrder = order }, page)
+		corner(head, 10)
+		label(head, { Text = string.format("%s  ·  🪙 %d", r.Name, price), Font = Enum.Font.GothamBlack, TextSize = 20, Position = UDim2.fromOffset(14, 0),
+			Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
+		order = order + 1
+		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+		make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		order = order + 1
+		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
+			local have = owned("OwnedCosmetics", item.Id)
+			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
+			local cardF = make("Frame", { BackgroundColor3 = C.Panel }, grid)
+			corner(cardF, 12)
+			UI.stroke(cardF, r.Color, 2, have and 0 or 0.4)
+			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 100), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+			corner(pic, 10)
+			UI.gradient(pic, r.Color:Lerp(Color3.new(0, 0, 0), 0.5), Color3.fromRGB(26, 24, 40), 90)
+			UI.ItemImage(pic, item)
+			label(cardF, { Text = item.Name, TextSize = 18, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 112), Size = UDim2.new(1, -20, 0, 22),
+				TextTruncate = Enum.TextTruncate.AtEnd })
+			label(cardF, { Text = kindName, TextSize = 15, TextColor3 = C.Sub, Position = UDim2.fromOffset(10, 136), Size = UDim2.new(1, -20, 0, 18) })
+			local can = coins >= price
+			local b = button(cardF, have and "✔ 보유" or ("🪙 " .. price), have and C.Dim or (can and C.Green or Color3.fromRGB(90, 60, 80)),
+				{ Size = UDim2.new(1, -16, 0, 42), Position = UDim2.new(0, 8, 1, -50), TextSize = 19 })
+			b.MouseButton1Click:Connect(function()
+				if have then
+					return
+				end
+				shopCall("buyCosmetic", item.Id)
+				task.wait(0.25)
+				buildSkins(page)
+			end)
+		end
+	end
+end
+
+local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection }
 local currentTab = "Weapons"
 
 local function showTab(name)
@@ -235,9 +281,80 @@ local function toggleShop(force)
 	shop.Visible = on
 	if on then
 		board.Visible = false
+		questPanel.Visible = false
 		remotes.Telemetry:FireServer("OpenedShop")
 		showTab(currentTab)
 	end
+	updateModal()
+end
+
+------------------------------------------------------------------------
+-- 일일·주간 미션 창
+------------------------------------------------------------------------
+local function fmtLeft(sec)
+	sec = math.max(0, math.floor(sec or 0))
+	local d = math.floor(sec / 86400)
+	local h = math.floor((sec % 86400) / 3600)
+	local m = math.floor((sec % 3600) / 60)
+	if d > 0 then
+		return string.format("%d일 %d시간", d, h)
+	end
+	return string.format("%d시간 %d분", h, m)
+end
+
+function Lobby.UpdateQuests()
+	if not questList then
+		return
+	end
+	local ok, list = pcall(function()
+		return HttpService:JSONDecode(player:GetAttribute("Quests") or "[]")
+	end)
+	if not ok or type(list) ~= "table" then
+		return
+	end
+	clear(questList)
+	local order = 0
+	for _, period in ipairs({ "Daily", "Weekly" }) do
+		local left = nil
+		for _, q in ipairs(list) do
+			if q.Period == period then
+				left = q.Left
+			end
+		end
+		order = order + 1
+		label(questList, { Text = string.format("%s  ·  초기화까지 %s", period == "Daily" and "📅 일일 미션" or "🗓 주간 미션", fmtLeft(left)), TextSize = 21,
+			Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 32), LayoutOrder = order })
+		for _, q in ipairs(list) do
+			if q.Period == period then
+				order = order + 1
+				local row = make("Frame", { Size = UDim2.new(1, -10, 0, 70), BackgroundColor3 = q.Done and Color3.fromRGB(34, 60, 50) or C.Panel, LayoutOrder = order }, questList)
+				corner(row, 12)
+				UI.stroke(row, q.Done and Color3.fromRGB(120, 255, 170) or C.Dim, 2, 0.3)
+				label(row, { Text = q.Done and "✅" or "🎯", TextScaled = true, Size = UDim2.fromOffset(40, 40), Position = UDim2.fromOffset(12, 15),
+					TextXAlignment = Enum.TextXAlignment.Center })
+				label(row, { Text = q.Name, TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(62, 10), Size = UDim2.new(1, -230, 0, 24) })
+				local bar = make("Frame", { Size = UDim2.new(1, -230, 0, 10), Position = UDim2.fromOffset(62, 44), BackgroundColor3 = C.Dim }, row)
+				corner(bar, 5)
+				local fill = make("Frame", { Size = UDim2.fromScale(math.clamp(q.P / math.max(1, q.Goal), 0, 1), 1), BorderSizePixel = 0,
+					BackgroundColor3 = q.Done and Color3.fromRGB(120, 255, 170) or C.Cyan }, bar)
+				corner(fill, 5)
+				label(row, { Text = string.format("%d / %d", q.P, q.Goal), TextSize = 16, TextColor3 = C.Sub, Position = UDim2.new(1, -164, 0, 10),
+					Size = UDim2.fromOffset(70, 22), TextXAlignment = Enum.TextXAlignment.Right })
+				label(row, { Text = (q.Done and "받음 " or "") .. "🪙 +" .. q.Reward, TextSize = 19, Font = Enum.Font.GothamBlack, TextColor3 = C.Gold,
+					Position = UDim2.new(1, -150, 0, 34), Size = UDim2.fromOffset(136, 26), TextXAlignment = Enum.TextXAlignment.Right })
+			end
+		end
+	end
+end
+
+local function openQuests()
+	if player:GetAttribute("InMatch") then
+		return
+	end
+	shop.Visible = false
+	board.Visible = false
+	questPanel.Visible = true
+	Lobby.UpdateQuests()
 	updateModal()
 end
 
@@ -260,6 +377,7 @@ local function openBoard()
 		return
 	end
 	shop.Visible = false
+	questPanel.Visible = false
 	board.Visible = true
 	updateModal()
 	clear(boardList)
@@ -448,6 +566,18 @@ local function rebuildMatch()
 					remotes.Queue:FireServer("map", o[1])
 				end)
 			end
+			-- 정원이 다 모이면 카운트다운 없이 바로 시작
+			local n = counts[mine] or 0
+			if qi.Full then
+				local go = button(matchBody, "▶ 바로 시작 (정원 " .. n .. "/" .. tostring(qi.Capacity) .. ")", C.Pink,
+					{ Size = UDim2.new(1, 0, 0, 46), LayoutOrder = nextOrder(), TextSize = 19 })
+				go.MouseButton1Click:Connect(function()
+					remotes.Queue:FireServer("startNow")
+				end)
+			else
+				label(matchBody, { Text = string.format("정원 %d / %d — 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
+					TextColor3 = C.Sub, TextWrapped = true, Size = UDim2.new(1, 0, 0, 36), LayoutOrder = nextOrder() })
+			end
 		end
 	end
 
@@ -522,18 +652,19 @@ end
 local function refreshProfile()
 	local vip = player:GetAttribute("Vip") and "  ·  VIP" or ""
 	local tier = player:GetAttribute("Tier") or "브론즈"
-	profileLbl.Text = string.format('<font size="22"><b>%s</b></font>%s\n💰 %d 코인\n🏆 <font color="#%s">%s</font>  %d  ·  %d승', player.DisplayName, vip,
-		player:GetAttribute("Coins") or 0, (TIER_COLOR[tier] or C.Text):ToHex(), tier, player:GetAttribute("Rating") or Config.Rating.Start,
-		player:GetAttribute("Wins") or 0)
+	profileLbl.Text = string.format('<font size="22"><b>%s</b></font>%s  <font color="#FFC850">Lv.%d</font>\n🪙 %d 코인\n🏆 <font color="#%s">%s</font>  %d  ·  %d승',
+		player.DisplayName, vip, player:GetAttribute("Level") or 1, player:GetAttribute("Coins") or 0, (TIER_COLOR[tier] or C.Text):ToHex(), tier,
+		player:GetAttribute("Rating") or Config.Rating.Start, player:GetAttribute("Wins") or 0)
 end
 
 function Lobby.OnState(s)
 	lastState = s
 	local inMatch = player:GetAttribute("InMatch") == true
 	gui.Enabled = not inMatch
-	if inMatch and (shop.Visible or board.Visible) then
+	if inMatch and (shop.Visible or board.Visible or questPanel.Visible) then
 		shop.Visible = false
 		board.Visible = false
+		questPanel.Visible = false
 		updateModal()
 	end
 	rebuildMatch()
@@ -565,11 +696,15 @@ function Lobby.Init(remoteFolder, hud)
 		RichText = true })
 
 	-- 상점 · 랭킹 버튼
-	local shopBtn = button(gui, "🛒 상점 [B]", C.Pink, { Size = UDim2.fromOffset(146, 46), Position = UDim2.fromOffset(16, 128), TextSize = 19 })
+	local shopBtn = button(gui, "🛒 상점", C.Pink, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(16, 128), TextSize = 18 })
 	shopBtn.MouseButton1Click:Connect(function()
 		toggleShop()
 	end)
-	local rankBtn = button(gui, "🏆 랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(146, 46), Position = UDim2.fromOffset(170, 128), TextSize = 19 })
+	local questBtn = button(gui, "📋 미션", C.Green, { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(118, 128), TextSize = 18 })
+	questBtn.MouseButton1Click:Connect(function()
+		openQuests()
+	end)
+	local rankBtn = button(gui, "🏆 랭킹", Color3.fromRGB(230, 160, 20), { Size = UDim2.fromOffset(96, 46), Position = UDim2.fromOffset(220, 128), TextSize = 18 })
 	rankBtn.MouseButton1Click:Connect(openBoard)
 
 	-- 접속자 목록 (왼쪽, 채팅창 위)
@@ -602,9 +737,9 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	tabButtons = {}
 	pages = {}
-	local tabs = { { "Weapons", "🔫 무기" }, { "Crate", "🎁 크로마 크레이트" }, { "Collection", "🎨 컬렉션" } }
+	local tabs = { { "Weapons", "🔫 무기" }, { "Skins", "🪙 스킨 상점" }, { "Crate", "🎁 크레이트" }, { "Collection", "🎨 컬렉션" } }
 	for i, t in ipairs(tabs) do
-		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(250, 48), Position = UDim2.fromOffset(20 + (i - 1) * 262, 76), TextSize = 21 })
+		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(196, 48), Position = UDim2.fromOffset(20 + (i - 1) * 206, 76), TextSize = 20 })
 		b.MouseButton1Click:Connect(function()
 			showTab(t[1])
 		end)
@@ -628,6 +763,19 @@ function Lobby.Init(remoteFolder, hud)
 	boardList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -136), Position = UDim2.fromOffset(16, 120), BackgroundTransparency = 1, BorderSizePixel = 0,
 		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, board)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, boardList)
+
+	-- 미션 창
+	questPanel = UI.Panel(gui, "📋 일일 · 주간 미션", UDim2.fromOffset(720, 640), C.Green)
+	questPanel.Visible = false
+	UI.CloseButton(questPanel, function()
+		questPanel.Visible = false
+		updateModal()
+	end, 44)
+	label(questPanel, { Text = "미션을 달성하면 코인이 자동으로 들어와요 · 코인으로 스킨 상점에서 원하는 스킨을 구매", TextSize = 16, TextColor3 = C.Sub,
+		Position = UDim2.fromOffset(20, 72), Size = UDim2.new(1, -40, 0, 22) })
+	questList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -120), Position = UDim2.fromOffset(16, 104), BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, questPanel)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }, questList)
 
 	reveal = make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(6, 4, 14), BackgroundTransparency = 0.25, Visible = false, ZIndex = 20 }, gui)
 
@@ -656,13 +804,19 @@ function Lobby.Init(remoteFolder, hud)
 		end
 		if input.KeyCode == Enum.KeyCode.B then
 			toggleShop()
-		elseif input.KeyCode == Enum.KeyCode.Escape and (shop.Visible or board.Visible) then
+		elseif input.KeyCode == Enum.KeyCode.Escape and (shop.Visible or board.Visible or questPanel.Visible) then
 			shop.Visible = false
 			board.Visible = false
+			questPanel.Visible = false
 			updateModal()
 		end
 	end)
-	for _, attr in ipairs({ "Coins", "Rating", "Tier", "Wins", "Vip" }) do
+	player:GetAttributeChangedSignal("Quests"):Connect(function()
+		if questPanel.Visible then
+			Lobby.UpdateQuests()
+		end
+	end)
+	for _, attr in ipairs({ "Coins", "Rating", "Tier", "Wins", "Vip", "Level" }) do
 		player:GetAttributeChangedSignal(attr):Connect(refreshProfile)
 	end
 	player:GetAttributeChangedSignal("Queue"):Connect(function()

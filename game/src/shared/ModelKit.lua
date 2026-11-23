@@ -257,6 +257,31 @@ function ModelKit.Armor(character, color)
 			piece(l, Vector3.new(s.X * 0.5, 0.1, 0.24), CFrame.new(0, y, -(s.Z / 2 + 0.08)), color, Enum.Material.Neon)
 		end
 	end
+	-- 장갑 · 부츠 · 팔꿈치 패드
+	for _, n in ipairs({ "LeftHand", "RightHand" }) do
+		local h = character:FindFirstChild(n)
+		if h then
+			local sz = h.Size
+			piece(h, sz * 1.12, CFrame.new(), Color3.fromRGB(30, 30, 38), Enum.Material.Fabric)
+			piece(h, Vector3.new(sz.X * 1.16, 0.08, sz.Z * 1.16), CFrame.new(0, sz.Y / 2 - 0.02, 0), color, Enum.Material.Neon)
+		end
+	end
+	for _, n in ipairs({ "LeftFoot", "RightFoot" }) do
+		local f = character:FindFirstChild(n)
+		if f then
+			local sz = f.Size
+			piece(f, Vector3.new(sz.X * 1.15, sz.Y * 1.25, sz.Z * 1.18), CFrame.new(0, 0.02, -0.03), Color3.fromRGB(40, 38, 50), Enum.Material.Leather)
+			piece(f, Vector3.new(sz.X * 1.18, 0.1, sz.Z * 1.2), CFrame.new(0, sz.Y * 0.62, -0.03), color, Enum.Material.Neon)
+			piece(f, Vector3.new(sz.X * 1.17, 0.12, sz.Z * 1.21), CFrame.new(0, -sz.Y * 0.55, -0.03), Color3.fromRGB(235, 235, 240), Enum.Material.SmoothPlastic)
+		end
+	end
+	for _, n in ipairs({ "LeftLowerArm", "RightLowerArm" }) do
+		local a = character:FindFirstChild(n)
+		if a then
+			local sz = a.Size
+			piece(a, Vector3.new(sz.X * 1.15, 0.32, sz.Z * 1.15), CFrame.new(0, sz.Y / 2 - 0.12, 0), ARMOR, Enum.Material.Metal)
+		end
+	end
 	local hip = character:FindFirstChild("LowerTorso") or torso
 	if hip then
 		local s = hip.Size
@@ -300,6 +325,138 @@ function ModelKit.Recolor(model, accent, bodyColor, bodyMaterial)
 			elseif k == "Body" and bodyColor then
 				p.Color = bodyColor
 				p.Material = bodyMaterial or p.Material
+			end
+		end
+	end
+end
+
+------------------------------------------------------------------------
+-- 미션 보상 아이템 3D 모델 (카툰풍: 둥근 모서리·굵은 색 띠·네온 포인트)
+-- 앞(-Z) 기준, 손잡이/중심이 원점. HUD 아이콘(ViewportFrame)과 몸에 차는 제트팩에 씀
+------------------------------------------------------------------------
+local function ip(m, shape, size, cf, color, mat, name)
+	local p = Instance.new("Part")
+	p.Name = name or "Item"
+	p.Shape = shape or Enum.PartType.Block
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Parent = m
+	return p
+end
+local CYL, BALL, BLOCK = Enum.PartType.Cylinder, Enum.PartType.Ball, Enum.PartType.Block
+local UPR = CFrame.Angles(0, 0, math.rad(90)) -- 원기둥 세우기
+local FWD = CFrame.Angles(0, math.rad(90), 0) -- 원기둥 앞뒤로 눕히기
+
+local ITEM_BUILDERS = {}
+
+ITEM_BUILDERS.Jetpack = function(m, accent)
+	local white = Color3.fromRGB(236, 238, 246)
+	ip(m, BLOCK, Vector3.new(1.9, 1.7, 0.35), CFrame.new(0, 0, 0), Color3.fromRGB(50, 52, 66), Enum.Material.Metal, "Plate")
+	for _, x in ipairs({ -0.55, 0.55 }) do
+		ip(m, CYL, Vector3.new(1.7, 0.9, 0.9), CFrame.new(x, 0, 0.55) * UPR, white, Enum.Material.SmoothPlastic, "Tank")
+		ip(m, BALL, Vector3.new(0.9, 0.9, 0.9), CFrame.new(x, 0.85, 0.55), white, Enum.Material.SmoothPlastic, "Cap")
+		ip(m, CYL, Vector3.new(0.18, 0.95, 0.95), CFrame.new(x, 0.35, 0.55) * UPR, accent, Enum.Material.Neon, "Stripe")
+		ip(m, CYL, Vector3.new(0.18, 0.95, 0.95), CFrame.new(x, -0.3, 0.55) * UPR, accent, Enum.Material.Neon, "Stripe")
+		local n = ip(m, CYL, Vector3.new(0.45, 0.6, 0.6), CFrame.new(x, -1.05, 0.55) * UPR, Color3.fromRGB(60, 60, 70), Enum.Material.Metal, "Nozzle")
+		local a = Instance.new("Attachment")
+		a.Name = "Flame"
+		a.Position = Vector3.new(-0.3, 0, 0) -- 원기둥 로컬 -X = 아래
+		a.Parent = n
+	end
+	ip(m, BLOCK, Vector3.new(1.4, 0.25, 0.5), CFrame.new(0, 0.6, 0.3), accent, Enum.Material.SmoothPlastic, "Strap")
+end
+
+ITEM_BUILDERS.Shield = function(m, accent)
+	local blue = Color3.fromRGB(70, 170, 255)
+	ip(m, CYL, Vector3.new(0.35, 2.2, 2.2), CFrame.new(0, 0, 0) * FWD, Color3.fromRGB(230, 236, 250), Enum.Material.SmoothPlastic, "Rim")
+	ip(m, CYL, Vector3.new(0.45, 1.8, 1.8), CFrame.new(0, 0, -0.02) * FWD, blue, Enum.Material.SmoothPlastic, "Face")
+	ip(m, BALL, Vector3.new(1.3, 1.3, 0.6), CFrame.new(0, 0, -0.2), Color3.fromRGB(140, 220, 255), Enum.Material.Glass, "Dome")
+	ip(m, BLOCK, Vector3.new(0.25, 0.9, 0.2), CFrame.new(0, 0.05, -0.5), Color3.new(1, 1, 1), Enum.Material.Neon, "Cross")
+	ip(m, BLOCK, Vector3.new(0.9, 0.25, 0.2), CFrame.new(0, 0.05, -0.5), Color3.new(1, 1, 1), Enum.Material.Neon, "Cross")
+end
+
+ITEM_BUILDERS.Smoke = function(m, accent)
+	local grey = Color3.fromRGB(110, 120, 128)
+	ip(m, CYL, Vector3.new(1.3, 0.9, 0.9), CFrame.new(0, 0, 0) * UPR, grey, Enum.Material.SmoothPlastic, "Body")
+	ip(m, CYL, Vector3.new(0.3, 0.95, 0.95), CFrame.new(0, 0.1, 0) * UPR, Color3.fromRGB(255, 255, 255), Enum.Material.SmoothPlastic, "Band")
+	ip(m, CYL, Vector3.new(0.2, 0.96, 0.96), CFrame.new(0, -0.35, 0) * UPR, Color3.fromRGB(255, 200, 40), Enum.Material.Neon, "Band")
+	ip(m, CYL, Vector3.new(0.3, 0.55, 0.55), CFrame.new(0, 0.8, 0) * UPR, Color3.fromRGB(60, 62, 70), Enum.Material.Metal, "Top")
+	ip(m, BLOCK, Vector3.new(0.18, 0.9, 0.3), CFrame.new(0.4, 0.45, 0) * CFrame.Angles(0, 0, math.rad(-12)), Color3.fromRGB(70, 72, 80), Enum.Material.Metal, "Lever")
+	ip(m, CYL, Vector3.new(0.08, 0.45, 0.45), CFrame.new(-0.35, 0.95, 0) * FWD, Color3.fromRGB(220, 220, 230), Enum.Material.Metal, "Pin")
+end
+
+local function scope(m, accent, label)
+	local black = Color3.fromRGB(34, 34, 42)
+	ip(m, CYL, Vector3.new(2.6, 0.55, 0.55), CFrame.new(0, 0, 0) * FWD, black, Enum.Material.SmoothPlastic, "Tube")
+	ip(m, CYL, Vector3.new(0.5, 0.8, 0.8), CFrame.new(0, 0, -1.2) * FWD, black, Enum.Material.SmoothPlastic, "Bell")
+	ip(m, CYL, Vector3.new(0.45, 0.68, 0.68), CFrame.new(0, 0, 1.15) * FWD, black, Enum.Material.SmoothPlastic, "Eye")
+	ip(m, CYL, Vector3.new(0.06, 0.7, 0.7), CFrame.new(0, 0, -1.46) * FWD, Color3.fromRGB(120, 200, 255), Enum.Material.Neon, "Lens")
+	for _, z in ipairs({ -0.5, 0.5 }) do
+		ip(m, CYL, Vector3.new(0.14, 0.62, 0.62), CFrame.new(0, 0, z) * FWD, accent, Enum.Material.Neon, "Ring")
+		ip(m, BLOCK, Vector3.new(0.3, 0.45, 0.3), CFrame.new(0, -0.4, z), Color3.fromRGB(70, 70, 80), Enum.Material.Metal, "Mount")
+	end
+	ip(m, CYL, Vector3.new(0.3, 0.32, 0.32), CFrame.new(0, 0.38, 0) * UPR, accent, Enum.Material.SmoothPlastic, "Turret")
+end
+ITEM_BUILDERS.Zoom3 = function(m)
+	scope(m, Color3.fromRGB(80, 230, 120))
+end
+ITEM_BUILDERS.Zoom6 = function(m)
+	scope(m, Color3.fromRGB(255, 80, 90))
+end
+
+local GOLD = Color3.fromRGB(255, 196, 40)
+function ModelKit.Item(id, accent)
+	accent = accent or Color3.fromRGB(0, 200, 255)
+	if id == "Golden" then
+		local gun = ModelKit.Gun("Pistol", GOLD, { Color = GOLD }, Enum.Material.Foil)
+		for _, p in ipairs(gun:GetDescendants()) do
+			if p:IsA("BasePart") and p:GetAttribute("Kind") == "Metal" then
+				p.Color = Color3.fromRGB(255, 225, 120)
+				p.Material = Enum.Material.Foil
+			end
+		end
+		return gun
+	end
+	local m = Instance.new("Model")
+	m.Name = "Item_" .. tostring(id)
+	local b = ITEM_BUILDERS[id]
+	if b then
+		b(m, accent)
+	else
+		ip(m, BALL, Vector3.new(1, 1, 1), CFrame.new(), accent, Enum.Material.Neon)
+	end
+	return m
+end
+
+-- 황금총 상태로 손에 든 총을 금색으로 (해제하면 팀 색으로 되돌림)
+function ModelKit.SetGolden(gun, on, accent)
+	for _, p in ipairs(gun:GetDescendants()) do
+		if p:IsA("BasePart") then
+			local k = p:GetAttribute("Kind")
+			if k == "Body" or k == "Metal" or k == "Accent" then
+				if on then
+					if p:GetAttribute("OrigColor") == nil then
+						p:SetAttribute("OrigColor", p.Color)
+						p:SetAttribute("OrigMat", p.Material.Name)
+					end
+					p.Color = (k == "Accent") and Color3.fromRGB(255, 240, 160) or GOLD
+					p.Material = (k == "Accent") and Enum.Material.Neon or Enum.Material.Foil
+				elseif p:GetAttribute("OrigColor") ~= nil then
+					p.Color = p:GetAttribute("OrigColor")
+					p.Material = Enum.Material[p:GetAttribute("OrigMat")] or p.Material
+					if k == "Accent" and accent then
+						p.Color = accent
+					end
+				end
 			end
 		end
 	end

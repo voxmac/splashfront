@@ -21,6 +21,9 @@ local firing = false
 local firedThisPress = false
 local aiming = false
 local crouched = false
+local running = false      -- Shift 누르는 동안
+local walking = false      -- Z로 켜고 끔
+local runBlockedUntil = 0  -- 쏜 직후 잠깐은 달리기 속도 안 붙음
 local lastFire = 0
 local spreadExtra = 0
 local localInk = Config.InkMax
@@ -64,13 +67,32 @@ end
 local vmMuzzle = nil      -- 총구 표식 파트 (Blender 모델의 _Muzzle 또는 대체 모델)
 local vmLength = 1.5
 
--- 1인칭 총 모형은 1인칭일 때만, 저격 조준경을 볼 때는 숨김
+-- 조준 배율: 총마다 ZoomFov, 3배·6배 스코프 아이템이 있으면 더 크게. 반환: 시야각, 조준점 모양, 배율 글자
+local function zoomInfo(w)
+	local fov = w.ZoomFov or 56
+	local buff = player:GetAttribute("ZoomBuff")
+	local untilT = player:GetAttribute("ZoomUntil")
+	if buff and untilT and untilT > workspace:GetServerTimeNow() then
+		fov = math.min(fov, 70 / buff)
+	else
+		buff = nil
+	end
+	local sight = (w.Scope or buff) and "Scope" or (w.Sight or "Dot")
+	local mag = 70 / fov
+	local txt = (sight == "Scope") and string.format("%.1fx", mag) or nil
+	return fov, sight, txt
+end
+WC.ZoomInfo = zoomInfo
+local goldenSpent = false
+
+-- 1인칭 총 모형은 1인칭일 때만, 스코프로 볼 때는 숨김
 function WC.UpdateViewmodelParent()
 	if not viewmodel then
 		return
 	end
 	local w = weapon()
-	local show = enabled and not tpActive() and not (aiming and w.Scope)
+	local _, sight = zoomInfo(w)
+	local show = enabled and not tpActive() and not (aiming and sight == "Scope")
 	viewmodel.Parent = show and camera() or nil
 end
 
@@ -86,6 +108,16 @@ local function buildViewmodel()
 	local _, size = m:GetBoundingBox()
 	vmLength = math.max(size.Z, 0.8)
 	vmMuzzle = muzzle
+	-- 카툰 외곽선 (셀 셰이딩 느낌)
+	local hl = Instance.new("Highlight")
+	hl.FillTransparency = 1
+	hl.OutlineColor = Color3.fromRGB(18, 16, 28)
+	hl.OutlineTransparency = 0
+	hl.DepthMode = Enum.HighlightDepthMode.Occluded
+	hl.Parent = m
+	if player:GetAttribute("Golden") then
+		ModelKit.SetGolden(m, true)
+	end
 	viewmodel = m
 	WC.UpdateViewmodelParent()
 end
@@ -104,7 +136,7 @@ local function placeViewmodel(dt)
 	end
 	-- Anchor(손잡이) 기준 위치: 오른쪽 아래(허리 사격) / 화면 가운데(조준)
 	local hipOffset = CFrame.new(0.85, -0.95, -1.25)
-	local adsOffset = CFrame.new(0, -0.62, -0.95)
+	local adsOffset = CFrame.new(0, -0.8, -1.0) -- 조준점 아래로 내려 표적이 가리지 않게
 	local offset = aiming and adsOffset or hipOffset
 	local t = os.clock()
 	local hum = humanoid()
@@ -155,8 +187,16 @@ local function currentSpread(w)
 		s = s * 0.5
 	end
 	local hum = humanoid()
-	if hum and hum.MoveDirection.Magnitude > 0.1 and not crouched then
-		s = s + 0.6
+	local moving = hum and hum.MoveDirection.Magnitude > 0.1
+	if moving and not crouched then
+		if running and not aiming then
+			s = s + 1.4
+		elseif not walking then
+			s = s + 0.6
+		end
+	end
+	if walking then
+		s = s * 0.7
 	end
 	if crouched then
 		s = s * 0.8
@@ -170,7 +210,8 @@ local function fire()
 	if now - lastFire < w.FireInterval then
 		return
 	end
-	if localInk < w.InkCost then
+	local golden = player:GetAttribute("Golden") == true and not goldenSpent
+	if not golden and localInk < w.InkCost then
 		if now - lastFire > 0.35 then
 			lastFire = now
 			SoundBank.Play("low_ink", nil, 0.6)
@@ -183,12 +224,19 @@ local function fire()
 		return
 	end
 	lastFire = now
-	localInk = localInk - w.InkCost
+	runBlockedUntil = now + 0.4
+	if golden then
+		goldenSpent = true
+	else
+		localInk = localInk - w.InkCost
+	end
 
 	local cam = camera()
 	local origin = cam.CFrame.Position
 	local look = cam.CFrame.LookVector
-	local spread = currentSpread(w)
+	local spread = golden and 0 or currentSpread(w)
+	local range = golden and Config.GoldenRange or w.Range
+	local pellets = golden and 1 or w.Pellets
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character, viewmodel, workspace:FindFirstChild("ClientFX"), workspace:FindFirstChild("FX") }
@@ -206,15 +254,18 @@ local function fire()
 		end
 	end
 	local dirs = {}
-	local color = teamColor()
+	local color = golden and Color3.fromRGB(255, 205, 40) or teamColor()
 	local muzzle = muzzleCFrame().Position
 	local claims = {}
-	for i = 1, w.Pellets do
+	for i = 1, pellets do
 		local d = coneDir(look, spread)
 		dirs[i] = d
-		local hit = workspace:Raycast(origin, d * w.Range, params)
-		local to = hit and hit.Position or (origin + d * w.Range)
-		Effects.Tracer(muzzle, to, color, w.Id == "Sniper" and 0.3 or 0.16)
+		local hit = workspace:Raycast(origin, d * range, params)
+		local to = hit and hit.Position or (origin + d * range)
+		Effects.Tracer(muzzle, to, color, golden and 0.6 or (w.Id == "Sniper" and 0.3 or 0.16))
+		if hit then
+			Effects.WallSplat(hit.Instance, hit.Position, hit.Normal, color)
+		end
 		-- 내 화면에서 캐릭터를 맞혔으면 서버에 알림 (서버가 위치·시야를 검증해 인정)
 		if hit then
 			local model = hit.Instance:FindFirstAncestorOfClass("Model")
@@ -258,10 +309,11 @@ local function setAim(on)
 	local w = weapon()
 	local fov = 70
 	if on then
-		fov = w.Scope and w.ScopeFov or 56
+		fov = zoomInfo(w)
 	end
 	TweenService:Create(camera(), TweenInfo.new(0.12), { FieldOfView = fov }):Play()
-	UserInputService.MouseDeltaSensitivity = (on and w.Scope) and 0.3 or 1
+	-- 확대한 만큼 감도를 낮춰 정밀 조준
+	UserInputService.MouseDeltaSensitivity = on and math.clamp(fov / 70, 0.15, 1) or 1
 	if thirdPerson and applyViewRef then
 		applyViewRef() -- 3인칭 ↔ 1인칭 조준 전환
 	end
@@ -306,13 +358,24 @@ local function updateSpeed()
 	elseif owner ~= 0 then
 		speed = Config.WalkSpeedEnemy
 	end
+	local mode = "일반"
 	if crouched then
 		speed = speed * Config.CrouchSpeedMul
+		mode = "앉기"
+	elseif running and not aiming and os.clock() > runBlockedUntil and hum.MoveDirection.Magnitude > 0.1 then
+		speed = speed * Config.RunSpeedMul
+		mode = "달리기"
+	elseif walking then
+		speed = speed * Config.WalkSpeedMul
+		mode = "걷기"
 	end
 	if aiming then
 		speed = speed * 0.75
 	end
 	hum.WalkSpeed = speed
+	if HUD and HUD.SetMove then
+		HUD.SetMove(mode)
+	end
 end
 
 ------------------------------------------------------------------------
@@ -448,6 +511,19 @@ local function onAction(name, inputState)
 		special()
 	elseif name == "SF_Crouch" and began then
 		setCrouch(not crouched)
+		if crouched then
+			running = false
+		end
+	elseif name == "SF_Run" then
+		running = (inputState == Enum.UserInputState.Begin)
+		if running and crouched then
+			setCrouch(false)
+		end
+		updateSpeed()
+	elseif name == "SF_Walk" and began then
+		walking = not walking
+		HUD.Banner(walking and "🚶 걷기 (조용히 · 정밀 사격) [Z]" or "일반 이동", Color3.fromRGB(200, 220, 255))
+		updateSpeed()
 	elseif name == "SF_View" and began then
 		WC.ToggleView()
 	end
@@ -459,6 +535,10 @@ bindAll = function()
 	ContextActionService:BindAction("SF_Aim", onAction, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
 	ContextActionService:BindAction("SF_Special", onAction, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonY)
 	ContextActionService:BindAction("SF_Crouch", onAction, true, Enum.KeyCode.C, Enum.KeyCode.LeftControl, Enum.KeyCode.ButtonB)
+	ContextActionService:BindAction("SF_Run", onAction, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+	ContextActionService:BindAction("SF_Walk", onAction, false, Enum.KeyCode.Z)
+	ContextActionService:SetTitle("SF_Run", "달리기")
+	ContextActionService:SetPosition("SF_Run", UDim2.new(1, -170, 1, -220))
 	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
@@ -473,7 +553,8 @@ bindAll = function()
 end
 
 unbindAll = function()
-	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View" }) do
+	running = false
+	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk" }) do
 		ContextActionService:UnbindAction(n)
 	end
 end
@@ -514,6 +595,20 @@ function WC.Init(remoteFolder, hud, effects)
 	end)
 	player:GetAttributeChangedSignal("Ink"):Connect(function()
 		localInk = player:GetAttribute("Ink") or localInk
+	end)
+	player:GetAttributeChangedSignal("Golden"):Connect(function()
+		if player:GetAttribute("Golden") then
+			goldenSpent = false
+			HUD.Banner("✨ 황금총 장전! 다음 1발은 맞으면 즉사", Color3.fromRGB(255, 210, 60))
+		end
+		if enabled then
+			buildViewmodel()
+		end
+	end)
+	player:GetAttributeChangedSignal("ZoomBuff"):Connect(function()
+		if aiming then
+			setAim(true)
+		end
 	end)
 	player:GetAttributeChangedSignal("Skin"):Connect(function()
 		if enabled then
@@ -666,7 +761,8 @@ function WC.Init(remoteFolder, hud, effects)
 			speedTimer = 0
 			updateSpeed()
 		end
-		HUD.Update(currentSpread(w) * 7, w.Id, aiming and w.Scope == true)
+		local _, sight, ztxt = zoomInfo(w)
+		HUD.Update(currentSpread(w) * 7, w.Id, aiming and sight or nil, aiming and ztxt or nil)
 	end)
 end
 

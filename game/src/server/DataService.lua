@@ -32,6 +32,9 @@ local function defaultProfile()
 		EquippedEffect = nil,
 		CratePity = 0,           -- 마지막 레전더리 이후 개봉 수
 		CratesOpened = 0,
+		Level = 1,
+		XP = 0,
+		Quests = {},             -- QuestService가 관리 (기간 키 + 진행도)
 	}
 end
 
@@ -62,6 +65,9 @@ function DataService.Publish(player)
 	player:SetAttribute("KillEffect", p.EquippedEffect)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
 	player:SetAttribute("CratePity", p.CratePity or 0)
+	player:SetAttribute("Level", p.Level or 1)
+	player:SetAttribute("XP", p.XP or 0)
+	player:SetAttribute("XPNeed", Config.XPNeed(p.Level or 1))
 	local ls = player:FindFirstChild("leaderstats")
 	if ls then
 		ls.Rating.Value = p.Rating
@@ -118,6 +124,26 @@ function DataService.Load(player)
 	player:SetAttribute("FirstMatch", (p.Matches or 0) == 0)
 	DataService.Publish(player)
 	return p
+end
+
+-- 경험치: 레벨업하면 코인 보너스. 반환: 이번에 오른 레벨 수
+function DataService.AddXP(player, amount)
+	local p = profiles[player]
+	if not p or amount <= 0 then
+		return 0
+	end
+	p.Level = p.Level or 1
+	p.XP = (p.XP or 0) + math.floor(amount)
+	local ups = 0
+	while p.XP >= Config.XPNeed(p.Level) do
+		p.XP = p.XP - Config.XPNeed(p.Level)
+		p.Level = p.Level + 1
+		ups = ups + 1
+		p.Coins = p.Coins + Config.LevelReward(p.Level)
+		player:SetAttribute("LevelUp", p.Level .. ":" .. Config.LevelReward(p.Level) .. ":" .. os.clock())
+	end
+	DataService.Publish(player)
+	return ups
 end
 
 function DataService.Reset(player)
