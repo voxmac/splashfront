@@ -1594,7 +1594,13 @@ local WALL_H = 160
 
 local function findSource()
 		local names = { "BigCity", "Big City", "Big_City" }
-	for _, holder in ipairs({ ServerStorage:FindFirstChild("Maps"), ServerStorage, workspace }) do
+	-- (주의: 표 맨 앞이 nil이면 ipairs가 바로 멈추므로 있는 것만 넣음)
+	local holders = { ServerStorage, workspace }
+	local mapsFolder = ServerStorage:FindFirstChild("Maps")
+	if mapsFolder then
+		table.insert(holders, 1, mapsFolder)
+	end
+	for _, holder in ipairs(holders) do
 		if holder then
 			for _, n in ipairs(names) do
 				local m = holder:FindFirstChild(n)
