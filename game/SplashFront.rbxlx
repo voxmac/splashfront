@@ -8144,7 +8144,7 @@ function HUD.OnState(s)
 		local f = make("Frame", { Size = UDim2.new(share, 0, 1, 0), BackgroundColor3 = t.Color, BorderSizePixel = 0, LayoutOrder = i }, barHolder)
 		if share > 0.12 then
 			local label = (s.Mode == "Flag") and string.format("%s %.0f", t.Name, t.Score)
-				or string.format("%.0f점 · 칠 %.0f%%", t.Score, t.Coverage or 0)
+				or string.format("%.0f점 · 페인트 %.0f%%", t.Score, t.Coverage or 0)
 			text(f, { Size = UDim2.fromScale(1, 1), Text = label, Font = Enum.Font.GothamBold })
 		end
 	end
@@ -8763,7 +8763,7 @@ function HUD.ShowResults(r)
 			end
 			local title = (i == 1 and mine == t.OwnerId) and ("우리 팀 · " .. t.Name) or ((mine and i == 2) and ("상대 팀 · " .. t.Name) or t.Name)
 			local st = (r.Mode == "Flag") and string.format("%.0f점", t.Score)
-				or string.format("%.1f점 (칠 %.1f%% · 처치 %d)", t.Score, t.Coverage or 0, t.Kills or 0)
+				or string.format("%.1f점 (페인트 %.1f%% · 처치 %d)", t.Score, t.Coverage or 0, t.Kills or 0)
 			teamTable(results, 20 + (i - 1) * 490, 470, title, t.Color, st, sortRows(rows))
 		end
 		text(results, { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0.5, -20, 0, 112), Text = "VS", ZIndex = 13, TextColor3 = Color3.fromRGB(255, 255, 255) })
