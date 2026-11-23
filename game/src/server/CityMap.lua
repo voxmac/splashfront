@@ -14,9 +14,7 @@ local MAX_X, MAX_Z = 380, 260          -- 전투 구역 최대 크기 (도시가
 local WALL_H = 160
 
 local function findSource()
-	-- 공동 작업(Team Create) 테스트에서는 ServerStorage의 큰 모델이 스크립트보다 늦게 들어올 수 있어 잠깐 기다림
-	ServerStorage:WaitForChild("BigCity", 8)
-	local names = { "BigCity", "Big City", "Big_City" }
+		local names = { "BigCity", "Big City", "Big_City" }
 	for _, holder in ipairs({ ServerStorage:FindFirstChild("Maps"), ServerStorage, workspace }) do
 		if holder then
 			for _, n in ipairs(names) do
@@ -63,7 +61,6 @@ end
 function CityMap.Build()
 	local src = findSource()
 	if not src then
-		warn("[SplashFront] 시가전 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
 		return nil
 	end
 	local old = workspace:FindFirstChild("Arena_City")

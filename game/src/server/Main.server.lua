@@ -65,13 +65,34 @@ local maps = {
 	MapBuilder.BuildArena(),      -- 크로마 스퀘어
 	MapBuilder.BuildSkyRooftop(), -- 스카이 루프탑
 }
--- 시가전: ServerStorage에 BigCity 모델이 있을 때만 추가
+-- 시가전: ServerStorage에 BigCity 모델이 있으면 추가. 공동 작업 테스트에서는 모델이 늦게 들어오므로 들어오는 즉시 추가
 do
-	local ok, city = pcall(require(script.Parent.CityMap).Build)
-	if ok and city then
-		table.insert(maps, city)
-	elseif not ok then
-		warn("[SplashFront] 시가전 맵 생성 실패: " .. tostring(city))
+	local CityMap = require(script.Parent.CityMap)
+	local function tryCity()
+		for _, m in ipairs(maps) do
+			if m.Id == "BigCity" then
+				return true
+			end
+		end
+		local ok, city = pcall(CityMap.Build)
+		if ok and city then
+			table.insert(maps, city) -- MatchService가 같은 표를 쓰므로 바로 맵 목록에 나타남
+			return true
+		elseif not ok then
+			warn("[SplashFront] 시가전 맵 생성 실패: " .. tostring(city))
+		end
+		return false
+	end
+	if not tryCity() then
+		task.spawn(function()
+			local src = game:GetService("ServerStorage"):WaitForChild("BigCity", 300)
+			if src then
+				task.wait(2)
+				tryCity()
+			else
+				warn("[SplashFront] 시가전 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
+			end
+		end)
 	end
 end
 
