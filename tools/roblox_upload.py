@@ -16,8 +16,16 @@ WHAT = sys.argv[1] if len(sys.argv) > 1 else "all"
 API = "https://apis.roblox.com/assets/v1"
 IDS = os.path.join(ROOT, "assets", "roblox_ids.json")
 
-if not KEY or ":" not in CREATOR:
-    sys.exit("Set ROBLOX_API_KEY and ROBLOX_CREATOR (user:<id> or group:<id>)")
+KEY = KEY.strip()
+CREATOR = CREATOR.strip().replace(" ", "").lower()
+if CREATOR.isdigit():                       # just a number -> a user id
+    CREATOR = "user:" + CREATOR
+for prefix in ("userid:", "userid=", "user=", "groupid:", "groupid=", "group="):
+    if CREATOR.startswith(prefix):
+        CREATOR = ("user:" if prefix.startswith("user") else "group:") + CREATOR[len(prefix):]
+if not KEY or ":" not in CREATOR or not CREATOR.split(":", 1)[1].isdigit() or CREATOR.split(":")[0] not in ("user", "group"):
+    sys.exit(f"Set ROBLOX_API_KEY and ROBLOX_CREATOR as user:<id> or group:<id> (got a {len(CREATOR)}-character value"
+             f"{', no digits' if not any(c.isdigit() for c in CREATOR) else ''})")
 kind, cid = CREATOR.split(":", 1)
 creator = {"userId": cid} if kind == "user" else {"groupId": cid}
 ids = json.load(open(IDS, encoding="utf-8")) if os.path.exists(IDS) else {}
