@@ -558,7 +558,7 @@ function MapBuilder.BuildLobby()
 		t.BackgroundTransparency = 0.2
 		t.TextScaled = true
 		t.TextColor3 = Color3.new(1, 1, 1)
-		t.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic)
+		t.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 		local w = require(ReplicatedStorage.Shared.Weapons).Get(dsp[3])
 		t.Text = string.upper(w.Class) .. "  ·  " .. w.Name
 		t.Parent = bb

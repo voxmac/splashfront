@@ -25,7 +25,7 @@ UI.Colors = {
 -- 글꼴: 제목·버튼·숫자는 두꺼운 이탤릭 (하이퍼 FPS 느낌), 본문은 Gotham Bold
 UI.Fonts = {
 	Heavy = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
-	Black = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black, Enum.FontStyle.Italic),
+	Black = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
 }
 local ITALIC_FONTS = { [Enum.Font.GothamBlack] = true, [Enum.Font.FredokaOne] = true, [Enum.Font.LuckiestGuy] = true }
 local C = UI.Colors
