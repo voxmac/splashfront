@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
+local UI = require(script.Parent:WaitForChild("UIKit"))
 
 local player = Players.LocalPlayer
 local CBT = {}
@@ -99,11 +100,10 @@ local function buildFeedback()
 	corner(box, 8)
 	make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingTop = UDim.new(0, 6), PaddingRight = UDim.new(0, 8) }, box)
 	local send = button(feedbackFrame, "보내기", Color3.fromRGB(0, 170, 160), { Size = UDim2.fromOffset(140, 38), Position = UDim2.new(1, -158, 1, -52), ZIndex = 31 })
-	local close = button(feedbackFrame, "닫기", nil, { Size = UDim2.fromOffset(100, 38), Position = UDim2.new(1, -268, 1, -52), ZIndex = 31 })
-	close.MouseButton1Click:Connect(function()
+	UI.CloseButton(feedbackFrame, function()
 		feedbackFrame.Visible = false
 		modalHandler(adminFrame.Visible)
-	end)
+	end, 36).ZIndex = 35
 	send.MouseButton1Click:Connect(function()
 		if rating == 0 then
 			HUD.Banner("별점을 먼저 골라주세요", Color3.fromRGB(255, 200, 80))
@@ -142,12 +142,15 @@ local function admin(action, arg)
 end
 
 local function buildAdmin()
-	adminFrame = make("Frame", { Size = UDim2.fromOffset(560, 470), Position = UDim2.new(0, 16, 0.5, -235), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
+	adminFrame = make("Frame", { Size = UDim2.fromOffset(560, 470), Position = UDim2.new(0.5, -280, 0.5, -235), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
 	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 196, 0) }, adminFrame)
 	label(adminFrame, { Text = "CBT 관리자 패널 (F2) · 빌드 " .. Config.Build, TextSize = 18, Font = Enum.Font.GothamBlack,
-		Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 26), ZIndex = 41 })
+		Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -80, 0, 26), ZIndex = 41 })
+	UI.CloseButton(adminFrame, function()
+		CBT.ToggleAdmin()
+	end, 32).ZIndex = 45
 	local argBox = make("TextBox", { Size = UDim2.fromOffset(120, 30), Position = UDim2.fromOffset(14, 40), BackgroundColor3 = Color3.fromRGB(36, 36, 50),
 		TextColor3 = Color3.new(1, 1, 1), PlaceholderText = "숫자 입력", Text = "", Font = Enum.Font.Code, TextSize = 15, ZIndex = 41 }, adminFrame)
 	corner(argBox, 6)
@@ -199,9 +202,9 @@ function CBT.Init(remoteFolder, hud)
 	buildAdmin()
 
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
-	feedbackBtn = button(gui, "💬 피드백 [F4]", Color3.fromRGB(0, 150, 140), { Size = UDim2.fromOffset(150, 36), Position = UDim2.new(0, 16, 1, -52), ZIndex = 25 })
-	feedbackBtn.MouseButton1Click:Connect(CBT.OpenFeedback)
-	label(gui, { Text = "CLOSED BETA · " .. Config.Build, Position = UDim2.new(1, -220, 1, -28), Size = UDim2.fromOffset(204, 20), TextSize = 12,
+	-- 0.5: 왼쪽 아래 피드백 버튼 제거 (채팅창 자리). 피드백은 F4 또는 결과 화면 안내로
+	feedbackBtn = nil
+	label(gui, { Text = "CLOSED BETA · " .. Config.Build, Position = UDim2.new(1, -220, 0, 2), Size = UDim2.fromOffset(204, 20), TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = Color3.fromRGB(200, 200, 220), Font = Enum.Font.GothamBold })
 
 	UserInputService.InputBegan:Connect(function(input, processed)
@@ -214,15 +217,11 @@ function CBT.Init(remoteFolder, hud)
 			CBT.OpenFeedback()
 		end
 	end)
-	player:GetAttributeChangedSignal("InMatch"):Connect(function()
-		-- 경기 중에는 버튼을 숨겨 화면을 가리지 않게 함 (F4로는 열 수 있음)
-		feedbackBtn.Visible = not player:GetAttribute("InMatch")
-	end)
+
 end
 
 -- 결과 화면이 뜰 때 피드백 유도
 function CBT.OnResults()
-	feedbackBtn.Visible = true
 	HUD.Banner("이번 판 어땠나요? 💬 피드백 [F4]", Color3.fromRGB(0, 214, 200))
 end
 

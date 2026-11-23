@@ -19,6 +19,8 @@ local MatchService = {}
 local remotes, arena, lobby
 local maps = {}
 local nextMapIndex = 1
+local queueMap = {}    -- queueId -> 방장이 고른 맵 Id ("random" 포함)
+local joinAt = {}      -- player -> 대기열 참가 시각 (발판 이탈 검사 유예)
 local S = {
 	Phase = "Lobby",
 	QueueId = nil,
@@ -159,6 +161,41 @@ local function broadcast()
 			l.Text = text
 		end
 	end
+	-- 대기열별 방장(먼저 들어온 사람)·선택 맵
+	local queueInfo = {}
+	local counts = queueCounts()
+	for _, q in ipairs(Config.Queues) do
+		local host = MatchService.QueueHost(q.Id)
+		if counts[q.Id] == 0 then
+			queueMap[q.Id] = nil
+		end
+		local choice = queueMap[q.Id]
+		local mapName = "순환 (" .. (maps[nextMapIndex] and maps[nextMapIndex].Name or "") .. ")"
+		if choice == "random" then
+			mapName = "랜덤"
+		elseif choice then
+			for _, m in ipairs(maps) do
+				if m.Id == choice then
+					mapName = m.Name
+				end
+			end
+		end
+		queueInfo[q.Id] = { Host = host and host.DisplayName or nil, HostId = host and host.UserId or nil, Map = mapName, MapId = choice }
+		-- 로비 발판 위 안내판
+		local pl = lobby and lobby.QueueLabels and lobby.QueueLabels[q.Id]
+		if pl then
+			local n = counts[q.Id]
+			local line2 = (n > 0) and string.format('<font color="#FFE060">대기 %d명</font>', n) or '<font color="#B0B0C8">발판을 밟아 참가</font>'
+			local txt = pl.Title .. (pl.Ranked and "  [랭크]" or "") .. "\n" .. line2
+			if pl.Label.Text ~= txt then
+				pl.Label.Text = txt
+			end
+		end
+	end
+	local mapList = {}
+	for _, m in ipairs(maps) do
+		table.insert(mapList, { Id = m.Id, Name = m.Name })
+	end
 	remotes.State:FireAllClients({
 		Phase = S.Phase,
 		QueueId = S.QueueId,
@@ -171,7 +208,9 @@ local function broadcast()
 		Teams = scores(),
 		Mission = S.Mission,
 		Flags = flags,
-		QueueCounts = queueCounts(),
+		QueueCounts = counts,
+		QueueInfo = queueInfo,
+		Maps = mapList,
 		FinalSplash = S.FinalSplash,
 	})
 end
@@ -179,39 +218,23 @@ end
 ------------------------------------------------------------------------
 -- 스폰
 ------------------------------------------------------------------------
+-- 팀 보호구: 가슴·등 플레이트, 어깨 패드, 무릎 패드, 탄약 벨트 (ModelKit.Armor)
 local function teamVest(character, color)
-	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
-	if not torso then
-		return
-	end
-	local old = character:FindFirstChild("TeamVest")
+	local old = character:FindFirstChild("SF_Armor")
 	if old then
 		old:Destroy()
 	end
-	local vest = Instance.new("Part")
-	vest.Name = "TeamVest"
-	vest.Size = torso.Size + Vector3.new(0.25, -0.2, 0.25)
-	vest.Color = color
-	vest.Material = Enum.Material.Neon
-	vest.CanCollide = false
-	vest.CanQuery = false
-	vest.Massless = true
-	vest.Transparency = 0.15
-	vest.CFrame = torso.CFrame
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = torso
-	weld.Part1 = vest
-	weld.Parent = vest
-	vest.Parent = character
+	ModelKit.Armor(character, color)
 end
 
 -- 총(오른손) + 크루 헬멧 + 잉크 탱크 백팩 (Blender 모델, 업로드 전에는 내장 대체 모델)
-local function attachGear(e, model)
-	for _, n in ipairs({ "SF_Gun", "SF_Helmet", "SF_Backpack" }) do
-		local old = model:FindFirstChild(n)
-		if old then
-			old:Destroy()
-		end
+-- 손에 든 총: 팔을 앞으로 든 자세(클라이언트 CharacterPose)에서 총구가 정면을 향하도록
+-- 손의 -Y(손끝 방향)를 총의 앞(-Z)으로 맞춤
+local GUN_GRIP = CFrame.new(0, -0.35, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
+local function attachGun(e, model)
+	local old = model:FindFirstChild("SF_Gun")
+	if old then
+		old:Destroy()
 	end
 	local color = MatchService.ColorOf(e.OwnerId)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
@@ -219,8 +242,19 @@ local function attachGear(e, model)
 		local skin = e.Player and Cosmetics.ById[e.Player:GetAttribute("Skin") or ""] or nil
 		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
 		gun.Name = "SF_Gun"
-		ModelKit.WeldTo(gun, hand, CFrame.new(0, -0.25, -0.15))
+		ModelKit.WeldTo(gun, hand, GUN_GRIP)
 	end
+end
+
+local function attachGear(e, model)
+	for _, n in ipairs({ "SF_Helmet", "SF_Backpack" }) do
+		local old = model:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
+	end
+	local color = MatchService.ColorOf(e.OwnerId)
+	attachGun(e, model)
 	local head = model:FindFirstChild("Head")
 	if head then
 		-- 모자 액세서리는 헬멧과 겹치므로 경기 중에만 숨김 (머리카락은 그대로)
@@ -257,6 +291,7 @@ local function activate(e, model)
 	e.Alive = true
 	e.Ink = Config.InkMax
 	e.ProtectedUntil = os.clock() + Config.SpawnProtection
+	e.SpawnedAt = os.clock()
 	local hum = model:FindFirstChildOfClass("Humanoid")
 	hum.MaxHealth = Config.MaxHealth
 	hum.Health = Config.MaxHealth
@@ -347,6 +382,8 @@ onDied = function(e, model)
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
 		Effect = killer and killer.KillEffect or nil,
+		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
+		WeaponClass = killer and Weapons.Get(killer.WeaponId).Class or nil,
 		Pos = root and root.Position or nil,
 		KillerPlayer = killer and killer.Player or nil,
 		VictimPlayer = e.Player,
@@ -469,6 +506,39 @@ end
 ------------------------------------------------------------------------
 -- 경기 시작 / 종료
 ------------------------------------------------------------------------
+-- 색상환에서 충분히 떨어진 두 팀 색을 무작위로 고름
+local function pickTeams()
+	local pal = Config.TeamPalette or Config.Teams
+	for _ = 1, 60 do
+		local a = pal[math.random(1, #pal)]
+		local b = pal[math.random(1, #pal)]
+		if a ~= b then
+			local h1 = a.Color:ToHSV()
+			local h2 = b.Color:ToHSV()
+			local d = math.abs(h1 - h2)
+			d = math.min(d, 1 - d)
+			if d >= (Config.TeamMinHueGap or 0.2) then
+				return { { Id = 1, Name = a.Name, Color = a.Color }, { Id = 2, Name = b.Name, Color = b.Color } }
+			end
+		end
+	end
+	return Config.Teams
+end
+
+local function mapIndexFor(q)
+	local choice = queueMap[q.Id]
+	queueMap[q.Id] = nil
+	if choice == "random" then
+		return math.random(1, #maps), false
+	end
+	for i, m in ipairs(maps) do
+		if m.Id == choice then
+			return i, false
+		end
+	end
+	return nextMapIndex, true
+end
+
 local function startMatch(q)
 	local mode = q.Mode
 	local capacity = (mode == "Solo") and 8 or q.TeamSize * 2
@@ -485,8 +555,11 @@ local function startMatch(q)
 	end
 
 	Combatants.Clear()
-	MatchService.ApplyMap(maps[nextMapIndex])
-	nextMapIndex = nextMapIndex % #maps + 1
+	local mapIndex, rotate = mapIndexFor(q)
+	MatchService.ApplyMap(maps[mapIndex])
+	if rotate then
+		nextMapIndex = nextMapIndex % #maps + 1
+	end
 	PaintService.SetRadiusMultiplier(1)
 	S.QueueId = q.Id
 	S.Mode = mode
@@ -509,12 +582,43 @@ local function startMatch(q)
 			slots[i] = { OwnerId = i, TeamId = i }
 		end
 	else
-		for _, t in ipairs(Config.Teams) do
+		local teams = pickTeams()
+		for _, t in ipairs(teams) do
 			table.insert(S.Owners, { OwnerId = t.Id, Name = t.Name, Color = t.Color })
 		end
-		for i = 1, capacity do
-			local team = ((i - 1) % 2) + 1
+		-- 경기장 팀 배너를 이번 판 색·이름으로
+		for i, b in pairs(arena.TeamBanners or {}) do
+			local t = teams[i]
+			if t then
+				if b.Part then
+					b.Part.Color = t.Color
+				else
+					b.Label.TextColor3 = t.Color
+				end
+				b.Label.Text = t.Name
+			end
+		end
+		-- 레이팅 순으로 지그재그 배치(1,2,2,1,1,2…)해 팀 실력을 맞춤 → 남는 자리는 봇
+		table.sort(humans, function(a, b)
+			return (a:GetAttribute("Rating") or 0) > (b:GetAttribute("Rating") or 0)
+		end)
+		local per = { 0, 0 }
+		for i = 1, #humans do
+			local k = (i - 1) % 4
+			local team = (k == 0 or k == 3) and 1 or 2
+			if per[team] >= q.TeamSize then
+				team = 3 - team
+			end
+			per[team] = per[team] + 1
 			slots[i] = { OwnerId = team, TeamId = team }
+		end
+		local i = #humans
+		for team = 1, 2 do
+			while per[team] < q.TeamSize do
+				per[team] = per[team] + 1
+				i = i + 1
+				slots[i] = { OwnerId = team, TeamId = team }
+			end
 		end
 	end
 	local palette = {}
@@ -657,6 +761,7 @@ local function endMatch()
 			if ranked then
 				ratingDelta = RankService.Apply(e.Player, won, perf[e])
 			end
+			RankService.RecordMeta(e.Player)
 			Telemetry.Funnel(e.Player, "MatchFinished")
 			Telemetry.Economy(e.Player, true, coins, p and p.Coins or 0, "Gameplay", "MatchReward")
 			Telemetry.Custom(e.Player, "MatchEnd", e.Cells, S.Mode .. "/" .. tostring(S.QueueId), e.WeaponId, won and "win" or "lose")
@@ -669,6 +774,7 @@ local function endMatch()
 		end
 		table.insert(rows, {
 			Name = e.Name, IsBot = e.IsBot, Player = e.Player, OwnerId = e.OwnerId,
+			Score = e.Cells + e.Kills * 30, Weapon = Weapons.Get(e.WeaponId).Name,
 			Color = MatchService.ColorOf(e.OwnerId), Kills = e.Kills, Deaths = e.Deaths,
 			Cells = e.Cells, Coins = e.IsBot and 0 or coins, RatingDelta = ratingDelta, Won = won,
 		})
@@ -703,6 +809,7 @@ local function endMatch()
 			e.Player:SetAttribute("Queue", nil)
 			e.Player:SetAttribute("OwnerId", nil)
 			e.Player:SetAttribute("TeamColor", nil)
+			e.Player:SetAttribute("SpawnZone", false)
 			e.Player:LoadCharacter()
 			DataService.Save(e.Player)
 		end
@@ -730,17 +837,119 @@ local function pickQueue()
 	return best
 end
 
-local function setQueue(player, queueId)
+-- 대기열의 방장 = 가장 먼저 들어온 사람
+function MatchService.QueueHost(queueId)
+	local best, bestT = nil, math.huge
+	for _, pl in ipairs(Players:GetPlayers()) do
+		if pl:GetAttribute("Queue") == queueId and not pl:GetAttribute("InMatch") then
+			local t = pl:GetAttribute("QueueTime") or 0
+			if t < bestT then
+				best, bestT = pl, t
+			end
+		end
+	end
+	return best
+end
+
+local function padOf(queueId)
+	return lobby and lobby.QueuePads and lobby.QueuePads[queueId]
+end
+
+local function setQueue(player, queueId, viaPad)
 	if player:GetAttribute("InMatch") then
 		return
 	end
 	if queueId ~= nil and not queueDef(queueId) then
 		return
 	end
+	if player:GetAttribute("Queue") == queueId then
+		return
+	end
 	player:SetAttribute("Queue", queueId)
 	if queueId then
+		player:SetAttribute("QueueTime", os.clock())
+		joinAt[player] = os.clock()
 		Telemetry.Funnel(player, "Queued")
+		-- UI로 참가하면 해당 발판 위로 이동 (발판을 벗어나면 취소되는 규칙과 맞춤)
+		local pad = padOf(queueId)
+		local char = player.Character
+		if not viaPad and pad and char and char:FindFirstChild("HumanoidRootPart") then
+			local a = math.random() * math.pi * 2
+			char:PivotTo(CFrame.new(pad.Position + Vector3.new(math.cos(a) * 2.5, 3.5, math.sin(a) * 2.5)))
+		end
+	else
+		player:SetAttribute("QueueTime", nil)
+		joinAt[player] = nil
 	end
+end
+
+-- 방장만 맵을 고를 수 있음 (mapId = 맵 Id 또는 "random", nil이면 순환)
+local function setHostMap(player, mapId)
+	local qid = player:GetAttribute("Queue")
+	if not qid or player:GetAttribute("InMatch") or MatchService.QueueHost(qid) ~= player then
+		return
+	end
+	if mapId ~= nil and mapId ~= "random" then
+		local ok = false
+		for _, m in ipairs(maps) do
+			if m.Id == mapId then
+				ok = true
+			end
+		end
+		if not ok then
+			return
+		end
+	end
+	queueMap[qid] = mapId
+end
+
+-- 경기 중 무기 교체: 부활 직후이거나 우리 스폰 근처일 때만
+local function nearOwnSpawn(e)
+	local r = e.Model and e.Model:FindFirstChild("HumanoidRootPart")
+	if not r then
+		return false
+	end
+	local list = (S.Mode == "Solo") and arena.SoloSpawns or arena.Spawns[e.TeamId]
+	for _, cf in ipairs(list or {}) do
+		if (cf.Position - r.Position).Magnitude <= Config.WeaponSwitchRadius then
+			return true
+		end
+	end
+	return false
+end
+
+local function canSwitch(e)
+	if not e.Alive or S.Phase ~= "Playing" then
+		return false
+	end
+	return (os.clock() - (e.SpawnedAt or 0)) <= Config.WeaponSwitchGrace or nearOwnSpawn(e)
+end
+
+local function switchWeapon(player, weaponId)
+	local e = Combatants.FromPlayer(player)
+	local w = Weapons.ById[weaponId]
+	local p = DataService.Get(player)
+	if not e or not w or not p or e.WeaponId == w.Id then
+		return
+	end
+	if not p.Owned[w.Id] then
+		remotes.Notify:FireClient(player, "보유하지 않은 무기예요 — 로비 상점에서 구매", Color3.fromRGB(255, 140, 140))
+		return
+	end
+	if not canSwitch(e) then
+		remotes.Notify:FireClient(player, "무기 교체는 스폰 지점에서만 가능해요", Color3.fromRGB(255, 200, 90))
+		return
+	end
+	e.WeaponId = w.Id
+	e.Ink = Config.InkMax
+	p.Equipped = w.Id
+	DataService.Publish(player)
+	player:SetAttribute("Weapon", w.Id)
+	if e.Model then
+		pcall(attachGun, e, e.Model)
+	end
+	Combatants.Sync(e)
+	remotes.Notify:FireClient(player, "무기 교체: " .. w.Name .. " (" .. w.Class .. ")", Color3.fromRGB(140, 255, 200))
 end
 
 -- 이번 경기에 쓸 맵으로 모든 서비스를 전환
@@ -793,18 +1002,49 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 		return nil
 	end)
 
-	remotes.Queue.OnServerEvent:Connect(setQueue)
+	remotes.Queue.OnServerEvent:Connect(function(player, a, b)
+		if a == "map" then
+			setHostMap(player, b)
+		elseif a == nil or type(a) == "string" then
+			setQueue(player, a, false)
+		end
+	end)
+	remotes.SwitchWeapon.OnServerEvent:Connect(switchWeapon)
 	for id, pad in pairs(lobby.QueuePads) do
 		pad.Touched:Connect(function(hit)
 			local pl = Players:GetPlayerFromCharacter(hit.Parent)
-			if pl and pl:GetAttribute("Queue") ~= id then
-				setQueue(pl, id)
-				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. " (다시 누르면 UI에서 취소)", Color3.fromRGB(255, 255, 255))
+			if pl and pl:GetAttribute("Queue") ~= id and not pl:GetAttribute("InMatch") then
+				setQueue(pl, id, true)
+				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
 			end
 		end)
 	end
+	-- 발판을 벗어나면 대기 취소
+	task.spawn(function()
+		while true do
+			task.wait(0.3)
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local qid = pl:GetAttribute("Queue")
+				if qid and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
+					local pad = padOf(qid)
+					local char = pl.Character
+					local r = char and char:FindFirstChild("HumanoidRootPart")
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					if pad and r and hum and hum.Health > 0 then
+						local d = r.Position - pad.Position
+						local onPad = Vector3.new(d.X, 0, d.Z).Magnitude <= (lobby.PadRadius or 7) and d.Y > -2 and d.Y < 9
+						if not onPad then
+							setQueue(pl, nil)
+							remotes.Notify:FireClient(pl, "발판을 벗어나 대기가 취소됐어요", Color3.fromRGB(255, 180, 120))
+						end
+					end
+				end
+			end
+		end
+	end)
 
 	Players.PlayerRemoving:Connect(function(pl)
+		joinAt[pl] = nil
 		local e = Combatants.FromPlayer(pl)
 		if e then
 			e.Alive = false
@@ -837,6 +1077,12 @@ function MatchService.Run()
 							pe.Enabled = onEnemy
 							if onEnemy then
 								pe.Color = ColorSequence.new(MatchService.ColorOf(o))
+							end
+						end
+						if e.Player then
+							local can = canSwitch(e)
+							if e.Player:GetAttribute("SpawnZone") ~= can then
+								e.Player:SetAttribute("SpawnZone", can)
 							end
 						end
 						if e.IsBot and r and h then

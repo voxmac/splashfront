@@ -2,7 +2,7 @@
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.4-CBT"
+Config.Build = "0.5-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -26,11 +26,25 @@ Config.CBT = {
 Config.CellSize = 4              -- 셀 한 칸 크기(스터드)
 Config.NeutralColor = Color3.fromRGB(205, 208, 214)
 
--- 팀 (크루)
+-- 팀 (크루) — 기본값. 실제 경기는 아래 TeamPalette에서 매 판 겹치지 않는 두 색을 자동으로 고름
 Config.Teams = {
 	{ Id = 1, Name = "네온 메이커즈", Color = Color3.fromRGB(255, 46, 170) },
 	{ Id = 2, Name = "터코이즈 타이드", Color = Color3.fromRGB(0, 214, 200) },
 }
+-- 팀 자동 편성 색 (무지개 + 분홍·하늘). 색상환에서 충분히 떨어진 두 색을 매 판 무작위로 뽑음
+Config.TeamPalette = {
+	{ Name = "레드 레이더스", Color = Color3.fromRGB(255, 60, 60) },
+	{ Name = "오렌지 오버드라이브", Color = Color3.fromRGB(255, 140, 30) },
+	{ Name = "옐로 볼트", Color = Color3.fromRGB(255, 214, 0) },
+	{ Name = "그린 그렘린", Color = Color3.fromRGB(70, 220, 80) },
+	{ Name = "블루 블래스터", Color = Color3.fromRGB(40, 110, 255) },
+	{ Name = "인디고 나이츠", Color = Color3.fromRGB(95, 70, 235) },
+	{ Name = "바이올렛 바이퍼", Color = Color3.fromRGB(175, 80, 255) },
+	{ Name = "핑크 펑크", Color = Color3.fromRGB(255, 46, 170) },
+	{ Name = "스카이 스플래셔", Color = Color3.fromRGB(0, 200, 255) },
+}
+Config.TeamMinHueGap = 0.22 -- 두 팀 색의 최소 색상 차이 (0~0.5)
+
 -- 솔로 모드용 개인 색 (최대 8인)
 Config.SoloColors = {
 	Color3.fromRGB(255, 46, 170), Color3.fromRGB(0, 214, 200), Color3.fromRGB(255, 196, 0),
@@ -60,10 +74,15 @@ Config.SpecialRadius = 14
 Config.SpecialDamage = 70
 
 -- 매치
-Config.MatchLength = 180
+Config.MatchLength = 300        -- 5분
 Config.FinalSplashTime = 30     -- 남은 시간이 이 값 이하이면 페인트 반경 1.5배
 Config.FinalSplashMul = 1.5
-Config.LobbyCountdown = 10
+Config.LobbyCountdown = 20     -- 매치 시작 전 대기 시간(초)
+Config.PadLeaveGrace = 1.5      -- 발판 참가 직후 이 시간 동안은 발판 이탈 검사 안 함
+Config.MapScale = 2             -- 맵 가로·세로 배율 (높이는 그대로)
+Config.WeaponSwitchRadius = 18  -- 스폰 지점에서 이 거리 안이면 무기 교체 가능
+Config.WeaponSwitchGrace = 6    -- 부활 후 이 시간(초) 동안도 무기 교체 가능
+Config.HitAssist = { Body = 1.4, Head = 0.75, PerStud = 0.012 } -- 서버 명중 보정(스터드): 지연 보상
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
 Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)

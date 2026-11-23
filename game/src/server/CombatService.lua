@@ -102,6 +102,64 @@ local function splashDamage(attacker, center, radius, maxDamage)
 end
 
 ------------------------------------------------------------------------
+-- 명중 보정 (지연 보상): 서버에서 보는 적 위치는 쏜 사람 화면보다 조금 늦으므로
+-- 레이가 적 머리·몸통 가까이(허용 거리 안) 지나가면 명중으로 인정. 벽 뒤는 인정 안 함
+------------------------------------------------------------------------
+local BODY_PARTS = { "UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart" }
+local function assistHit(e, origin, dir, maxDist, params)
+	local A = Config.HitAssist
+	if not A then
+		return nil
+	end
+	local best, bestT, bestHead = nil, math.huge, false
+	for _, v in ipairs(Combatants.All()) do
+		if v.Alive and v.Model and Combatants.IsEnemy(e, v) then
+			local function perpOf(part)
+				local rel = part.Position - origin
+				local t = rel:Dot(dir)
+				if t <= 0 or t > maxDist then
+					return math.huge, t
+				end
+				return (rel - dir * t).Magnitude, t
+			end
+			local head = v.Model:FindFirstChild("Head")
+			local hp, ht = math.huge, 0
+			if head then
+				hp, ht = perpOf(head)
+			end
+			local bp, bt = math.huge, 0
+			for _, n in ipairs(BODY_PARTS) do
+				local part = v.Model:FindFirstChild(n)
+				if part then
+					local p2, t2 = perpOf(part)
+					if p2 < bp then
+						bp, bt = p2, t2
+					end
+				end
+			end
+			local isHead, t = nil, nil
+			if hp <= A.Head + ht * A.PerStud then
+				isHead, t = true, ht
+			elseif bp <= A.Body + bt * A.PerStud then
+				isHead, t = false, bt
+			end
+			if t and t < bestT then
+				-- 시야 확인: 맞힌 지점까지 벽이 없어야 함
+				local p = origin + dir * t
+				local block = workspace:Raycast(origin, p - origin, params)
+				if not block or Combatants.FromPart(block.Instance) == v or (block.Position - origin).Magnitude >= t - 1.5 then
+					best, bestT, bestHead = v, t, isHead
+				end
+			end
+		end
+	end
+	if best then
+		return best, bestHead, origin + dir * bestT
+	end
+	return nil
+end
+
+------------------------------------------------------------------------
 -- 사격 (플레이어·봇 공용)
 ------------------------------------------------------------------------
 function CombatService.Fire(e, origin, directions)
@@ -136,6 +194,16 @@ function CombatService.Fire(e, origin, directions)
 			e.Shots = (e.Shots or 0) + 1
 			local result = workspace:Raycast(origin, dir * w.Range, params)
 			local endPos
+			-- 직접 맞히지 못했으면 플레이어 사격에 한해 명중 보정
+			local directVictim = result and Combatants.FromPart(result.Instance)
+			if e.Player and not (directVictim and Combatants.IsEnemy(e, directVictim)) then
+				local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
+				local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
+				if v then
+					local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
+					result = { Instance = part, Position = pos, Normal = -dir }
+				end
+			end
 			if result then
 				endPos = result.Position
 				local victim = Combatants.FromPart(result.Instance)

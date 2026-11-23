@@ -14,13 +14,45 @@ local CBTPanel = require(script.Parent:WaitForChild("CBTPanel"))
 local MapInteract = require(script.Parent:WaitForChild("MapInteract"))
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
+local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
+local StarterGui = game:GetService("StarterGui")
+local TextChatService = game:GetService("TextChatService")
+
+-- 채팅창은 왼쪽 아래, 기본 가방(1~0 단축키)은 끔 → 숫자키는 무기 교체용
+task.spawn(function()
+	local cfg = TextChatService:FindFirstChildOfClass("ChatWindowConfiguration") or TextChatService:WaitForChild("ChatWindowConfiguration", 10)
+	if cfg then
+		cfg.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		cfg.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	end
+	for _ = 1, 10 do
+		if pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end) then
+			break
+		end
+		task.wait(1)
+	end
+end)
 
 HUD.Build()
 LobbyUI.Init(remotes, HUD)
 WeaponController.Init(remotes, HUD, Effects)
 CBTPanel.Init(remotes, HUD)
 MapInteract.Init(Effects)
-CBTPanel.SetModalHandler(WeaponController.SetUIMode)
+-- 창(상점·랭킹·크레이트·피드백·관리자)이 하나라도 열려 있으면 마우스 커서를 풀어 줌
+local openWindows = {}
+local function modal(source, on)
+	openWindows[source] = on and true or nil
+	WeaponController.SetUIMode(next(openWindows) ~= nil)
+end
+CBTPanel.SetModalHandler(function(on)
+	modal("cbt", on)
+end)
+LobbyUI.SetModalHandler(function(on)
+	modal("lobby", on)
+end)
+CharacterPose.Init()
 MusicPlayer.Init()
 
 -- 스페셜 충전 완료 / 부활
@@ -105,4 +137,4 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 	LobbyUI.ShowCrate(res)
 end)
 
-print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭")
+print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")

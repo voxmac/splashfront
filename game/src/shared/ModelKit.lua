@@ -166,6 +166,14 @@ local function finish(model, accentColor, bodyColor, bodyMaterial)
 	end
 	if anchor then
 		model.PrimaryPart = anchor
+		-- 가져온 모델의 축이 달라도 총구(_Muzzle) 쪽이 모델의 앞(-Z)이 되도록 기준축을 맞춤
+		if muzzle then
+			local d = anchor.CFrame:PointToObjectSpace(muzzle.Position)
+			local flat = Vector3.new(d.X, 0, d.Z)
+			if flat.Magnitude > 0.2 then
+				anchor.PivotOffset = CFrame.lookAt(Vector3.zero, flat.Unit)
+			end
+		end
 	end
 	return model, muzzle
 end
@@ -188,6 +196,82 @@ end
 function ModelKit.Backpack(accent)
 	local model = source("Gear_Backpack") or fallbackBackpack()
 	return finish(model, accent)
+end
+
+-- 팀 보호구 세트: 가슴·등 플레이트(팀 색 띠), 어깨 패드, 무릎 패드, 탄약 벨트
+-- 히트박스를 가리지 않게 CanQuery=false (총알은 몸에 맞음)
+local ARMOR = Color3.fromRGB(36, 38, 52)
+function ModelKit.Armor(character, color)
+	local set = Instance.new("Model")
+	set.Name = "SF_Armor"
+	local function piece(target, size, offset, c, mat)
+		if not target then
+			return nil
+		end
+		local p = Instance.new("Part")
+		p.Name = "Armor"
+		p.Size = size
+		p.Color = c
+		p.Material = mat or Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Massless = true
+		p.CastShadow = false
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.CFrame = target.CFrame * offset
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = target
+		w.Part1 = p
+		w.Parent = p
+		p.Parent = set
+		return p
+	end
+	local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+	if torso then
+		local t = torso.Size
+		for _, side in ipairs({ -1, 1 }) do
+			local z = side * (t.Z / 2 + 0.09)
+			piece(torso, Vector3.new(t.X * 0.82, t.Y * 0.72, 0.2), CFrame.new(0, 0.05, z), ARMOR, Enum.Material.Metal)
+			piece(torso, Vector3.new(t.X * 0.84, 0.14, 0.22), CFrame.new(0, 0.18, z + side * 0.02), color, Enum.Material.Neon)
+			piece(torso, Vector3.new(t.X * 0.84, 0.08, 0.22), CFrame.new(0, -0.12, z + side * 0.02), color, Enum.Material.Neon)
+		end
+		-- 목 보호대
+		piece(torso, Vector3.new(t.X * 0.55, 0.22, t.Z * 1.05), CFrame.new(0, t.Y / 2 - 0.05, 0), ARMOR, Enum.Material.Metal)
+	end
+	for _, n in ipairs({ "LeftUpperArm", "RightUpperArm", "Left Arm", "Right Arm" }) do
+		local a = character:FindFirstChild(n)
+		if a then
+			local s = a.Size
+			piece(a, Vector3.new(s.X * 1.2, 0.36, s.Z * 1.2), CFrame.new(0, s.Y / 2 - 0.12, 0), color, Enum.Material.SmoothPlastic)
+			piece(a, Vector3.new(s.X * 1.24, 0.1, s.Z * 1.24), CFrame.new(0, s.Y / 2 - 0.3, 0), ARMOR, Enum.Material.Metal)
+		end
+	end
+	for _, n in ipairs({ "LeftLowerLeg", "RightLowerLeg", "Left Leg", "Right Leg" }) do
+		local l = character:FindFirstChild(n)
+		if l then
+			local s = l.Size
+			local y = (string.find(n, "Lower") and (s.Y / 2 - 0.25)) or 0
+			piece(l, Vector3.new(s.X * 0.8, 0.5, 0.22), CFrame.new(0, y, -(s.Z / 2 + 0.06)), ARMOR, Enum.Material.Metal)
+			piece(l, Vector3.new(s.X * 0.5, 0.1, 0.24), CFrame.new(0, y, -(s.Z / 2 + 0.08)), color, Enum.Material.Neon)
+		end
+	end
+	local hip = character:FindFirstChild("LowerTorso") or torso
+	if hip then
+		local s = hip.Size
+		local y = (hip.Name == "LowerTorso") and 0.1 or -s.Y / 2 + 0.15
+		piece(hip, Vector3.new(s.X * 1.04, 0.24, s.Z * 1.1), CFrame.new(0, y, 0), Color3.fromRGB(70, 56, 40), Enum.Material.Leather)
+		for _, sx in ipairs({ -1, 1 }) do
+			local c = piece(hip, Vector3.new(0.5, 0.34, 0.34), CFrame.new(sx * (s.X / 2 + 0.05), y, -0.15) * CFrame.Angles(0, 0, math.rad(90)), color,
+				Enum.Material.Neon)
+			if c then
+				c.Shape = Enum.PartType.Cylinder
+			end
+		end
+	end
+	set.Parent = character
+	return set
 end
 
 -- 모델을 대상 파트에 용접 (Anchor가 target.CFrame * offset 에 오도록)

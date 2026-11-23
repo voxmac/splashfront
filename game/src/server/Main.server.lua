@@ -18,12 +18,12 @@ local ModelService = require(Services.ModelService)
 -- 원격 이벤트
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry" }) do
+for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon" }) do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
 end
-for _, name in ipairs({ "Shop", "Admin", "Feedback" }) do
+for _, name in ipairs({ "Shop", "Admin", "Feedback", "Leaderboard" }) do
 	local f = Instance.new("RemoteFunction")
 	f.Name = name
 	f.Parent = remotes
@@ -59,6 +59,7 @@ MatchService.Init(remotes, maps, lobby)
 Telemetry.Init(remotes)
 AdminService.Init(remotes)
 RankService.StartBoard(lobby.Leaderboard)
+RankService.Init(remotes)
 
 -- 전투 틱 (잉크 충전·체력 회복)
 task.spawn(function()

@@ -10,6 +10,7 @@ local Weapons = require(ReplicatedStorage.Shared.Weapons)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
+local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 
 local player = Players.LocalPlayer
 local WC = {}
@@ -32,8 +33,13 @@ local cellsFolder = nil
 local uiMode = false
 local thirdPerson = false -- V 키로 1인칭 ↔ 3인칭(어깨 시점) 전환
 local modalGui = nil      -- 창이 열려 있는 동안 마우스를 풀어 주는 투명 버튼
-local TP_ZOOM = 7         -- 3인칭 카메라 거리 (서버의 사격 원점 검사 10스터드 이내)
-local TP_OFFSET = Vector3.new(1.7, 0.5, 0)
+local TP_ZOOM = 8         -- 3인칭 카메라 거리
+local TP_OFFSET = Vector3.new(2.8, 1.5, 0) -- 어깨 너머: 캐릭터가 화면 왼쪽 아래로 비켜서 조준점을 가리지 않음
+
+-- 3인칭이 실제로 적용 중인지 (3인칭에서도 우클릭 조준 중에는 1인칭 조준경으로 전환)
+local function tpActive()
+	return thirdPerson and not aiming
+end
 
 local function camera()
 	return workspace.CurrentCamera
@@ -58,6 +64,16 @@ end
 local vmMuzzle = nil      -- 총구 표식 파트 (Blender 모델의 _Muzzle 또는 대체 모델)
 local vmLength = 1.5
 
+-- 1인칭 총 모형은 1인칭일 때만, 저격 조준경을 볼 때는 숨김
+function WC.UpdateViewmodelParent()
+	if not viewmodel then
+		return
+	end
+	local w = weapon()
+	local show = enabled and not tpActive() and not (aiming and w.Scope)
+	viewmodel.Parent = show and camera() or nil
+end
+
 local function buildViewmodel()
 	if viewmodel then
 		viewmodel:Destroy()
@@ -70,8 +86,8 @@ local function buildViewmodel()
 	local _, size = m:GetBoundingBox()
 	vmLength = math.max(size.Z, 0.8)
 	vmMuzzle = muzzle
-	m.Parent = (not thirdPerson) and camera() or nil
 	viewmodel = m
+	WC.UpdateViewmodelParent()
 end
 
 local function placeViewmodel(dt)
@@ -100,7 +116,7 @@ local function placeViewmodel(dt)
 end
 
 local function muzzleCFrame()
-	if thirdPerson then
+	if tpActive() then
 		local g = player.Character and player.Character:FindFirstChild("SF_Gun")
 		if g then
 			for _, p in ipairs(g:GetDescendants()) do
@@ -176,7 +192,7 @@ local function fire()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character, viewmodel, workspace:FindFirstChild("ClientFX"), workspace:FindFirstChild("FX") }
-	if thirdPerson then
+	if tpActive() then
 		-- 3인칭: 조준점이 가리키는 곳을 먼저 찾고, 실제 총알은 머리에서 그쪽으로
 		local head = player.Character and player.Character:FindFirstChild("Head")
 		if head then
@@ -205,6 +221,7 @@ local function fire()
 	SoundBank.Play("fire_" .. string.lower(w.Id), nil, 0.55, 0.96 + math.random() * 0.08)
 	kick = kick + w.Recoil
 	vmKick = vmKick + math.min(1.5, w.Recoil * 0.35)
+	CharacterPose.Kick(player.Character, w.Recoil)
 	spreadExtra = math.min(w.SpreadMax, spreadExtra + w.SpreadGrow)
 	Effects.Shake(w.Recoil * 0.05)
 end
@@ -223,6 +240,7 @@ local function special()
 	remotes.Special:FireServer(target)
 end
 
+local applyViewRef = nil
 local function setAim(on)
 	aiming = on
 	local w = weapon()
@@ -231,7 +249,11 @@ local function setAim(on)
 		fov = w.Scope and w.ScopeFov or 56
 	end
 	TweenService:Create(camera(), TweenInfo.new(0.12), { FieldOfView = fov }):Play()
-	UserInputService.MouseDeltaSensitivity = (on and w.Scope) and 0.35 or 1
+	UserInputService.MouseDeltaSensitivity = (on and w.Scope) and 0.3 or 1
+	if thirdPerson and applyViewRef then
+		applyViewRef() -- 3인칭 ↔ 1인칭 조준 전환
+	end
+	WC.UpdateViewmodelParent()
 end
 
 local function setCrouch(on)
@@ -329,7 +351,7 @@ local function applyView()
 		return
 	end
 	setModal(false)
-	if thirdPerson then
+	if tpActive() then
 		player.CameraMode = Enum.CameraMode.Classic
 		player.CameraMaxZoomDistance = TP_ZOOM
 		player.CameraMinZoomDistance = TP_ZOOM
@@ -347,13 +369,10 @@ local function applyView()
 		end
 	end
 	UserInputService.MouseIconEnabled = false
-	if viewmodel then
-		viewmodel.Parent = thirdPerson and nil or camera()
-	end
-	if HUD and HUD.Banner then
-		-- (안내는 전환할 때만)
-	end
+	WC.UpdateViewmodelParent()
 end
+
+applyViewRef = applyView
 
 function WC.ToggleView()
 	thirdPerson = not thirdPerson
@@ -489,6 +508,58 @@ function WC.Init(remoteFolder, hud, effects)
 			buildViewmodel()
 		end
 	end)
+	-- 무기가 바뀌면(스폰 지점 교체) 1인칭 총 모형·잉크 갱신
+	player:GetAttributeChangedSignal("Weapon"):Connect(function()
+		if enabled then
+			setAim(false)
+			spreadExtra = 0
+			localInk = Config.InkMax
+			buildViewmodel()
+			SoundBank.Play("ui_buy", nil, 0.5)
+		end
+	end)
+	-- 스폰 지점 무기 교체: 숫자 1~6 = 무기 목록 순서, T = 다음 보유 무기
+	local NUM = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six }
+	local function ownedList()
+		local s = "," .. (player:GetAttribute("Owned") or "") .. ","
+		local out = {}
+		for _, w in ipairs(Weapons.List) do
+			if string.find(s, "," .. w.Id .. ",", 1, true) then
+				table.insert(out, w.Id)
+			end
+		end
+		return out
+	end
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if processed or not enabled or uiMode then
+			return
+		end
+		local target = nil
+		for i, k in ipairs(NUM) do
+			if input.KeyCode == k then
+				local w = Weapons.List[i]
+				target = w and w.Id
+			end
+		end
+		if input.KeyCode == Enum.KeyCode.T then
+			local list = ownedList()
+			local cur = player:GetAttribute("Weapon")
+			for i, id in ipairs(list) do
+				if id == cur then
+					target = list[(i % #list) + 1]
+				end
+			end
+			target = target or list[1]
+		end
+		if not target or target == player:GetAttribute("Weapon") then
+			return
+		end
+		if not player:GetAttribute("SpawnZone") then
+			HUD.Banner("무기 교체는 스폰 지점에서만 가능해요 (부활 직후 " .. Config.WeaponSwitchGrace .. "초)", Color3.fromRGB(255, 200, 90))
+			return
+		end
+		remotes.SwitchWeapon:FireServer(target)
+	end)
 	player.CharacterAdded:Connect(function(char)
 		baseHip = nil
 		crouched = false
@@ -520,7 +591,7 @@ function WC.Init(remoteFolder, hud, effects)
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 		local char = player.Character
 		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if thirdPerson and root then
+		if tpActive() and root then
 			-- 어깨 시점: 몸이 카메라가 보는 방향을 따라 돎
 			local look = camera().CFrame.LookVector
 			local flat = Vector3.new(look.X, 0, look.Z)
@@ -530,8 +601,8 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 		-- 1인칭: 내 헬멧·가방·손에 든 총이 화면을 가리지 않게 숨김
 		if char then
-			local hide = thirdPerson and 0 or 1
-			for _, n in ipairs({ "SF_Helmet", "SF_Backpack", "SF_Gun" }) do
+			local hide = tpActive() and 0 or 1
+			for _, n in ipairs({ "SF_Helmet", "SF_Backpack", "SF_Gun", "SF_Armor" }) do
 				local g = char:FindFirstChild(n)
 				if g then
 					for _, p in ipairs(g:GetDescendants()) do

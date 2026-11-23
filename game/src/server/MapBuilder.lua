@@ -8,6 +8,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = {}
 
 local CELL = Config.CellSize
+local MS = Config.MapScale or 1 -- 맵 가로·세로 배율 (높이는 그대로)
 
 local function part(props)
 	local p = Instance.new(props.Wedge and "WedgePart" or "Part")
@@ -150,6 +151,44 @@ end
 ------------------------------------------------------------------------
 -- 로비
 ------------------------------------------------------------------------
+-- 로비: 광장(페인트 스플랫 바닥) + 로고 타이틀 + 매치 발판 무대 + 랭킹 보드 + 상점 부스
+local LOBBY_COLORS = {
+	Color3.fromRGB(255, 46, 170), Color3.fromRGB(0, 200, 255), Color3.fromRGB(255, 214, 0),
+	Color3.fromRGB(70, 220, 80), Color3.fromRGB(175, 80, 255), Color3.fromRGB(255, 140, 30),
+}
+
+local function cyl(props)
+	-- 세로로 선 원기둥/원판 (Roblox 원기둥은 X축이 길이 방향이라 90도 돌림)
+	local h, d = props.Height, props.Diameter
+	props.Shape = Enum.PartType.Cylinder
+	props.Size = Vector3.new(h, d, d)
+	props.CFrame = CFrame.new(props.Position) * CFrame.Angles(0, 0, math.rad(90))
+	props.Position = nil
+	props.Height, props.Diameter = nil, nil
+	return part(props)
+end
+
+local function titleText(gui, text, pos, size, c1, c2)
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Position = pos
+	t.Size = size
+	t.Font = Enum.Font.FredokaOne
+	t.TextScaled = true
+	t.Text = text
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.Parent = gui
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(c1, c2)
+	g.Rotation = 90
+	g.Parent = t
+	local st = Instance.new("UIStroke")
+	st.Thickness = 10
+	st.Color = Color3.fromRGB(16, 12, 30)
+	st.Parent = t
+	return t
+end
+
 function MapBuilder.BuildLobby()
 	local old = workspace:FindFirstChild("Lobby")
 	if old then
@@ -158,20 +197,70 @@ function MapBuilder.BuildLobby()
 	local lobby = Instance.new("Folder")
 	lobby.Name = "Lobby"
 	lobby.Parent = workspace
+	local deco = Instance.new("Folder")
+	deco.Name = "Decoration"
+	deco.Parent = lobby
+	local rng = Random.new(77)
 
 	local Y = 400
-	part({ Name = "Floor", Parent = lobby, Size = Vector3.new(120, 2, 90), Position = Vector3.new(0, Y - 1, 0),
-		Color = Color3.fromRGB(34, 36, 48), Material = Enum.Material.Slate })
-	-- 네온 테두리
+	local W, D = 170, 130
+	-- 바닥 + 가운데 원형 광장
+	part({ Name = "Floor", Parent = lobby, Size = Vector3.new(W, 2, D), Position = Vector3.new(0, Y - 1, 0),
+		Color = Color3.fromRGB(38, 36, 54), Material = Enum.Material.Slate })
+	for i, r in ipairs({ 44, 40, 26, 23 }) do
+		cyl({ Name = "PlazaRing", Parent = deco, Height = 0.06 + i * 0.01, Diameter = r * 2, Position = Vector3.new(0, Y + 0.03 + i * 0.005, 14),
+			Color = (i % 2 == 1) and Color3.fromRGB(60, 56, 84) or Color3.fromRGB(30, 28, 44), Material = Enum.Material.SmoothPlastic,
+			CanCollide = false, CanQuery = false })
+	end
+	-- 페인트 스플랫 (바닥에 흩뿌린 무지개 얼룩)
+	for i = 1, 30 do
+		local x = rng:NextNumber(-W / 2 + 8, W / 2 - 8)
+		local z = rng:NextNumber(-8, D / 2 - 8)
+		local c = LOBBY_COLORS[rng:NextInteger(1, #LOBBY_COLORS)]
+		local d = rng:NextNumber(3, 9)
+		local yy = Y + 0.12 + i * 0.002
+		cyl({ Name = "Splat", Parent = deco, Height = 0.05, Diameter = d, Position = Vector3.new(x, yy, z), Color = c,
+			Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+		for k = 1, rng:NextInteger(2, 4) do
+			local a = rng:NextNumber() * math.pi * 2
+			local rr = d / 2 + rng:NextNumber(0.6, 2.2)
+			cyl({ Name = "Drop", Parent = deco, Height = 0.05, Diameter = rng:NextNumber(0.6, 1.6),
+				Position = Vector3.new(x + math.cos(a) * rr, yy, z + math.sin(a) * rr), Color = c,
+				Material = Enum.Material.SmoothPlastic, CanCollide = false, CanQuery = false })
+		end
+	end
+
+	-- 외곽: 유리 난간 + 네온 띠 + 조명 기둥
 	for _, s in ipairs({ -1, 1 }) do
-		part({ Name = "Trim", Parent = lobby, Size = Vector3.new(120, 0.4, 1), Position = Vector3.new(0, Y + 0.2, s * 44.5),
-			Color = Config.Teams[1].Color, Material = Enum.Material.Neon })
-		part({ Name = "Trim", Parent = lobby, Size = Vector3.new(1, 0.4, 90), Position = Vector3.new(s * 59.5, Y + 0.2, 0),
-			Color = Config.Teams[2].Color, Material = Enum.Material.Neon })
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(120, 20, 1), Position = Vector3.new(0, Y + 10, s * 45.5),
-			Transparency = 1 })
-		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(1, 20, 90), Position = Vector3.new(s * 60.5, Y + 10, 0),
-			Transparency = 1 })
+		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(W, 3, 0.6), Position = Vector3.new(0, Y + 1.5, s * (D / 2 - 0.3)),
+			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
+		part({ Name = "Rail", Parent = lobby, Size = Vector3.new(0.6, 3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 1.5, 0),
+			Color = Color3.fromRGB(160, 200, 255), Material = Enum.Material.Glass, Transparency = 0.6 })
+		part({ Name = "Trim", Parent = deco, Size = Vector3.new(W, 0.3, 0.7), Position = Vector3.new(0, Y + 3.1, s * (D / 2 - 0.3)),
+			Color = LOBBY_COLORS[s == -1 and 1 or 2], Material = Enum.Material.Neon, CanQuery = false })
+		part({ Name = "Trim", Parent = deco, Size = Vector3.new(0.7, 0.3, D), Position = Vector3.new(s * (W / 2 - 0.3), Y + 3.1, 0),
+			Color = LOBBY_COLORS[s == -1 and 3 or 5], Material = Enum.Material.Neon, CanQuery = false })
+		-- 보이지 않는 높은 벽 (밖으로 떨어지지 않게)
+		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(W, 30, 1), Position = Vector3.new(0, Y + 15, s * (D / 2 + 0.5)), Transparency = 1 })
+		part({ Name = "Wall", Parent = lobby, Size = Vector3.new(1, 30, D), Position = Vector3.new(s * (W / 2 + 0.5), Y + 15, 0), Transparency = 1 })
+	end
+	local pi = 0
+	for _, x in ipairs({ -W / 2 + 2, W / 2 - 2 }) do
+		for z = -D / 2 + 14, D / 2 - 10, 26 do
+			pi = pi + 1
+			local c = LOBBY_COLORS[(pi % #LOBBY_COLORS) + 1]
+			part({ Name = "Pillar", Parent = deco, Size = Vector3.new(2.4, 14, 2.4), Position = Vector3.new(x, Y + 7, z),
+				Color = Color3.fromRGB(44, 42, 62), Material = Enum.Material.Metal })
+			local cap = part({ Name = "PillarCap", Parent = deco, Size = Vector3.new(3, 1, 3), Position = Vector3.new(x, Y + 14.5, z), Color = c,
+				Material = Enum.Material.Neon, CanQuery = false })
+			part({ Name = "PillarStrip", Parent = deco, Size = Vector3.new(0.3, 10, 1.2), Position = Vector3.new(x + (x < 0 and 1.25 or -1.25), Y + 7, z),
+				Color = c, Material = Enum.Material.Neon, CanQuery = false, CanCollide = false })
+			local l = Instance.new("PointLight")
+			l.Color = c
+			l.Range = 22
+			l.Brightness = 1.6
+			l.Parent = cap
+		end
 	end
 
 	local spawn = Instance.new("SpawnLocation")
@@ -179,51 +268,156 @@ function MapBuilder.BuildLobby()
 	spawn.Anchored = true
 	spawn.Neutral = true
 	spawn.Duration = 0
-	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.Position = Vector3.new(0, Y + 0.5, 25)
-	spawn.Color = Color3.fromRGB(255, 255, 255)
+	spawn.Size = Vector3.new(14, 0.6, 14)
+	spawn.Position = Vector3.new(0, Y + 0.3, 44)
+	spawn.Color = Color3.fromRGB(240, 240, 255)
 	spawn.Material = Enum.Material.Neon
+	spawn.Transparency = 0.2
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.Parent = lobby
 
-	-- 타이틀
-	local title = part({ Name = "TitleBoard", Parent = lobby, Size = Vector3.new(40, 8, 1),
-		Position = Vector3.new(0, Y + 14, -44), Color = Color3.fromRGB(20, 20, 30) })
-	label(title, Config.GameName, Enum.NormalId.Back)
-
-	-- 매치 대기 발판
-	local pads = {}
-	local n = #Config.Queues
-	for i, q in ipairs(Config.Queues) do
-		local x = (i - (n + 1) / 2) * 18
-		local mode = Config.Modes[q.Mode]
-		local pad = part({ Name = "QueuePad_" .. q.Id, Parent = lobby, Size = Vector3.new(12, 0.6, 12),
-			Position = Vector3.new(x, Y + 0.3, -18), Color = (i % 2 == 0) and Config.Teams[2].Color or Config.Teams[1].Color,
-			Material = Enum.Material.Neon })
-		pad.Transparency = 0.25
-		pad:SetAttribute("QueueId", q.Id)
-		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "\n" .. q.TeamSize .. " vs " .. q.TeamSize)
-		if q.Ranked then
-			title2 = title2 .. "\n[랭크]"
-		end
-		local lbl = billboard(pad, title2, 5)
-		lbl.Name = "QueueLabel"
-		pads[q.Id] = pad
+	------------------------------------------------------------------
+	-- 타이틀 로고 (북쪽 벽, 스폰을 바라봄)
+	------------------------------------------------------------------
+	local TZ = -D / 2 + 3
+	local TY = Y + 22
+	local board = part({ Name = "TitleBoard", Parent = lobby, Size = Vector3.new(70, 24, 1.5), Position = Vector3.new(0, TY, TZ),
+		Color = Color3.fromRGB(22, 18, 38), Material = Enum.Material.SmoothPlastic })
+	-- 네온 테두리
+	for _, e in ipairs({ { 0, 12.4, 71.6, 0.8 }, { 0, -12.4, 71.6, 0.8 }, { -35.4, 0, 0.8, 25.6 }, { 35.4, 0, 0.8, 25.6 } }) do
+		part({ Name = "TitleFrame", Parent = deco, Size = Vector3.new(e[3], e[4], 1.8), Position = Vector3.new(e[1], TY + e[2], TZ),
+			Color = (e[2] ~= 0) and LOBBY_COLORS[1] or LOBBY_COLORS[2], Material = Enum.Material.Neon, CanQuery = false })
 	end
-
-	-- 랭킹 전광판
-	local board = part({ Name = "Leaderboard", Parent = lobby, Size = Vector3.new(26, 18, 1),
-		Position = Vector3.new(-45, Y + 10, 0), Color = Color3.fromRGB(16, 16, 24) })
-	board.CFrame = CFrame.new(board.Position) * CFrame.Angles(0, math.rad(90), 0)
 	local gui = Instance.new("SurfaceGui")
-	gui.Name = "BoardGui"
-	gui.Face = Enum.NormalId.Front
+	gui.Name = "Logo"
+	gui.Face = Enum.NormalId.Back
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
 	gui.Parent = board
+	titleText(gui, "SPLASH", UDim2.fromScale(0.04, 0.03), UDim2.fromScale(0.92, 0.47), Color3.fromRGB(255, 130, 215), Color3.fromRGB(255, 30, 140))
+	titleText(gui, "FRONT", UDim2.fromScale(0.14, 0.47), UDim2.fromScale(0.72, 0.37), Color3.fromRGB(130, 245, 255), Color3.fromRGB(0, 150, 255))
+	local sub = Instance.new("TextLabel")
+	sub.BackgroundTransparency = 1
+	sub.Position = UDim2.fromScale(0.1, 0.85)
+	sub.Size = UDim2.fromScale(0.8, 0.12)
+	sub.Font = Enum.Font.GothamBlack
+	sub.TextScaled = true
+	sub.Text = "PAINT  ·  SHOOT  ·  CONQUER"
+	sub.TextColor3 = Color3.fromRGB(255, 220, 90)
+	sub.Parent = gui
+	-- 로고 아래로 흘러내리는 페인트
+	for i = 1, 14 do
+		local x = -31 + (i - 1) * (62 / 13) + rng:NextNumber(-1, 1)
+		local len = rng:NextNumber(1.5, 6)
+		local c = LOBBY_COLORS[(i % #LOBBY_COLORS) + 1]
+		local w = rng:NextNumber(0.8, 1.6)
+		part({ Name = "Drip", Parent = deco, Size = Vector3.new(w, len, 0.5), Position = Vector3.new(x, TY - 12.8 - len / 2, TZ + 0.9),
+			Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+		part({ Name = "DripTip", Parent = deco, Shape = Enum.PartType.Ball, Size = Vector3.new(w * 1.3, w * 1.3, w * 1.3),
+			Position = Vector3.new(x, TY - 12.8 - len, TZ + 0.9), Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+	end
+	-- 양옆 스피커 타워 + 무대 조명
+	for _, s in ipairs({ -1, 1 }) do
+		local tx = s * 46
+		part({ Name = "Speaker", Parent = deco, Size = Vector3.new(8, 20, 6), Position = Vector3.new(tx, Y + 10, TZ + 2),
+			Color = Color3.fromRGB(26, 24, 36), Material = Enum.Material.Metal })
+		for k, yy in ipairs({ 5, 11, 16.5 }) do
+			local d = (k == 3) and 3 or 5.4
+			part({ Name = "Woofer", Parent = deco, Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, d, d),
+				CFrame = CFrame.new(tx, Y + yy, TZ + 5.1) * CFrame.Angles(0, math.rad(90), 0),
+				Color = LOBBY_COLORS[s == -1 and 1 or 2], Material = Enum.Material.Neon, CanQuery = false })
+		end
+		local lamp = part({ Name = "StageLight", Parent = deco, Size = Vector3.new(2, 2, 2), Position = Vector3.new(tx, Y + 21, TZ + 10),
+			Color = Color3.fromRGB(255, 250, 235), Material = Enum.Material.Neon, CanQuery = false })
+		lamp.CFrame = CFrame.lookAt(lamp.Position, Vector3.new(0, TY, TZ))
+		local sp = Instance.new("SpotLight")
+		sp.Face = Enum.NormalId.Front
+		sp.Range = 50
+		sp.Angle = 60
+		sp.Brightness = 3
+		sp.Parent = lamp
+	end
+
+	------------------------------------------------------------------
+	-- 매치 대기 발판 무대 (부채꼴 배치)
+	------------------------------------------------------------------
+	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(124, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
+		Color = Color3.fromRGB(28, 26, 42), Material = Enum.Material.DiamondPlate })
+	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(124, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
+		Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })
+	local pads, labels = {}, {}
+	local n = #Config.Queues
+	local PAD_COLORS = { LOBBY_COLORS[2], LOBBY_COLORS[4], LOBBY_COLORS[1], LOBBY_COLORS[6], LOBBY_COLORS[5] }
+	for i, q in ipairs(Config.Queues) do
+		local t = (i - (n + 1) / 2)
+		local x = t * 23
+		local z = -26 - (2 - math.abs(t)) * 2.5
+		local c = PAD_COLORS[((i - 1) % #PAD_COLORS) + 1]
+		local base = Vector3.new(x, Y + 0.6, z)
+		cyl({ Name = "PadRim", Parent = deco, Height = 0.5, Diameter = 15.5, Position = base + Vector3.new(0, 0.25, 0), Color = c,
+			Material = Enum.Material.Neon, CanQuery = false }).Transparency = 0.15
+		cyl({ Name = "PadBase", Parent = lobby, Height = 0.9, Diameter = 14, Position = base + Vector3.new(0, 0.45, 0),
+			Color = Color3.fromRGB(36, 34, 52), Material = Enum.Material.Metal })
+		local pad = cyl({ Name = "QueuePad_" .. q.Id, Parent = lobby, Height = 0.2, Diameter = 12, Position = base + Vector3.new(0, 1.0, 0),
+			Color = c, Material = Enum.Material.Neon })
+		pad.Transparency = 0.3
+		pad:SetAttribute("QueueId", q.Id)
+		local beam = cyl({ Name = "Holo", Parent = deco, Height = 12, Diameter = 12.4, Position = base + Vector3.new(0, 7, 0), Color = c,
+			Material = Enum.Material.ForceField, CanCollide = false, CanQuery = false })
+		beam.CanTouch = false
+		beam.Transparency = 0.2
+		local att = Instance.new("Attachment")
+		att.Parent = pad
+		local pe = Instance.new("ParticleEmitter")
+		pe.Color = ColorSequence.new(c)
+		pe.LightEmission = 0.8
+		pe.Size = NumberSequence.new(0.35, 0)
+		pe.Lifetime = NumberRange.new(1.4, 2.2)
+		pe.Speed = NumberRange.new(3, 6)
+		pe.Rate = 10
+		pe.SpreadAngle = Vector2.new(20, 20)
+		pe.EmissionDirection = Enum.NormalId.Right -- 원기둥을 눕혔으므로 Right = 위쪽
+		pe.Shape = Enum.ParticleEmitterShape.Disc
+		pe.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
+		pe.Parent = att
+		local light = Instance.new("PointLight")
+		light.Color = c
+		light.Range = 16
+		light.Brightness = 2
+		light.Parent = pad
+		local mode = Config.Modes[q.Mode]
+		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
+		local lbl = billboard(pad, title2, 9)
+		lbl.Name = "QueueLabel"
+		lbl.Parent.Size = UDim2.fromOffset(280, 90)
+		lbl.Parent.MaxDistance = 160
+		lbl.RichText = true
+		pads[q.Id] = pad
+		labels[q.Id] = { Label = lbl, Title = title2, Ranked = q.Ranked }
+	end
+
+	------------------------------------------------------------------
+	-- 랭킹 보드 (서쪽, 클릭하면 TOP 50 창)
+	------------------------------------------------------------------
+	local bx = -W / 2 + 3
+	local lb = part({ Name = "Leaderboard", Parent = lobby, Size = Vector3.new(30, 20, 1), Position = Vector3.new(bx, Y + 12, 10),
+		Color = Color3.fromRGB(16, 14, 28) })
+	lb.CFrame = CFrame.new(lb.Position) * CFrame.Angles(0, math.rad(90), 0)
+	for _, e in ipairs({ { 0, 10.3, 31, 0.6 }, { 0, -10.3, 31, 0.6 }, { -15.3, 0, 0.6, 21 }, { 15.3, 0, 0.6, 21 } }) do
+		part({ Name = "BoardFrame", Parent = deco, Size = Vector3.new(e[3], e[4], 1.2), CFrame = lb.CFrame * CFrame.new(e[1], e[2], 0),
+			Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })
+	end
+	local bgui = Instance.new("SurfaceGui")
+	bgui.Name = "BoardGui"
+	bgui.Face = Enum.NormalId.Front
+	bgui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	bgui.PixelsPerStud = 30
+	bgui.LightInfluence = 0
+	bgui.Parent = lb
 	local list = Instance.new("TextLabel")
 	list.Name = "List"
-	list.Size = UDim2.fromScale(1, 1)
+	list.Size = UDim2.new(1, 0, 0.88, 0)
 	list.BackgroundTransparency = 1
 	list.TextColor3 = Color3.new(1, 1, 1)
 	list.Font = Enum.Font.GothamBold
@@ -231,13 +425,64 @@ function MapBuilder.BuildLobby()
 	list.TextXAlignment = Enum.TextXAlignment.Left
 	list.TextYAlignment = Enum.TextYAlignment.Top
 	list.Text = "랭킹 불러오는 중..."
-	list.Parent = gui
+	list.Parent = bgui
+	local hint = Instance.new("TextLabel")
+	hint.Size = UDim2.new(1, 0, 0.1, 0)
+	hint.Position = UDim2.fromScale(0, 0.89)
+	hint.BackgroundColor3 = LOBBY_COLORS[3]
+	hint.TextColor3 = Color3.fromRGB(30, 20, 0)
+	hint.Font = Enum.Font.GothamBlack
+	hint.TextScaled = true
+	hint.Text = "🏆 클릭해서 TOP 50 보기"
+	hint.Parent = bgui
+	local cd = Instance.new("ClickDetector")
+	cd.Name = "OpenBoard"
+	cd.MaxActivationDistance = 80
+	cd.Parent = lb
+
+	------------------------------------------------------------------
+	-- 상점 부스 (동쪽, E로 열기)
+	------------------------------------------------------------------
+	local sx = W / 2 - 10
+	part({ Name = "ShopCounter", Parent = lobby, Size = Vector3.new(6, 3.5, 18), Position = Vector3.new(sx, Y + 1.75, 10),
+		Color = Color3.fromRGB(46, 40, 70), Material = Enum.Material.Wood })
+	part({ Name = "ShopTop", Parent = deco, Size = Vector3.new(6.4, 0.4, 18.4), Position = Vector3.new(sx, Y + 3.7, 10),
+		Color = LOBBY_COLORS[1], Material = Enum.Material.Neon, CanQuery = false })
+	for k = 0, 5 do
+		part({ Name = "Awning", Parent = deco, Size = Vector3.new(8, 0.4, 3), Position = Vector3.new(sx + 1, Y + 11, 2.5 + k * 3),
+			Color = (k % 2 == 0) and LOBBY_COLORS[1] or Color3.fromRGB(250, 250, 255), Material = Enum.Material.SmoothPlastic, CanQuery = false })
+	end
+	for _, zz in ipairs({ 1, 19 }) do
+		part({ Name = "ShopPole", Parent = deco, Size = Vector3.new(0.6, 11, 0.6), Position = Vector3.new(sx + 3.5, Y + 5.5, zz),
+			Color = Color3.fromRGB(200, 200, 210), Material = Enum.Material.Metal })
+	end
+	local sign = part({ Name = "ShopSign", Parent = deco, Size = Vector3.new(1, 3.4, 16), Position = Vector3.new(sx + 3.2, Y + 13.2, 10),
+		Color = Color3.fromRGB(20, 18, 32), CanQuery = false })
+	label(sign, "SHOP · CRATE", Enum.NormalId.Left).TextColor3 = LOBBY_COLORS[3]
+	-- 진열대 위 페인트 통
+	for k = 0, 4 do
+		cyl({ Name = "Bucket", Parent = deco, Height = 1.6, Diameter = 1.6, Position = Vector3.new(sx - 1, Y + 4.7, 3.5 + k * 3.2),
+			Color = LOBBY_COLORS[(k % #LOBBY_COLORS) + 1], Material = Enum.Material.SmoothPlastic, CanQuery = false })
+	end
+	local promptHost = part({ Name = "ShopPromptHost", Parent = lobby, Size = Vector3.new(1, 1, 1), Position = Vector3.new(sx - 4, Y + 3, 10),
+		Transparency = 1, CanCollide = false, CanQuery = false })
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "SF_ShopPrompt"
+	prompt.ActionText = "상점 열기"
+	prompt.ObjectText = "SPLASH SHOP"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 12
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = promptHost
 
 	return {
 		Folder = lobby,
 		Spawn = spawn,
-		SpawnCFrame = CFrame.new(0, Y + 4, 25),
+		SpawnCFrame = CFrame.new(0, Y + 4, 44),
 		QueuePads = pads,
+		QueueLabels = labels,
+		PadRadius = 7,
 		Leaderboard = list,
 	}
 end
@@ -245,7 +490,7 @@ end
 ------------------------------------------------------------------------
 -- 아레나 : 크로마 스퀘어 (기획서 8장 배치도와 동일)
 ------------------------------------------------------------------------
-local HALF_X, HALF_Z = 80, 56
+local HALF_X, HALF_Z = 80 * MS, 56 * MS
 
 -- {중심x, 중심z, 크기x, 크기z, 높이, 종류}  종류: wall / crate / block
 -- 왼쪽(A팀) 절반만 정의하고 x를 뒤집어 오른쪽을 만듦. 가운데(x=0) 요소는 mirror=false
@@ -265,6 +510,19 @@ local OBSTACLES = {
 	{ -8, -38, 4, 4, 3, "crate" },
 	{ -64, 30, 6, 2, 3, "crate" },
 	{ -64, -30, 6, 2, 3, "crate" },
+	-- 0.5: 맵 2배 확장에 맞춘 추가 엄폐물
+	{ -40, 10, 4, 4, 3, "crate" },
+	{ -40, -10, 4, 4, 3, "crate" },
+	{ -16, 28, 4, 4, 3, "crate" },
+	{ -16, -28, 4, 4, 3, "crate" },
+	{ -60, 14, 4, 4, 3, "crate" },
+	{ -60, -14, 4, 4, 3, "crate" },
+	{ -30, 46, 4, 4, 3, "crate" },
+	{ -30, -46, 4, 4, 3, "crate" },
+	{ -46, 32, 4, 4, 3, "crate" },
+	{ -46, -32, 4, 4, 3, "crate" },
+	{ -20, 14, 6, 2, 5, "wall" },
+	{ -20, -14, 6, 2, 5, "wall" },
 }
 
 -- 높은 지형 (위에 셀이 깔림): {중심x, 중심z, 크기x, 크기z, 높이}
@@ -328,28 +586,29 @@ local function decorate(geo)
 				Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
 		end
 	end
-	for x = -110, 110, 22 do
-		building(x + rng:NextInteger(-3, 3), -86 - rng:NextInteger(0, 12), rng:NextInteger(12, 18), rng:NextInteger(12, 18))
-		building(x + rng:NextInteger(-3, 3), 86 + rng:NextInteger(0, 12), rng:NextInteger(12, 18), rng:NextInteger(12, 18))
+	for x = -110 * MS, 110 * MS, 24 do
+		building(x + rng:NextInteger(-3, 3), -86 * MS - rng:NextInteger(0, 12), rng:NextInteger(14, 22), rng:NextInteger(14, 22))
+		building(x + rng:NextInteger(-3, 3), 86 * MS + rng:NextInteger(0, 12), rng:NextInteger(14, 22), rng:NextInteger(14, 22))
 	end
-	for z = -66, 66, 22 do
-		building(-118 - rng:NextInteger(0, 10), z, rng:NextInteger(12, 18), rng:NextInteger(12, 18))
-		building(118 + rng:NextInteger(0, 10), z, rng:NextInteger(12, 18), rng:NextInteger(12, 18))
+	for z = -66 * MS, 66 * MS, 24 do
+		building(-118 * MS - rng:NextInteger(0, 10), z, rng:NextInteger(14, 22), rng:NextInteger(14, 22))
+		building(118 * MS + rng:NextInteger(0, 10), z, rng:NextInteger(14, 22), rng:NextInteger(14, 22))
 	end
-	part({ Name = "CityGround", Parent = deco, Size = Vector3.new(320, 1, 260), Position = Vector3.new(0, -2.5, 0),
+	part({ Name = "CityGround", Parent = deco, Size = Vector3.new(320 * MS, 1, 260 * MS), Position = Vector3.new(0, -2.5, 0),
 		Color = Color3.fromRGB(30, 30, 38), Material = Enum.Material.Asphalt, CanQuery = false })
 
 	-- 2) 외벽 위 가로등 (조명)
-	for _, x in ipairs({ -60, -20, 20, 60 }) do
+	for _, x0 in ipairs({ -70, -50, -30, -10, 10, 30, 50, 70 }) do
+		local x = x0 * MS
 		for _, s in ipairs({ -1, 1 }) do
-			local pole = part({ Name = "LampPole", Parent = deco, Size = Vector3.new(0.6, 8, 0.6), Position = Vector3.new(x, 20, s * 57),
+			local pole = part({ Name = "LampPole", Parent = deco, Size = Vector3.new(0.6, 8, 0.6), Position = Vector3.new(x, 20, s * (HALF_Z + 1)),
 				Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal, CanQuery = false })
 			pole.CanCollide = false
-			local head = part({ Name = "Lamp", Parent = deco, Size = Vector3.new(3, 0.6, 1.4), Position = Vector3.new(x, 24.2, s * 56),
+			local head = part({ Name = "Lamp", Parent = deco, Size = Vector3.new(3, 0.6, 1.4), Position = Vector3.new(x, 24.2, s * HALF_Z),
 				Color = Color3.fromRGB(255, 240, 220), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
 			local light = Instance.new("SpotLight")
 			light.Face = Enum.NormalId.Bottom
-			light.Range = 40
+			light.Range = 48
 			light.Angle = 80
 			light.Brightness = 2.2
 			light.Color = Color3.fromRGB(255, 235, 215)
@@ -357,18 +616,21 @@ local function decorate(geo)
 		end
 	end
 
-	-- 3) 베이스 위 팀 배너
+	-- 3) 베이스 위 팀 배너 (경기마다 팀 색·이름으로 다시 칠함)
+	local banners = {}
 	for i, t in ipairs(Config.Teams) do
-		local x = (i == 1) and -79 or 79
-		local banner = part({ Name = "TeamBanner", Parent = deco, Size = Vector3.new(1, 8, 26), Position = Vector3.new(x, 16, 0),
+		local x = (i == 1) and -79 * MS or 79 * MS
+		local banner = part({ Name = "TeamBanner", Parent = deco, Size = Vector3.new(1, 8, 26 * MS), Position = Vector3.new(x, 16, 0),
 			Color = t.Color, Material = Enum.Material.Neon, CanQuery = false })
 		banner.CanCollide = false
 		banner.Transparency = 0.1
-		label(banner, t.Name, i == 1 and Enum.NormalId.Right or Enum.NormalId.Left).TextColor3 = Color3.fromRGB(20, 20, 30)
+		local l = label(banner, t.Name, i == 1 and Enum.NormalId.Right or Enum.NormalId.Left)
+		l.TextColor3 = Color3.fromRGB(20, 20, 30)
+		banners[i] = { Part = banner, Label = l }
 	end
 
 	-- 4) 중앙 상공 전광판 (점수·시간 실시간 표시, 양면)
-	local screen = part({ Name = "Jumbotron", Parent = deco, Size = Vector3.new(1, 9, 24), Position = Vector3.new(0, 30, 0),
+	local screen = part({ Name = "Jumbotron", Parent = deco, Size = Vector3.new(1, 13, 34), Position = Vector3.new(0, 30, 0),
 		Color = Color3.fromRGB(10, 10, 16), Material = Enum.Material.SmoothPlastic, CanQuery = false })
 	screen.CanCollide = false
 	local labels = {}
@@ -377,9 +639,9 @@ local function decorate(geo)
 		t.Font = Enum.Font.GothamBlack
 		table.insert(labels, t)
 	end
-	part({ Name = "JumboFrame", Parent = deco, Size = Vector3.new(0.8, 9.6, 24.6), Position = Vector3.new(0, 30, 0),
+	part({ Name = "JumboFrame", Parent = deco, Size = Vector3.new(0.8, 13.6, 34.6), Position = Vector3.new(0, 30, 0),
 		Color = Config.Teams[1].Color, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.6
-	return labels
+	return labels, banners
 end
 
 function MapBuilder.BuildArena()
@@ -420,7 +682,7 @@ function MapBuilder.BuildArena()
 
 	-- 장애물
 	for _, o in ipairs(mirrored(OBSTACLES)) do
-		local cx, cz, sx, sz, h, kind = o[1], o[2], o[3], o[4], o[5], o[6]
+		local cx, cz, sx, sz, h, kind = o[1] * MS, o[2] * MS, o[3] * MS, o[4] * MS, o[5], o[6]
 		local color, mat
 		if kind == "wall" then
 			color, mat = Color3.fromRGB(52, 54, 70), Enum.Material.Metal
@@ -468,7 +730,7 @@ function MapBuilder.BuildArena()
 	end
 
 	for _, pl in ipairs(mirrored(PLATFORMS)) do
-		local cx, cz, sx, sz, h = pl[1], pl[2], pl[3], pl[4], pl[5]
+		local cx, cz, sx, sz, h = pl[1] * MS, pl[2] * MS, pl[3] * MS, pl[4] * MS, pl[5]
 		part({ Name = "Platform", Parent = geo, Size = Vector3.new(sx, h, sz), Position = Vector3.new(cx, h / 2, cz),
 			Color = Color3.fromRGB(96, 100, 116), Material = Enum.Material.Concrete })
 		block(cx, cz, sx, sz)
@@ -476,26 +738,26 @@ function MapBuilder.BuildArena()
 	end
 
 	-- 경사로
-	ramp(geo, -16, -10, 0, 8, 0, 3)
-	ramp(geo, 16, 10, 0, 8, 0, 3)
+	ramp(geo, -16 * MS, -10 * MS, 0, 8 * MS, 0, 3)
+	ramp(geo, 16 * MS, 10 * MS, 0, 8 * MS, 0, 3)
 	for _, s in ipairs({ 1, -1 }) do
-		ramp(geo, -74 * 1, -60, 40 * s, 4, 0, 7)
-		ramp(geo, 74, 60, 40 * s, 4, 0, 7)
+		ramp(geo, -74 * MS, -60 * MS, 40 * MS * s, 4 * MS, 0, 7)
+		ramp(geo, 74 * MS, 60 * MS, 40 * MS * s, 4 * MS, 0, 7)
 		-- 타워 앞쪽 흉벽(앉으면 숨는 높이)
-		part({ Name = "Parapet", Parent = geo, Size = Vector3.new(1, 2.6, 8), Position = Vector3.new(-52.5, 8.3, 40 * s),
+		part({ Name = "Parapet", Parent = geo, Size = Vector3.new(1, 2.6, 8 * MS), Position = Vector3.new(-52.5 * MS, 8.3, 40 * MS * s),
 			Color = Config.Teams[1].Color, Material = Enum.Material.Glass, })
-		part({ Name = "Parapet", Parent = geo, Size = Vector3.new(1, 2.6, 8), Position = Vector3.new(52.5, 8.3, 40 * s),
+		part({ Name = "Parapet", Parent = geo, Size = Vector3.new(1, 2.6, 8 * MS), Position = Vector3.new(52.5 * MS, 8.3, 40 * MS * s),
 			Color = Config.Teams[2].Color, Material = Enum.Material.Glass })
 	end
 
-	block(-13, 0, 6, 8)
-	block(13, 0, 6, 8)
+	block(-13 * MS, 0, 6 * MS, 8 * MS)
+	block(13 * MS, 0, 6 * MS, 8 * MS)
 	for _, s in ipairs({ 1, -1 }) do
-		block(-67, 40 * s, 14, 4)
-		block(67, 40 * s, 14, 4)
+		block(-67 * MS, 40 * MS * s, 14 * MS, 4 * MS)
+		block(67 * MS, 40 * MS * s, 14 * MS, 4 * MS)
 	end
 
-	local jumbotron = decorate(geo)
+	local jumbotron, banners = decorate(geo)
 
 	-- 바닥 셀
 	addCells(-HALF_X, HALF_X, -HALF_Z, HALF_Z, 0)
@@ -503,28 +765,29 @@ function MapBuilder.BuildArena()
 	-- 스폰 위치 (베이스 위)
 	local spawns = { [1] = {}, [2] = {} }
 	for i = 0, 4 do
-		local z = -10 + i * 5
-		table.insert(spawns[1], CFrame.lookAt(Vector3.new(-73, 4, z), Vector3.new(0, 4, z)))
-		table.insert(spawns[2], CFrame.lookAt(Vector3.new(73, 4, z), Vector3.new(0, 4, z)))
+		local z = (-10 + i * 5) * MS
+		table.insert(spawns[1], CFrame.lookAt(Vector3.new(-73 * MS, 4, z), Vector3.new(0, 4, z)))
+		table.insert(spawns[2], CFrame.lookAt(Vector3.new(73 * MS, 4, z), Vector3.new(0, 4, z)))
 	end
 	-- 솔로 모드: 맵 가장자리 8곳
 	local solo = {}
 	local soloPts = { { -73, 0 }, { 73, 0 }, { 0, 48 }, { 0, -48 }, { -40, 48 }, { 40, -48 }, { 40, 48 }, { -40, -48 } }
 	for _, p in ipairs(soloPts) do
 		local y = (math.abs(p[1]) > 68) and 4 or 3
-		table.insert(solo, CFrame.lookAt(Vector3.new(p[1], y, p[2]), Vector3.new(0, y, 0)))
+		table.insert(solo, CFrame.lookAt(Vector3.new(p[1] * MS, y, p[2] * MS), Vector3.new(0, y, 0)))
 	end
 
 	local flags = {
-		{ Name = "A", Position = Vector3.new(0, 0, -40) },
+		{ Name = "A", Position = Vector3.new(0, 0, -40 * MS) },
 		{ Name = "C", Position = Vector3.new(0, 3, 0) },
-		{ Name = "B", Position = Vector3.new(0, 0, 40) },
+		{ Name = "B", Position = Vector3.new(0, 0, 40 * MS) },
 	}
 
-	local missionSpots = {
-		Vector3.new(0, 3, 0), Vector3.new(-30, 0, 44), Vector3.new(30, 0, -44), Vector3.new(-30, 0, -44),
-		Vector3.new(30, 0, 44), Vector3.new(0, 0, 40), Vector3.new(0, 0, -40), Vector3.new(-40, 0, 0), Vector3.new(40, 0, 0),
-	}
+	local missionSpots = {}
+	for _, m in ipairs({ { 0, 3, 0 }, { -30, 0, 44 }, { 30, 0, -44 }, { -30, 0, -44 }, { 30, 0, 44 }, { 0, 0, 40 }, { 0, 0, -40 },
+		{ -40, 0, 0 }, { 40, 0, 0 }, { -50, 0, 22 }, { 50, 0, -22 } }) do
+		table.insert(missionSpots, Vector3.new(m[1] * MS, m[2], m[3] * MS))
+	end
 
 	addOutlines(geo)
 	return {
@@ -538,8 +801,9 @@ function MapBuilder.BuildArena()
 		SoloSpawns = solo,
 		FlagPoints = flags,
 		MissionSpots = missionSpots,
-		BaseCenters = { [1] = Vector3.new(-73, 1, 0), [2] = Vector3.new(73, 1, 0) },
+		BaseCenters = { [1] = Vector3.new(-73 * MS, 1, 0), [2] = Vector3.new(73 * MS, 1, 0) },
 		Jumbotron = jumbotron,
+		TeamBanners = banners,
 	}
 end
 
@@ -550,10 +814,12 @@ end
 -- 빌딩 사이로 떨어지면 탈락(KillY). 좌표는 옥상 기준 상대좌표 → skyPos로 변환
 ------------------------------------------------------------------------
 local SKY_Y = 150                         -- 가운데 옥상 바닥 높이
-local SKY_O = Vector3.new(0, 0, 700)      -- 크로마 스퀘어와 겹치지 않게 떨어진 위치
+local SKY_O = Vector3.new(0, 0, 1400)     -- 크로마 스퀘어와 겹치지 않게 떨어진 위치 (맵 2배에 맞춰 더 멀리)
 
+-- 설계 좌표(1배) → 월드 좌표. 가로·세로만 MS배, 높이는 그대로라
+-- 점프패드(수평 속도도 MS배)·집라인의 궤적과 난간 사이 여유가 그대로 유지됨
 local function skyPos(x, y, z)
-	return Vector3.new(SKY_O.X + x, SKY_Y + y, SKY_O.Z + z)
+	return Vector3.new(SKY_O.X + x * MS, SKY_Y + y, SKY_O.Z + z * MS)
 end
 
 function MapBuilder.BuildSkyRooftop()
@@ -575,21 +841,23 @@ function MapBuilder.BuildSkyRooftop()
 	deco.Parent = root
 
 	local CONCRETE = Color3.fromRGB(78, 80, 92)
+	local skyBanners = {}
 	local METAL = Color3.fromRGB(118, 108, 92)
 	local blocked = {}
 
 	local function block(level, cx, cz, sx, sz)
-		table.insert(blocked, { level, cx - sx / 2, cx + sx / 2, cz - sz / 2, cz + sz / 2 })
+		table.insert(blocked, { level, (cx - sx / 2) * MS, (cx + sx / 2) * MS, (cz - sz / 2) * MS, (cz + sz / 2) * MS })
 	end
 
-	-- 상대좌표 상자: 바닥 y1에서 높이 h
+	-- 상대좌표 상자: 바닥 y1에서 높이 h (가로·세로 MS배)
 	local function box(name, cx, y1, cz, sx, h, sz, color, mat, parent)
-		return part({ Name = name, Parent = parent or geo, Size = Vector3.new(sx, h, sz), Position = skyPos(cx, y1 + h / 2, cz),
+		return part({ Name = name, Parent = parent or geo, Size = Vector3.new(sx * MS, h, sz * MS), Position = skyPos(cx, y1 + h / 2, cz),
 			Color = color or CONCRETE, Material = mat or Enum.Material.Concrete })
 	end
 
 	-- 바닥 셀 깔기 (같은 높이의 장애물 자리는 제외)
 	local function cellsOn(x1, x2, z1, z2, y)
+		x1, x2, z1, z2 = x1 * MS, x2 * MS, z1 * MS, z2 * MS
 		local x = x1 + CELL / 2
 		while x < x2 do
 			local z = z1 + CELL / 2
@@ -603,7 +871,7 @@ function MapBuilder.BuildSkyRooftop()
 				end
 				if free then
 					local c = part({ Name = "Cell", Parent = cells, Size = Vector3.new(CELL - 0.08, 0.2, CELL - 0.08),
-						Position = skyPos(x, y + 0.1, z), Color = Config.NeutralColor, CanCollide = false })
+						Position = Vector3.new(SKY_O.X + x, SKY_Y + y + 0.1, SKY_O.Z + z), Color = Config.NeutralColor, CanCollide = false })
 					c.CanTouch = false
 					c.CastShadow = false
 					c:SetAttribute("Owner", 0)
@@ -616,7 +884,8 @@ function MapBuilder.BuildSkyRooftop()
 
 	-- 경사로 + 난간 (xLow 높이 y0 → xHigh 높이 y0+h)
 	local function skyRamp(xLow, xHigh, z, width, y0, h)
-		local len = math.abs(xHigh - xLow)
+		width = width * MS
+		local len = math.abs(xHigh - xLow) * MS
 		local slope = math.sqrt(len * len + h * h)
 		local angle = math.atan(h / len)
 		if xHigh < xLow then
@@ -633,6 +902,7 @@ function MapBuilder.BuildSkyRooftop()
 
 	-- 점프패드: 밟으면 launch 속도로 발사 (플레이어는 클라이언트, 봇은 서버가 처리)
 	local function jumpPad(x, y, z, launch)
+		launch = Vector3.new(launch.X * MS, launch.Y, launch.Z * MS) -- 비행 시간은 같고 수평 거리만 MS배
 		local pad = part({ Name = "JumpPad", Parent = geo, Size = Vector3.new(6, 0.6, 6), Position = skyPos(x, y + 0.3, z),
 			Color = Color3.fromRGB(0, 255, 220), Material = Enum.Material.Neon })
 		pad:SetAttribute("Launch", launch)
@@ -662,7 +932,7 @@ function MapBuilder.BuildSkyRooftop()
 				r.AssemblyLinearVelocity = launch
 			end
 		end)
-		block(y, x, z, 6, 6)
+		block(y, x, z, 6 / MS, 6 / MS)
 		return pad
 	end
 
@@ -702,10 +972,10 @@ function MapBuilder.BuildSkyRooftop()
 	while y > -SKY_Y + 10 do
 		band = band + 1
 		local c = (band % 2 == 0) and Config.Teams[1].Color or Config.Teams[2].Color
-		part({ Name = "WindowBand", Parent = deco, Size = Vector3.new(100.4, 0.8, 104.4), Position = skyPos(0, y, 0), Color = c,
+		part({ Name = "WindowBand", Parent = deco, Size = Vector3.new(100 * MS + 0.4, 0.8, 104 * MS + 0.4), Position = skyPos(0, y, 0), Color = c,
 			Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.45
 		for _, s in ipairs({ -1, 1 }) do
-			part({ Name = "WindowBand", Parent = deco, Size = Vector3.new(20.4, 0.8, 60.4), Position = skyPos(76 * s, y + 6, 0),
+			part({ Name = "WindowBand", Parent = deco, Size = Vector3.new(20 * MS + 0.4, 0.8, 60 * MS + 0.4), Position = skyPos(76 * s, y + 6, 0),
 				Color = Config.Teams[s == -1 and 1 or 2].Color, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.45
 		end
 		y = y - 12
@@ -727,7 +997,9 @@ function MapBuilder.BuildSkyRooftop()
 		-- 스폰 빌딩 옥상: 뒤 벽(높음), 옆 난간, 앞 난간(경사로 자리 비움)
 		local back = box("SpawnWall", 85.5 * s, 8, 0, 1, 6, 60, Color3.fromRGB(36, 36, 48))
 		block(8, 85.5 * s, 0, 1, 60)
-		label(back, "SKY ROOFTOP", s == -1 and Enum.NormalId.Right or Enum.NormalId.Left).TextColor3 = Config.Teams[s == -1 and 1 or 2].Color
+		local bl = label(back, "SKY ROOFTOP", s == -1 and Enum.NormalId.Right or Enum.NormalId.Left)
+		bl.TextColor3 = Config.Teams[s == -1 and 1 or 2].Color
+		skyBanners[s == -1 and 1 or 2] = { Label = bl }
 		for _, t in ipairs({ -1, 1 }) do
 			box("Parapet", 76 * s, 8, 29.5 * t, 20, 2.5, 1, CONCRETE)
 			block(8, 76 * s, 29.5 * t, 20, 1)
@@ -881,14 +1153,14 @@ function MapBuilder.BuildSkyRooftop()
 	--------------------------------------------------------------------
 	local rng = Random.new(1750)
 	local neon = { Config.Teams[1].Color, Config.Teams[2].Color, Color3.fromRGB(255, 196, 0), Color3.fromRGB(140, 90, 255) }
-	part({ Name = "Street", Parent = deco, Size = Vector3.new(700, 1, 700), Position = Vector3.new(SKY_O.X, -0.5, SKY_O.Z),
+	part({ Name = "Street", Parent = deco, Size = Vector3.new(700 * MS, 1, 700 * MS), Position = Vector3.new(SKY_O.X, -0.5, SKY_O.Z),
 		Color = Color3.fromRGB(24, 24, 32), Material = Enum.Material.Asphalt, CanQuery = false })
 	for i = 1, 70 do
 		local a = rng:NextNumber() * math.pi * 2
-		local dist = rng:NextNumber(115, 300)
-		local far = dist > 220
+		local dist = rng:NextNumber(115, 300) * MS
+		local far = dist > 220 * MS
 		local h = far and rng:NextInteger(160, 240) or rng:NextInteger(50, 135)
-		local w = rng:NextInteger(16, 30)
+		local w = rng:NextInteger(16, 30) * (MS > 1 and 1.5 or 1)
 		local pos = Vector3.new(SKY_O.X + math.cos(a) * dist, h / 2, SKY_O.Z + math.sin(a) * dist)
 		part({ Name = "CityBuilding", Parent = deco, Size = Vector3.new(w, h, w), Position = pos,
 			Color = Color3.fromRGB(rng:NextInteger(24, 40), rng:NextInteger(24, 36), rng:NextInteger(38, 58)), Material = Enum.Material.Concrete,
@@ -959,6 +1231,7 @@ function MapBuilder.BuildSkyRooftop()
 		},
 		KillY = SKY_Y - 30,
 		Jumbotron = jumbotron,
+		TeamBanners = skyBanners,
 	}
 end
 

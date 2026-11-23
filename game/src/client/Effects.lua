@@ -5,6 +5,7 @@ local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
+local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 
 local player = Players.LocalPlayer
 local Effects = {}
@@ -202,7 +203,18 @@ function Effects.OnFX(kind, d)
 		end
 		local from = d.From
 		if d.Model then
-			local hand = d.Model:FindFirstChild("Gun") or d.Model:FindFirstChild("RightHand")
+			-- 손에 든 총의 총구에서 나가도록 + 발사 반동 자세
+			CharacterPose.Kick(d.Model, 1.5)
+			local gun = d.Model:FindFirstChild("SF_Gun")
+			local muzzle = nil
+			if gun then
+				for _, p in ipairs(gun:GetDescendants()) do
+					if p:IsA("BasePart") and p:GetAttribute("Kind") == "Muzzle" then
+						muzzle = p
+					end
+				end
+			end
+			local hand = muzzle or d.Model:FindFirstChild("RightHand")
 			if hand then
 				from = hand.Position
 			end
