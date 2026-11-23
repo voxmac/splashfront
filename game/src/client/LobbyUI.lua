@@ -818,6 +818,24 @@ function Lobby.Init(remoteFolder, hud)
 		b:SetAttribute("SFItalic", true)
 		return b
 	end
+	-- 좁은 화면: 독을 매치 패널 왼쪽 남은 공간의 가운데로, 그래도 좁으면 작게
+	local dockScale = make("UIScale", { Scale = 1 }, dock)
+	local function placeDock()
+		local cam = workspace.CurrentCamera
+		local w = cam and cam.ViewportSize.X or 1920
+		local free = w - 420 - 48 -- 매치 패널 폭 + 여백
+		if w / 2 + 235 > w - 420 - 32 then
+			dock.Position = UDim2.new(0, math.max(330, free / 2 + 10), 1, -14)
+			dockScale.Scale = math.clamp((free - 330) / 480, 0.7, 1)
+		else
+			dock.Position = UDim2.new(0.5, 0, 1, -14)
+			dockScale.Scale = 1
+		end
+	end
+	placeDock()
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(placeDock)
+	end
 	local battleBtn = bigButton("배틀 시작", Color3.fromRGB(235, 70, 255), Color3.fromRGB(150, 40, 220), 4)
 	local playBtn = bigButton("매치 선택", Color3.fromRGB(40, 235, 120), Color3.fromRGB(10, 170, 90), 240)
 	battleBtn.MouseButton1Click:Connect(function()
