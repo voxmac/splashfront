@@ -26,6 +26,11 @@ function AdminService.IsAdmin(player)
 	return RunService:IsStudio() or inList(Config.CBT.Admins, player.UserId)
 end
 
+-- 이 명령을 지금 서버에서 쓸 수 있는지 (정식 서버에서는 치트 차단)
+function AdminService.CommandAllowed(action)
+	return RunService:IsStudio() or Config.DevTools or Config.OpsCommands[action] == true
+end
+
 function AdminService.CanJoin(player)
 	if not Config.CBT.Enabled or RunService:IsStudio() then
 		return true
@@ -162,6 +167,9 @@ function AdminService.Init(remotes)
 		if not fn then
 			return { ok = false, msg = "알 수 없는 명령" }
 		end
+		if not AdminService.CommandAllowed(action) then
+			return { ok = false, msg = "정식 서버에서는 사용할 수 없는 개발자 명령" }
+		end
 		local ok, result = pcall(fn, player, arg)
 		print(string.format("[SplashFront][관리자] %s -> %s(%s): %s", player.Name, tostring(action), tostring(arg), tostring(result)))
 		if not ok then
@@ -178,6 +186,7 @@ function AdminService.Gate(player)
 		return false
 	end
 	player:SetAttribute("IsAdmin", AdminService.IsAdmin(player))
+	player:SetAttribute("DevTools", RunService:IsStudio() or Config.DevTools)
 	return true
 end
 

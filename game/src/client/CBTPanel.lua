@@ -146,7 +146,8 @@ local function buildAdmin()
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
 	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 196, 0) }, adminFrame)
-	label(adminFrame, { Text = "CBT 관리자 패널 (F2) · 빌드 " .. Config.Build, TextSize = 18, Font = Enum.Font.GothamBlack,
+	local dev = player:GetAttribute("DevTools") == true
+	label(adminFrame, { Text = (dev and "개발자 패널 (F2) · 빌드 " or "운영자 패널 (F2) · 빌드 ") .. Config.Build, TextSize = 18, Font = Enum.Font.GothamBlack,
 		Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -80, 0, 26), ZIndex = 41 })
 	UI.CloseButton(adminFrame, function()
 		CBT.ToggleAdmin()
@@ -162,7 +163,16 @@ local function buildAdmin()
 		{ "rankedBots", "봇 랭크반영 토글" }, { "rating", "레이팅 설정" }, { "resetProfile", "내 데이터 초기화" },
 		{ "nextMap", "다음 맵 변경" }, { "balance", "밸런스 리포트" }, { "feedback", "피드백 보기" },
 	}
-	for i, c in ipairs(cmds) do
+	local shown = {}
+	for _, c in ipairs(cmds) do
+		if dev or Config.OpsCommands[c[1]] then
+			table.insert(shown, c)
+		end
+	end
+	if not dev then
+		argBox.PlaceholderText = "맵 번호"
+	end
+	for i, c in ipairs(shown) do
 		local col = (i - 1) % 4
 		local row = math.floor((i - 1) / 4)
 		local color = (c[1] == "balance" or c[1] == "feedback") and Color3.fromRGB(0, 140, 130)
@@ -199,6 +209,11 @@ function CBT.Init(remoteFolder, hud)
 	gui = make("ScreenGui", { Name = "SplashCBT", ResetOnSpawn = false, DisplayOrder = 20, ZIndexBehavior = Enum.ZIndexBehavior.Sibling },
 		player:WaitForChild("PlayerGui"))
 	buildFeedback()
+	-- 서버가 DevTools 속성을 넣을 때까지 잠깐 대기 (정식 서버면 운영 명령만 표시)
+	local t0 = os.clock()
+	while player:GetAttribute("DevTools") == nil and os.clock() - t0 < 5 do
+		task.wait(0.1)
+	end
 	buildAdmin()
 
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
@@ -213,7 +228,7 @@ function CBT.Init(remoteFolder, hud)
 		end
 		if input.KeyCode == Enum.KeyCode.F2 then
 			CBT.ToggleAdmin()
-		elseif input.KeyCode == Enum.KeyCode.F4 then
+		elseif input.KeyCode == Enum.KeyCode.F4 and Config.CBT.Enabled then
 			CBT.OpenFeedback()
 		end
 	end)
@@ -222,6 +237,9 @@ end
 
 -- 결과 화면이 뜰 때 피드백 유도
 function CBT.OnResults()
+	if not Config.CBT.Enabled then
+		return
+	end
 	HUD.Banner("이번 판 어땠나요? 피드백 [F4]", Color3.fromRGB(0, 214, 200))
 end
 

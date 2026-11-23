@@ -22,6 +22,14 @@ Config.CBT = {
 	FeedbackCooldown = 60,    -- 피드백 제출 간격(초)
 }
 
+-- 개발자 치트(코인 지급·무기 해금·무료 크레이트·레이팅 변경·데이터 초기화 등)
+-- 정식 서버에서는 false: 관리자라도 운영용 명령(경기 종료·맵 변경·봇·리포트)만 가능.
+-- Studio 테스트에서는 이 값과 관계없이 모두 사용 가능.
+Config.DevTools = false
+
+-- 운영용(치트가 아닌) 관리자 명령
+Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true }
+
 -- 페인트 셀
 Config.CellSize = 4              -- 셀 한 칸 크기(스터드)
 Config.NeutralColor = Color3.fromRGB(205, 208, 214)

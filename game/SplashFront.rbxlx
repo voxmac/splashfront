@@ -106,6 +106,14 @@ Config.CBT = {
 	FeedbackCooldown = 60,    -- 피드백 제출 간격(초)
 }
 
+-- 개발자 치트(코인 지급·무기 해금·무료 크레이트·레이팅 변경·데이터 초기화 등)
+-- 정식 서버에서는 false: 관리자라도 운영용 명령(경기 종료·맵 변경·봇·리포트)만 가능.
+-- Studio 테스트에서는 이 값과 관계없이 모두 사용 가능.
+Config.DevTools = false
+
+-- 운영용(치트가 아닌) 관리자 명령
+Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true }
+
 -- 페인트 셀
 Config.CellSize = 4              -- 셀 한 칸 크기(스터드)
 Config.NeutralColor = Color3.fromRGB(205, 208, 214)
@@ -971,6 +979,11 @@ function AdminService.IsAdmin(player)
 	return RunService:IsStudio() or inList(Config.CBT.Admins, player.UserId)
 end
 
+-- 이 명령을 지금 서버에서 쓸 수 있는지 (정식 서버에서는 치트 차단)
+function AdminService.CommandAllowed(action)
+	return RunService:IsStudio() or Config.DevTools or Config.OpsCommands[action] == true
+end
+
 function AdminService.CanJoin(player)
 	if not Config.CBT.Enabled or RunService:IsStudio() then
 		return true
@@ -1107,6 +1120,9 @@ function AdminService.Init(remotes)
 		if not fn then
 			return { ok = false, msg = "알 수 없는 명령" }
 		end
+		if not AdminService.CommandAllowed(action) then
+			return { ok = false, msg = "정식 서버에서는 사용할 수 없는 개발자 명령" }
+		end
 		local ok, result = pcall(fn, player, arg)
 		print(string.format("[SplashFront][관리자] %s -> %s(%s): %s", player.Name, tostring(action), tostring(arg), tostring(result)))
 		if not ok then
@@ -1123,6 +1139,7 @@ function AdminService.Gate(player)
 		return false
 	end
 	player:SetAttribute("IsAdmin", AdminService.IsAdmin(player))
+	player:SetAttribute("DevTools", RunService:IsStudio() or Config.DevTools)
 	return true
 end
 
@@ -7010,7 +7027,8 @@ local function buildAdmin()
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
 	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 196, 0) }, adminFrame)
-	label(adminFrame, { Text = "CBT 관리자 패널 (F2) · 빌드 " .. Config.Build, TextSize = 18, Font = Enum.Font.GothamBlack,
+	local dev = player:GetAttribute("DevTools") == true
+	label(adminFrame, { Text = (dev and "개발자 패널 (F2) · 빌드 " or "운영자 패널 (F2) · 빌드 ") .. Config.Build, TextSize = 18, Font = Enum.Font.GothamBlack,
 		Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -80, 0, 26), ZIndex = 41 })
 	UI.CloseButton(adminFrame, function()
 		CBT.ToggleAdmin()
@@ -7026,7 +7044,16 @@ local function buildAdmin()
 		{ "rankedBots", "봇 랭크반영 토글" }, { "rating", "레이팅 설정" }, { "resetProfile", "내 데이터 초기화" },
 		{ "nextMap", "다음 맵 변경" }, { "balance", "밸런스 리포트" }, { "feedback", "피드백 보기" },
 	}
-	for i, c in ipairs(cmds) do
+	local shown = {}
+	for _, c in ipairs(cmds) do
+		if dev or Config.OpsCommands[c[1]] then
+			table.insert(shown, c)
+		end
+	end
+	if not dev then
+		argBox.PlaceholderText = "맵 번호"
+	end
+	for i, c in ipairs(shown) do
 		local col = (i - 1) % 4
 		local row = math.floor((i - 1) / 4)
 		local color = (c[1] == "balance" or c[1] == "feedback") and Color3.fromRGB(0, 140, 130)
@@ -7063,6 +7090,11 @@ function CBT.Init(remoteFolder, hud)
 	gui = make("ScreenGui", { Name = "SplashCBT", ResetOnSpawn = false, DisplayOrder = 20, ZIndexBehavior = Enum.ZIndexBehavior.Sibling },
 		player:WaitForChild("PlayerGui"))
 	buildFeedback()
+	-- 서버가 DevTools 속성을 넣을 때까지 잠깐 대기 (정식 서버면 운영 명령만 표시)
+	local t0 = os.clock()
+	while player:GetAttribute("DevTools") == nil and os.clock() - t0 < 5 do
+		task.wait(0.1)
+	end
 	buildAdmin()
 
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
@@ -7077,7 +7109,7 @@ function CBT.Init(remoteFolder, hud)
 		end
 		if input.KeyCode == Enum.KeyCode.F2 then
 			CBT.ToggleAdmin()
-		elseif input.KeyCode == Enum.KeyCode.F4 then
+		elseif input.KeyCode == Enum.KeyCode.F4 and Config.CBT.Enabled then
 			CBT.OpenFeedback()
 		end
 	end)
@@ -7086,6 +7118,9 @@ end
 
 -- 결과 화면이 뜰 때 피드백 유도
 function CBT.OnResults()
+	if not Config.CBT.Enabled then
+		return
+	end
 	HUD.Banner("이번 판 어땠나요? 피드백 [F4]", Color3.fromRGB(0, 214, 200))
 end
 
