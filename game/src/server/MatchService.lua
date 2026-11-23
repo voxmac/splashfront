@@ -293,6 +293,18 @@ local function broadcast()
 		Board = board,
 		Maps = mapList,
 		FinalSplash = S.FinalSplash,
+		OpenSlots = (function()
+			if S.Phase ~= "Playing" or (S.EndsAt or 0) - now() < 30 then
+				return 0
+			end
+			local n = 0
+			for _, o in ipairs(Combatants.All()) do
+				if o.IsBot then
+					n = n + 1
+				end
+			end
+			return n
+		end)(),
 	})
 end
 
@@ -1089,6 +1101,96 @@ local function setQueue(player, queueId, viaPad, side)
 	end
 end
 
+-- 진행 중인 경기의 빈자리(봇 자리)에 바로 들어가기. 성공하면 true
+function MatchService.JoinInProgress(player)
+	if S.Phase ~= "Playing" or player:GetAttribute("InMatch") or not player.Parent then
+		return false
+	end
+	if (S.EndsAt or 0) - now() < 30 then
+		return false -- 끝나기 직전에는 들어가지 않음
+	end
+	-- 사람이 더 적은 팀의 봇 자리부터
+	local humansOn = {}
+	for _, o in ipairs(Combatants.All()) do
+		if not o.IsBot then
+			humansOn[o.OwnerId] = (humansOn[o.OwnerId] or 0) + 1
+		end
+	end
+	local bot = nil
+	for _, o in ipairs(Combatants.All()) do
+		if o.IsBot and (not bot or (humansOn[o.OwnerId] or 0) < (humansOn[bot.OwnerId] or 0)) then
+			bot = o
+		end
+	end
+	if not bot then
+		return false -- 빈자리 없음
+	end
+	-- 봇 내보내기
+	bot.Alive = false
+	Combatants.Remove(bot)
+	pcall(function()
+		if bot.Model then
+			bot.Model:Destroy()
+		end
+	end)
+	local profile = DataService.Get(player)
+	local e = Combatants.New({
+		Id = "P" .. player.UserId, Name = player.DisplayName, Player = player,
+		OwnerId = bot.OwnerId, TeamId = bot.TeamId,
+		WeaponId = profile and profile.Equipped or Weapons.Default,
+	})
+	if profile and profile.EquippedPattern and Cosmetics.ById[profile.EquippedPattern] then
+		e.PatternMaterial = Cosmetics.MaterialOf(Cosmetics.ById[profile.EquippedPattern].Material)
+	end
+	e.KillEffect = profile and profile.EquippedEffect or nil
+	if S.Mode == "Solo" then
+		for _, o in ipairs(S.Owners) do
+			if o.OwnerId == e.OwnerId then
+				o.Name = player.DisplayName
+			end
+		end
+	end
+	local played = player:GetAttribute("SessionMatches") or 0
+	player:SetAttribute("SessionMatches", played + 1)
+	player:SetAttribute("Queue", S.QueueId)
+	player:SetAttribute("QueueSide", nil)
+	player:SetAttribute("InMatch", true)
+	player:SetAttribute("OwnerId", e.OwnerId)
+	player:SetAttribute("TeamId", e.TeamId)
+	player:SetAttribute("TeamColor", MatchService.ColorOf(e.OwnerId))
+	player:SetAttribute("Weapon", e.WeaponId)
+	Telemetry.Funnel(player, "MatchStarted")
+	task.spawn(spawnEntity, e)
+	remotes.FX:FireClient(player, "Cue", { Name = "countdown_go" })
+	remotes.Notify:FireClient(player, "진행 중인 배틀에 합류했어요! (" .. bot.Name .. " 자리)", Color3.fromRGB(140, 255, 200))
+	announce(player.DisplayName .. " 님이 배틀에 합류했어요", Color3.fromRGB(200, 230, 255))
+	return true
+end
+
+-- [배틀 시작] 빠른 참가: 진행 중인 배틀의 빈자리 → 없으면 사람이 기다리는 대기열(자리 남은 팀전) → 없으면 3vs3 대기
+local function quickJoin(player)
+	if player:GetAttribute("InMatch") then
+		return
+	end
+	if MatchService.JoinInProgress(player) then
+		return
+	end
+	local counts = queueCounts()
+	local pick, best = nil, 0
+	for _, q in ipairs(Config.Queues) do
+		local cap = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		local n = counts[q.Id] or 0
+		if q.Mode ~= "Solo" and n > best and n < cap then
+			pick, best = q, n
+		end
+	end
+	setQueue(player, pick and pick.Id or "3v3", false)
+	if player:GetAttribute("Queue") then
+		remotes.Notify:FireClient(player, "배틀 대기 중 — 정원이 차거나 카운트다운이 끝나면 시작해요 (취소: 배틀 취소 버튼)",
+			Color3.fromRGB(255, 255, 255))
+	end
+end
+
 -- 방장만 맵을 고를 수 있음 (mapId = 맵 Id 또는 "random", nil이면 순환)
 local function setHostMap(player, mapId)
 	local qid = player:GetAttribute("Queue")
@@ -1276,6 +1378,8 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			startNow(player)
 		elseif a == "leaveMatch" then
 			MatchService.LeaveMatch(player)
+		elseif a == "quick" then
+			quickJoin(player)
 		elseif a == nil or type(a) == "string" then
 			setQueue(player, a, false)
 		end

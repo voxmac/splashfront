@@ -621,7 +621,7 @@ local function rebuildMatch()
 	local counts = (s and s.QueueCounts) or {}
 	local info = (s and s.QueueInfo) or {}
 	local mySide = player:GetAttribute("QueueSide")
-	local sig = tostring(mine) .. tostring(mySide) .. "|" .. (s and s.Phase or "")
+	local sig = tostring(mine) .. tostring(mySide) .. "|" .. (s and s.Phase or "") .. tostring(s and s.OpenSlots) .. tostring(s and s.EndsAt and math.floor((s.EndsAt - workspace:GetServerTimeNow()) / 10))
 	for _, q in ipairs(Config.Queues) do
 		local qi = info[q.Id] or {}
 		local sd = qi.Sides or {}
@@ -638,6 +638,21 @@ local function rebuildMatch()
 		return order
 	end
 
+	-- 진행 중인 배틀: 봇 자리(빈자리)가 있으면 바로 합류
+	if s and s.Phase == "Playing" and (s.OpenSlots or 0) > 0 then
+		local jb = button(matchBody, "", Color3.fromRGB(20, 120, 80), { Size = UDim2.new(1, 0, 0, 62), LayoutOrder = nextOrder(), Text = "" })
+		UI.gradient(jb, Color3.fromRGB(40, 220, 130), Color3.fromRGB(10, 120, 80), 90)
+		label(jb, { Text = "진행 중인 배틀 · " .. tostring(s.MapName or ""), Font = Enum.Font.GothamBlack, TextSize = 20, Position = UDim2.fromOffset(14, 6),
+			Size = UDim2.new(1, -150, 0, 26) })
+		local left = math.max(0, math.floor((s.EndsAt or 0) - workspace:GetServerTimeNow()))
+		label(jb, { Text = string.format("%s · 남은 시간 %d:%02d · 빈자리 %d", tostring(s.ModeName or ""), left // 60, left % 60, s.OpenSlots), TextSize = 15,
+			Position = UDim2.fromOffset(14, 34), Size = UDim2.new(1, -150, 0, 20) })
+		label(jb, { Text = "바로 합류 >", TextSize = 18, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -140, 0, 20), Size = UDim2.fromOffset(126, 24),
+			TextXAlignment = Enum.TextXAlignment.Right })
+		jb.MouseButton1Click:Connect(function()
+			remotes.Queue:FireServer("quick")
+		end)
+	end
 	label(matchBody, { Text = "대기 중인 배틀", TextSize = 17, TextColor3 = C.Sub, Size = UDim2.new(1, 0, 0, 22), LayoutOrder = nextOrder() })
 	local any = false
 	for _, q in ipairs(Config.Queues) do
@@ -851,23 +866,25 @@ function Lobby.Init(remoteFolder, hud)
 	end
 	local battleBtn = bigButton("배틀 시작", Color3.fromRGB(235, 70, 255), Color3.fromRGB(150, 40, 220), 4)
 	local playBtn = bigButton("매치 선택", Color3.fromRGB(40, 235, 120), Color3.fromRGB(10, 170, 90), 240)
+	-- [배틀 시작] = 진행 중인 배틀 빈자리에 바로 합류, 없으면 대기열로. 대기 중에는 [배틀 취소]로 바뀜
+	local function refreshBattleBtn()
+		local waiting = player:GetAttribute("Queue") ~= nil and not player:GetAttribute("InMatch")
+		battleBtn.Text = waiting and "배틀 취소" or "배틀 시작"
+		local g = battleBtn:FindFirstChildOfClass("UIGradient")
+		if g then
+			g.Color = waiting and ColorSequence.new(Color3.fromRGB(255, 90, 90), Color3.fromRGB(190, 30, 60))
+				or ColorSequence.new(Color3.fromRGB(235, 70, 255), Color3.fromRGB(150, 40, 220))
+		end
+	end
+	player:GetAttributeChangedSignal("Queue"):Connect(refreshBattleBtn)
+	player:GetAttributeChangedSignal("InMatch"):Connect(refreshBattleBtn)
+	refreshBattleBtn()
 	battleBtn.MouseButton1Click:Connect(function()
-		-- 빠른 참가: 자리가 남은 대기 중 팀전 → 없으면 3vs3
-		local st = lastState or {}
-		local counts = st.QueueCounts or {}
-		local info = st.QueueInfo or {}
-		local pick, best = nil, -1
-		for _, q in ipairs(Config.Queues) do
-			local n = counts[q.Id] or 0
-			local qi = info[q.Id] or {}
-			if q.Mode == "Turf" and n > best and not qi.Full then
-				pick, best = q.Id, n
-			end
+		if player:GetAttribute("Queue") ~= nil and not player:GetAttribute("InMatch") then
+			remotes.Queue:FireServer(nil) -- 대기 취소
+		else
+			remotes.Queue:FireServer("quick")
 		end
-		if best <= 0 then
-			pick = "3v3"
-		end
-		remotes.Queue:FireServer(pick)
 	end)
 	playBtn.MouseButton1Click:Connect(function()
 		if matchFrame then
