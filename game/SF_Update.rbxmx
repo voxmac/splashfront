@@ -13061,7 +13061,16 @@ status.Text = "출격!"
 local cam = workspace.CurrentCamera
 if char and root and cam then
 	local target = root.CFrame
-	local endCf = CFrame.lookAt(target.Position + target.LookVector * -11 + Vector3.new(0, 5, 0), target.Position + Vector3.new(0, 2, 0))
+	-- 도착 지점 = Roblox 기본 카메라가 지금 잡고 있는 위치 (그래야 연출이 끝나고 넘겨줄 때 튀지 않음)
+	cam.CameraType = Enum.CameraType.Custom
+	cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+	for _ = 1, 4 do
+		RunService.RenderStepped:Wait()
+	end
+	local endCf = cam.CFrame
+	if (endCf.Position - target.Position).Magnitude > 40 then
+		endCf = CFrame.lookAt(target.Position + target.LookVector * -11 + Vector3.new(0, 5, 0), target.Position + Vector3.new(0, 2, 0))
+	end
 	local startPos = target.Position + Vector3.new(0, 95, 18)
 	local startCf = CFrame.lookAt(startPos, target.Position)
 	cam.CameraType = Enum.CameraType.Scriptable
@@ -13094,8 +13103,8 @@ if char and root and cam then
 		RunService.RenderStepped:Wait()
 	end
 	cam.FieldOfView = fov0
+	cam.CFrame = endCf
 	cam.CameraType = Enum.CameraType.Custom
-	cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
 else
 	TweenService:Create(bg, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
 end
