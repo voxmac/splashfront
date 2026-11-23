@@ -192,7 +192,7 @@ function Effects.ShakeOffset(dt)
 	end
 	local s = shake
 	shake = shake * math.exp(-12 * dt)
-	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 4), math.rad((math.random() - 0.5) * s * 4), 0)
+	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 1.6), math.rad((math.random() - 0.5) * s * 1.6), 0)
 end
 
 -- 서버 FX 이벤트 처리

@@ -162,7 +162,54 @@ end
 ------------------------------------------------------------------------
 -- 사격 (플레이어·봇 공용)
 ------------------------------------------------------------------------
-function CombatService.Fire(e, origin, directions)
+-- 쏜 사람 화면에서 맞힌 지점(claim)을 검증: 그 캐릭터가 서버에서도 근처에 있고, 탄도 위에 있고, 벽에 막히지 않았으면 인정
+local function verifyClaim(e, origin, dir, range, claim)
+	local K = Config.HitClaim
+	if not K or type(claim) ~= "table" or typeof(claim.Part) ~= "Instance" or typeof(claim.Pos) ~= "Vector3" then
+		return nil
+	end
+	if not claim.Part:IsA("BasePart") then
+		return nil
+	end
+	local v = Combatants.FromPart(claim.Part)
+	if not v or not v.Alive or not Combatants.IsEnemy(e, v) then
+		return nil
+	end
+	local rel = claim.Pos - origin
+	local t = rel:Dot(dir)
+	if t <= 0 or t > range or (rel - dir * t).Magnitude > K.MaxPerp then
+		return nil
+	end
+	if (claim.Part.Position - claim.Pos).Magnitude > K.MaxMove + claim.Part.Size.Magnitude / 2 then
+		return nil
+	end
+	-- 시야: 캐릭터들을 빼고 지형만으로 막히는지
+	local ignore = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby"), workspace:FindFirstChild("Bots") }
+	for _, o in ipairs(Combatants.All()) do
+		if o.Model then
+			table.insert(ignore, o.Model)
+		end
+	end
+	local mp = RaycastParams.new()
+	mp.FilterType = Enum.RaycastFilterType.Exclude
+	mp.FilterDescendantsInstances = ignore
+	if workspace:Raycast(origin, rel * 0.98, mp) then
+		return nil
+	end
+	local part = claim.Part
+	local isHead = part.Name == "Head"
+	if not isHead and part.Parent and part.Parent:IsA("Accessory") then
+		for _, a in ipairs(part:GetChildren()) do
+			if a:IsA("Attachment") and (string.find(a.Name, "Hat") or string.find(a.Name, "Hair") or string.find(a.Name, "Face")) then
+				isHead = true
+			end
+		end
+	end
+	local target = isHead and (v.Model:FindFirstChild("Head") or part) or part
+	return { Instance = target, Position = claim.Pos, Normal = -dir }
+end
+
+function CombatService.Fire(e, origin, directions, claims)
 	if not active or not e.Alive then
 		return false
 	end
@@ -194,14 +241,20 @@ function CombatService.Fire(e, origin, directions)
 			e.Shots = (e.Shots or 0) + 1
 			local result = workspace:Raycast(origin, dir * w.Range, params)
 			local endPos
-			-- 직접 맞히지 못했으면 플레이어 사격에 한해 명중 보정
+			-- 서버 레이가 빗나갔으면(지연 때문에 적이 서버에서 조금 옆에 있음) 플레이어 사격에 한해
+			-- 1) 쏜 사람 화면의 명중 판정을 검증해 인정  2) 그래도 없으면 탄도 근처 적 보정
 			local directVictim = result and Combatants.FromPart(result.Instance)
 			if e.Player and not (directVictim and Combatants.IsEnemy(e, directVictim)) then
-				local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
-				local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
-				if v then
-					local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
-					result = { Instance = part, Position = pos, Normal = -dir }
+				local claimed = verifyClaim(e, origin, dir, w.Range, type(claims) == "table" and claims[i] or nil)
+				if claimed then
+					result = claimed
+				else
+					local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
+					local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
+					if v then
+						local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
+						result = { Instance = part, Position = pos, Normal = -dir }
+					end
 				end
 			end
 			if result then
@@ -253,7 +306,7 @@ function CombatService.Fire(e, origin, directions)
 	return true
 end
 
-function CombatService.OnPlayerFire(player, weaponId, origin, directions)
+function CombatService.OnPlayerFire(player, weaponId, origin, directions, claims)
 	local e = Combatants.FromPlayer(player)
 	if not e or typeof(origin) ~= "Vector3" or type(directions) ~= "table" then
 		return
@@ -261,7 +314,7 @@ function CombatService.OnPlayerFire(player, weaponId, origin, directions)
 	if weaponId ~= e.WeaponId then
 		return
 	end
-	CombatService.Fire(e, origin, directions)
+	CombatService.Fire(e, origin, directions, claims)
 end
 
 ------------------------------------------------------------------------

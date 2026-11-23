@@ -15,6 +15,7 @@ local MapInteract = require(script.Parent:WaitForChild("MapInteract"))
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
+local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
@@ -53,6 +54,7 @@ LobbyUI.SetModalHandler(function(on)
 	modal("lobby", on)
 end)
 CharacterPose.Init()
+PaintVisual.Init()
 MusicPlayer.Init()
 
 -- 스페셜 충전 완료 / 부활
@@ -129,7 +131,7 @@ end)
 
 remotes.Damaged.OnClientEvent:Connect(function(fromPos, amount, color)
 	HUD.DamageFlash(color or Color3.fromRGB(255, 60, 60)) -- 기획서 4장: 화면 가장자리 적 색 비네트
-	Effects.Shake(math.clamp(amount / 60, 0.1, 0.6))
+	Effects.Shake(math.clamp(amount / 80, 0.05, 0.35))
 	SoundBank.Play("hurt", nil, 0.5)
 end)
 

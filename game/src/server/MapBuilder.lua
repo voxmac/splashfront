@@ -721,6 +721,7 @@ function MapBuilder.BuildArena()
 						CanCollide = false })
 					c.CanTouch = false
 					c.CastShadow = false
+					c.Transparency = 1 -- 판정용 격자는 숨기고, 화면의 페인트는 클라이언트 PaintVisual이 그림
 					c:SetAttribute("Owner", 0)
 				end
 				z = z + CELL
@@ -874,6 +875,7 @@ function MapBuilder.BuildSkyRooftop()
 						Position = Vector3.new(SKY_O.X + x, SKY_Y + y + 0.1, SKY_O.Z + z), Color = Config.NeutralColor, CanCollide = false })
 					c.CanTouch = false
 					c.CastShadow = false
+					c.Transparency = 1 -- 판정용 격자는 숨기고, 화면의 페인트는 클라이언트 PaintVisual이 그림
 					c:SetAttribute("Owner", 0)
 				end
 				z = z + CELL

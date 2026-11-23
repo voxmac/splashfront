@@ -208,22 +208,34 @@ local function fire()
 	local dirs = {}
 	local color = teamColor()
 	local muzzle = muzzleCFrame().Position
+	local claims = {}
 	for i = 1, w.Pellets do
 		local d = coneDir(look, spread)
 		dirs[i] = d
 		local hit = workspace:Raycast(origin, d * w.Range, params)
 		local to = hit and hit.Position or (origin + d * w.Range)
 		Effects.Tracer(muzzle, to, color, w.Id == "Sniper" and 0.3 or 0.16)
+		-- 내 화면에서 캐릭터를 맞혔으면 서버에 알림 (서버가 위치·시야를 검증해 인정)
+		if hit then
+			local model = hit.Instance:FindFirstAncestorOfClass("Model")
+			while model and not model:FindFirstChildOfClass("Humanoid") do
+				model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
+			end
+			if model then
+				claims[i] = { Part = hit.Instance, Pos = hit.Position }
+			end
+		end
 	end
-	remotes.Fire:FireServer(w.Id, origin, dirs)
+	remotes.Fire:FireServer(w.Id, origin, dirs, claims)
 
 	Effects.Muzzle(muzzleCFrame(), color)
 	SoundBank.Play("fire_" .. string.lower(w.Id), nil, 0.55, 0.96 + math.random() * 0.08)
-	kick = kick + w.Recoil
-	vmKick = vmKick + math.min(1.5, w.Recoil * 0.35)
+	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
+	kick = math.min(kick + w.Recoil * 0.35, 4)
+	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
 	CharacterPose.Kick(player.Character, w.Recoil)
 	spreadExtra = math.min(w.SpreadMax, spreadExtra + w.SpreadGrow)
-	Effects.Shake(w.Recoil * 0.05)
+	Effects.Shake(w.Recoil * 0.02)
 end
 
 local function special()
@@ -615,13 +627,20 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 	end)
 
+	-- 카메라 반동: 기본 카메라는 매 프레임 '지난 프레임 카메라 방향'에서 출발하므로
+	-- 반동을 통째로 매번 더하면 계속 쌓여 하늘로 솟구침(0.5 버그). 지난 프레임에 더한 만큼 빼고 새 값만 적용
+	local lastOffset = CFrame.new()
 	RunService:BindToRenderStep("SF_Recoil", Enum.RenderPriority.Camera.Value + 1, function(dt)
-		if not enabled then
+		local cam = camera()
+		if not enabled or uiMode then
+			lastOffset = CFrame.new()
+			kick = 0
 			return
 		end
-		kick = kick * math.exp(-10 * dt)
-		local cam = camera()
-		cam.CFrame = cam.CFrame * CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
+		kick = kick * math.exp(-14 * dt) -- 빠르게 원위치 (조준점 복귀)
+		local offset = CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
+		cam.CFrame = cam.CFrame * lastOffset:Inverse() * offset
+		lastOffset = offset
 	end)
 
 	RunService.RenderStepped:Connect(function(dt)

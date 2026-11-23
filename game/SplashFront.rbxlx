@@ -63,7 +63,7 @@ return {
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.5-CBT"
+Config.Build = "0.5.1-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -143,7 +143,8 @@ Config.PadLeaveGrace = 1.5      -- 발판 참가 직후 이 시간 동안은 발
 Config.MapScale = 2             -- 맵 가로·세로 배율 (높이는 그대로)
 Config.WeaponSwitchRadius = 18  -- 스폰 지점에서 이 거리 안이면 무기 교체 가능
 Config.WeaponSwitchGrace = 6    -- 부활 후 이 시간(초) 동안도 무기 교체 가능
-Config.HitAssist = { Body = 1.4, Head = 0.75, PerStud = 0.012 } -- 서버 명중 보정(스터드): 지연 보상
+Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 보정(스터드): 지연 보상
+Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
 Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)
@@ -1296,7 +1297,54 @@ end
 ------------------------------------------------------------------------
 -- 사격 (플레이어·봇 공용)
 ------------------------------------------------------------------------
-function CombatService.Fire(e, origin, directions)
+-- 쏜 사람 화면에서 맞힌 지점(claim)을 검증: 그 캐릭터가 서버에서도 근처에 있고, 탄도 위에 있고, 벽에 막히지 않았으면 인정
+local function verifyClaim(e, origin, dir, range, claim)
+	local K = Config.HitClaim
+	if not K or type(claim) ~= "table" or typeof(claim.Part) ~= "Instance" or typeof(claim.Pos) ~= "Vector3" then
+		return nil
+	end
+	if not claim.Part:IsA("BasePart") then
+		return nil
+	end
+	local v = Combatants.FromPart(claim.Part)
+	if not v or not v.Alive or not Combatants.IsEnemy(e, v) then
+		return nil
+	end
+	local rel = claim.Pos - origin
+	local t = rel:Dot(dir)
+	if t <= 0 or t > range or (rel - dir * t).Magnitude > K.MaxPerp then
+		return nil
+	end
+	if (claim.Part.Position - claim.Pos).Magnitude > K.MaxMove + claim.Part.Size.Magnitude / 2 then
+		return nil
+	end
+	-- 시야: 캐릭터들을 빼고 지형만으로 막히는지
+	local ignore = { e.Model, fxFolder(), workspace:FindFirstChild("Lobby"), workspace:FindFirstChild("Bots") }
+	for _, o in ipairs(Combatants.All()) do
+		if o.Model then
+			table.insert(ignore, o.Model)
+		end
+	end
+	local mp = RaycastParams.new()
+	mp.FilterType = Enum.RaycastFilterType.Exclude
+	mp.FilterDescendantsInstances = ignore
+	if workspace:Raycast(origin, rel * 0.98, mp) then
+		return nil
+	end
+	local part = claim.Part
+	local isHead = part.Name == "Head"
+	if not isHead and part.Parent and part.Parent:IsA("Accessory") then
+		for _, a in ipairs(part:GetChildren()) do
+			if a:IsA("Attachment") and (string.find(a.Name, "Hat") or string.find(a.Name, "Hair") or string.find(a.Name, "Face")) then
+				isHead = true
+			end
+		end
+	end
+	local target = isHead and (v.Model:FindFirstChild("Head") or part) or part
+	return { Instance = target, Position = claim.Pos, Normal = -dir }
+end
+
+function CombatService.Fire(e, origin, directions, claims)
 	if not active or not e.Alive then
 		return false
 	end
@@ -1328,14 +1376,20 @@ function CombatService.Fire(e, origin, directions)
 			e.Shots = (e.Shots or 0) + 1
 			local result = workspace:Raycast(origin, dir * w.Range, params)
 			local endPos
-			-- 직접 맞히지 못했으면 플레이어 사격에 한해 명중 보정
+			-- 서버 레이가 빗나갔으면(지연 때문에 적이 서버에서 조금 옆에 있음) 플레이어 사격에 한해
+			-- 1) 쏜 사람 화면의 명중 판정을 검증해 인정  2) 그래도 없으면 탄도 근처 적 보정
 			local directVictim = result and Combatants.FromPart(result.Instance)
 			if e.Player and not (directVictim and Combatants.IsEnemy(e, directVictim)) then
-				local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
-				local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
-				if v then
-					local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
-					result = { Instance = part, Position = pos, Normal = -dir }
+				local claimed = verifyClaim(e, origin, dir, w.Range, type(claims) == "table" and claims[i] or nil)
+				if claimed then
+					result = claimed
+				else
+					local maxDist = result and ((result.Position - origin).Magnitude + 1) or w.Range
+					local v, isHead, pos = assistHit(e, origin, dir, maxDist, params)
+					if v then
+						local part = v.Model:FindFirstChild(isHead and "Head" or "UpperTorso") or v.Model:FindFirstChild("HumanoidRootPart")
+						result = { Instance = part, Position = pos, Normal = -dir }
+					end
 				end
 			end
 			if result then
@@ -1387,7 +1441,7 @@ function CombatService.Fire(e, origin, directions)
 	return true
 end
 
-function CombatService.OnPlayerFire(player, weaponId, origin, directions)
+function CombatService.OnPlayerFire(player, weaponId, origin, directions, claims)
 	local e = Combatants.FromPlayer(player)
 	if not e or typeof(origin) ~= "Vector3" or type(directions) ~= "table" then
 		return
@@ -1395,7 +1449,7 @@ function CombatService.OnPlayerFire(player, weaponId, origin, directions)
 	if weaponId ~= e.WeaponId then
 		return
 	end
-	CombatService.Fire(e, origin, directions)
+	CombatService.Fire(e, origin, directions, claims)
 end
 
 ------------------------------------------------------------------------
@@ -2660,6 +2714,7 @@ function MapBuilder.BuildArena()
 						CanCollide = false })
 					c.CanTouch = false
 					c.CastShadow = false
+					c.Transparency = 1 -- 판정용 격자는 숨기고, 화면의 페인트는 클라이언트 PaintVisual이 그림
 					c:SetAttribute("Owner", 0)
 				end
 				z = z + CELL
@@ -2813,6 +2868,7 @@ function MapBuilder.BuildSkyRooftop()
 						Position = Vector3.new(SKY_O.X + x, SKY_Y + y + 0.1, SKY_O.Z + z), Color = Config.NeutralColor, CanCollide = false })
 					c.CanTouch = false
 					c.CastShadow = false
+					c.Transparency = 1 -- 판정용 격자는 숨기고, 화면의 페인트는 클라이언트 PaintVisual이 그림
 					c:SetAttribute("Owner", 0)
 				end
 				z = z + CELL
@@ -5410,7 +5466,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX37"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX36"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX38"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX37"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -5769,6 +5825,7 @@ local MapInteract = require(script.Parent:WaitForChild("MapInteract"))
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
+local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
@@ -5807,6 +5864,7 @@ LobbyUI.SetModalHandler(function(on)
 	modal("lobby", on)
 end)
 CharacterPose.Init()
+PaintVisual.Init()
 MusicPlayer.Init()
 
 -- 스페셜 충전 완료 / 부활
@@ -5883,7 +5941,7 @@ end)
 
 remotes.Damaged.OnClientEvent:Connect(function(fromPos, amount, color)
 	HUD.DamageFlash(color or Color3.fromRGB(255, 60, 60)) -- 기획서 4장: 화면 가장자리 적 색 비네트
-	Effects.Shake(math.clamp(amount / 60, 0.1, 0.6))
+	Effects.Shake(math.clamp(amount / 80, 0.05, 0.35))
 	SoundBank.Play("hurt", nil, 0.5)
 end)
 
@@ -6086,7 +6144,7 @@ function Effects.ShakeOffset(dt)
 	end
 	local s = shake
 	shake = shake * math.exp(-12 * dt)
-	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 4), math.rad((math.random() - 0.5) * s * 4), 0)
+	return CFrame.Angles(math.rad((math.random() - 0.5) * s * 1.6), math.rad((math.random() - 0.5) * s * 1.6), 0)
 end
 
 -- 서버 FX 이벤트 처리
@@ -7573,7 +7631,166 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+-- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
+-- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
+-- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local PV = {}
+
+local CELL = Config.CellSize
+local NEUTRAL = Config.NeutralColor
+local layer = nil
+local conns = {}
+local visuals = {}      -- cell -> { Blob, Drops = {} }
+local pending = {}      -- cell -> true (같은 프레임의 색·주인 변경을 한 번에 처리)
+local rng = Random.new()
+local GROW = TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local DROP = TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function disc(pos, d, color, material)
+	local p = Instance.new("Part")
+	p.Name = "Paint"
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Shape = Enum.PartType.Cylinder
+	p.Size = Vector3.new(0.05, d, d)
+	p.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+	p.Color = color
+	p.Material = material
+	p.Reflectance = (material == Enum.Material.SmoothPlastic) and 0.12 or 0
+	p.Parent = layer
+	return p
+end
+
+local function paintMaterial(cell)
+	-- 기본 '젖은 페인트'(Glass)는 바닥 위에서 투명해 보이므로 반짝이는 플라스틱으로, 패턴 재질은 그대로
+	local m = cell.Material
+	if m == Enum.Material.Glass then
+		return Enum.Material.SmoothPlastic
+	end
+	return m
+end
+
+local function clearCell(cell)
+	local v = visuals[cell]
+	if v then
+		v.Blob:Destroy()
+		for _, d in ipairs(v.Drops) do
+			d:Destroy()
+		end
+		visuals[cell] = nil
+	end
+end
+
+local function paintCell(cell, animate)
+	pending[cell] = nil
+	if not cell.Parent then
+		clearCell(cell)
+		return
+	end
+	local owner = cell:GetAttribute("Owner") or 0
+	if owner == 0 or cell.Color == NEUTRAL then
+		clearCell(cell)
+		return
+	end
+	local color, mat = cell.Color, paintMaterial(cell)
+	local top = cell.Position + Vector3.new(0, cell.Size.Y / 2 + 0.02, 0)
+	local v = visuals[cell]
+	if not v then
+		-- 셀보다 큰 원(1.4~1.9배)을 조금씩 어긋나게 → 이웃 방울과 겹쳐 둥글게 번진 경계
+		local d = CELL * rng:NextNumber(1.4, 1.9)
+		local jitter = Vector3.new(rng:NextNumber(-0.7, 0.7), rng:NextNumber(0, 0.03), rng:NextNumber(-0.7, 0.7))
+		local blob = disc(top + jitter, animate and 0.4 or d, color, mat)
+		v = { Blob = blob, Size = d, Drops = {} }
+		visuals[cell] = v
+		if animate then
+			TweenService:Create(blob, GROW, { Size = Vector3.new(0.05, d, d) }):Play()
+		end
+		-- 가장자리에 흩뿌린 물방울
+		if rng:NextNumber() < 0.35 then
+			for _ = 1, rng:NextInteger(1, 2) do
+				local a = rng:NextNumber() * math.pi * 2
+				local r = CELL * rng:NextNumber(0.9, 1.5)
+				local dd = rng:NextNumber(0.5, 1.3)
+				local pos = top + Vector3.new(math.cos(a) * r, rng:NextNumber(0, 0.03), math.sin(a) * r)
+				local drop = disc(animate and top or pos, dd, color, mat)
+				if animate then
+					drop.Size = Vector3.new(0.05, 0.2, 0.2)
+					TweenService:Create(drop, DROP, { CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90)), Size = Vector3.new(0.05, dd, dd) }):Play()
+				end
+				table.insert(v.Drops, drop)
+			end
+		end
+	else
+		-- 다른 색이 덮어 칠함: 색을 바꾸고 살짝 '퐁' 튀게
+		v.Blob.Color = color
+		v.Blob.Material = mat
+		for _, d in ipairs(v.Drops) do
+			d.Color = color
+			d.Material = mat
+		end
+		if animate then
+			local s = v.Size
+			v.Blob.Size = Vector3.new(0.05, s * 0.6, s * 0.6)
+			TweenService:Create(v.Blob, GROW, { Size = Vector3.new(0.05, s, s) }):Play()
+		end
+	end
+end
+
+local function queue(cell)
+	if pending[cell] then
+		return
+	end
+	pending[cell] = true
+	task.defer(paintCell, cell, true)
+end
+
+local function bind(folder)
+	for _, c in ipairs(conns) do
+		c:Disconnect()
+	end
+	conns = {}
+	for cell in pairs(visuals) do
+		clearCell(cell)
+	end
+	if not folder then
+		return
+	end
+	for _, cell in ipairs(folder:GetChildren()) do
+		if cell:IsA("BasePart") then
+			table.insert(conns, cell:GetAttributeChangedSignal("Owner"):Connect(function()
+				queue(cell)
+			end))
+			table.insert(conns, cell:GetPropertyChangedSignal("Color"):Connect(function()
+				queue(cell)
+			end))
+			if (cell:GetAttribute("Owner") or 0) ~= 0 then
+				paintCell(cell, false)
+			end
+		end
+	end
+end
+
+function PV.Init()
+	layer = Instance.new("Folder")
+	layer.Name = "PaintLayer"
+	layer.Parent = workspace
+	local active = ReplicatedStorage:WaitForChild("ActiveCells")
+	active.Changed:Connect(function()
+		bind(active.Value)
+	end)
+	bind(active.Value)
+end
+
+return PV
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -7650,7 +7867,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -7821,7 +8038,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -8031,22 +8248,34 @@ local function fire()
 	local dirs = {}
 	local color = teamColor()
 	local muzzle = muzzleCFrame().Position
+	local claims = {}
 	for i = 1, w.Pellets do
 		local d = coneDir(look, spread)
 		dirs[i] = d
 		local hit = workspace:Raycast(origin, d * w.Range, params)
 		local to = hit and hit.Position or (origin + d * w.Range)
 		Effects.Tracer(muzzle, to, color, w.Id == "Sniper" and 0.3 or 0.16)
+		-- 내 화면에서 캐릭터를 맞혔으면 서버에 알림 (서버가 위치·시야를 검증해 인정)
+		if hit then
+			local model = hit.Instance:FindFirstAncestorOfClass("Model")
+			while model and not model:FindFirstChildOfClass("Humanoid") do
+				model = model.Parent and model.Parent:FindFirstAncestorOfClass("Model")
+			end
+			if model then
+				claims[i] = { Part = hit.Instance, Pos = hit.Position }
+			end
+		end
 	end
-	remotes.Fire:FireServer(w.Id, origin, dirs)
+	remotes.Fire:FireServer(w.Id, origin, dirs, claims)
 
 	Effects.Muzzle(muzzleCFrame(), color)
 	SoundBank.Play("fire_" .. string.lower(w.Id), nil, 0.55, 0.96 + math.random() * 0.08)
-	kick = kick + w.Recoil
-	vmKick = vmKick + math.min(1.5, w.Recoil * 0.35)
+	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
+	kick = math.min(kick + w.Recoil * 0.35, 4)
+	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
 	CharacterPose.Kick(player.Character, w.Recoil)
 	spreadExtra = math.min(w.SpreadMax, spreadExtra + w.SpreadGrow)
-	Effects.Shake(w.Recoil * 0.05)
+	Effects.Shake(w.Recoil * 0.02)
 end
 
 local function special()
@@ -8438,13 +8667,20 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 	end)
 
+	-- 카메라 반동: 기본 카메라는 매 프레임 '지난 프레임 카메라 방향'에서 출발하므로
+	-- 반동을 통째로 매번 더하면 계속 쌓여 하늘로 솟구침(0.5 버그). 지난 프레임에 더한 만큼 빼고 새 값만 적용
+	local lastOffset = CFrame.new()
 	RunService:BindToRenderStep("SF_Recoil", Enum.RenderPriority.Camera.Value + 1, function(dt)
-		if not enabled then
+		local cam = camera()
+		if not enabled or uiMode then
+			lastOffset = CFrame.new()
+			kick = 0
 			return
 		end
-		kick = kick * math.exp(-10 * dt)
-		local cam = camera()
-		cam.CFrame = cam.CFrame * CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
+		kick = kick * math.exp(-14 * dt) -- 빠르게 원위치 (조준점 복귀)
+		local offset = CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
+		cam.CFrame = cam.CFrame * lastOffset:Inverse() * offset
+		lastOffset = offset
 	end)
 
 	RunService.RenderStepped:Connect(function(dt)

@@ -2,7 +2,7 @@
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.5-CBT"
+Config.Build = "0.5.1-CBT"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
 Config.DataVersion = "CBT1"
@@ -82,7 +82,8 @@ Config.PadLeaveGrace = 1.5      -- 발판 참가 직후 이 시간 동안은 발
 Config.MapScale = 2             -- 맵 가로·세로 배율 (높이는 그대로)
 Config.WeaponSwitchRadius = 18  -- 스폰 지점에서 이 거리 안이면 무기 교체 가능
 Config.WeaponSwitchGrace = 6    -- 부활 후 이 시간(초) 동안도 무기 교체 가능
-Config.HitAssist = { Body = 1.4, Head = 0.75, PerStud = 0.012 } -- 서버 명중 보정(스터드): 지연 보상
+Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 보정(스터드): 지연 보상
+Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
 Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)
