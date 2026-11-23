@@ -134,7 +134,7 @@ end
 
 -- 크리에이터 상점 총 (ReplicatedStorage.StoreGuns.<StoreModel>): Tool이든 Model이든 메시만 쓰고
 -- 손잡이(Handle) 위치를 잡는 점(_Anchor)으로, 손잡이에서 가장 먼 앞쪽 끝을 총구(_Muzzle)로 자동 지정. 원래 질감·색은 그대로
-local MUZZLE_HINTS = { "muzzle", "firepoint", "flash", "shoot", "barrel", "tip" }
+local MUZZLE_HINTS = { "muzzle", "firepoint", "flash", "shoot", "silenc", "suppress", "barrel", "tip" }
 local function storeSource(w)
 	local folder = ReplicatedStorage:FindFirstChild("StoreGuns")
 	local src = folder and w.StoreModel and folder:FindFirstChild(w.StoreModel)
@@ -154,7 +154,7 @@ local function storeSource(w)
 	for _, d in ipairs(copy:GetDescendants()) do
 		if d:IsA("BasePart") then
 			local n = string.lower(d.Name)
-			if n == "handle" and not handle then
+			if (n == "handle" or (n == "grip" and (not handle or string.lower(handle.Name) ~= "handle"))) then
 				handle = d
 			end
 			for _, h in ipairs(MUZZLE_HINTS) do

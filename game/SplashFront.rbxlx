@@ -556,7 +556,7 @@ end
 
 -- 크리에이터 상점 총 (ReplicatedStorage.StoreGuns.<StoreModel>): Tool이든 Model이든 메시만 쓰고
 -- 손잡이(Handle) 위치를 잡는 점(_Anchor)으로, 손잡이에서 가장 먼 앞쪽 끝을 총구(_Muzzle)로 자동 지정. 원래 질감·색은 그대로
-local MUZZLE_HINTS = { "muzzle", "firepoint", "flash", "shoot", "barrel", "tip" }
+local MUZZLE_HINTS = { "muzzle", "firepoint", "flash", "shoot", "silenc", "suppress", "barrel", "tip" }
 local function storeSource(w)
 	local folder = ReplicatedStorage:FindFirstChild("StoreGuns")
 	local src = folder and w.StoreModel and folder:FindFirstChild(w.StoreModel)
@@ -576,7 +576,7 @@ local function storeSource(w)
 	for _, d in ipairs(copy:GetDescendants()) do
 		if d:IsA("BasePart") then
 			local n = string.lower(d.Name)
-			if n == "handle" and not handle then
+			if (n == "handle" or (n == "grip" and (not handle or string.lower(handle.Name) ~= "handle"))) then
 				handle = d
 			end
 			for _, h in ipairs(MUZZLE_HINTS) do
@@ -1078,48 +1078,41 @@ Weapons.List = {
 	-- 모델이 없으면 상점에 나오지 않음. 성능은 기존 총과 같은 사이드그레이드 원칙
 	------------------------------------------------------------------
 	{
-		Id = "M4A1", Name = "M4A1", Class = "돌격소총", Price = 4000, StoreModel = "M4A1", ModelLength = 3.3,
-		Damage = 17, HeadMul = 1.6, FireInterval = 0.1, Range = 95,
-		InkCost = 1.5, PaintRadius = 3.3, Spread = 0.15, SpreadGrow = 0.1, SpreadMax = 1.5,
-		Pellets = 1, Splash = 0, Recoil = 0.8, Auto = true, PathPaint = false, ZoomFov = 34, Sight = "Holo",
+		Id = "K2", Name = "K2 소총", Class = "돌격소총", Price = 4000, StoreModel = "K2", ModelLength = 3.3,
+		Damage = 19, HeadMul = 1.6, FireInterval = 0.11, Range = 95,
+		InkCost = 1.6, PaintRadius = 3.4, Spread = 0.15, SpreadGrow = 0.11, SpreadMax = 1.6,
+		Pellets = 1, Splash = 0, Recoil = 0.9, Auto = true, PathPaint = false, ZoomFov = 34, Sight = "Holo",
 		Color = Color3.fromRGB(46, 46, 50), Size = Vector3.new(0.4, 0.6, 3.3),
 	},
 	{
-		Id = "AK47", Name = "AK-47", Class = "돌격소총", Price = 4000, StoreModel = "AK47", ModelLength = 3.5,
-		Damage = 23, HeadMul = 1.5, FireInterval = 0.14, Range = 90,
-		InkCost = 2, PaintRadius = 3.8, Spread = 0.3, SpreadGrow = 0.16, SpreadMax = 2.2,
-		Pellets = 1, Splash = 0, Recoil = 1.4, Auto = true, PathPaint = false, ZoomFov = 36, Sight = "Dot",
-		Color = Color3.fromRGB(90, 60, 36), Size = Vector3.new(0.4, 0.6, 3.5),
+		Id = "K2C1", Name = "K2C1 카빈", Class = "카빈", Price = 4500, StoreModel = "K2C1", ModelLength = 3.0,
+		Damage = 16, HeadMul = 1.6, FireInterval = 0.09, Range = 80,
+		InkCost = 1.4, PaintRadius = 3.2, Spread = 0.25, SpreadGrow = 0.1, SpreadMax = 1.8,
+		Pellets = 1, Splash = 0, Recoil = 0.75, Auto = true, PathPaint = false, ZoomFov = 38, Sight = "Dot",
+		Color = Color3.fromRGB(40, 40, 44), Size = Vector3.new(0.4, 0.6, 3.0),
 	},
 	{
-		Id = "MP5", Name = "MP5", Class = "기관단총", Price = 3500, StoreModel = "MP5", ModelLength = 2.2,
-		Damage = 12, HeadMul = 1.5, FireInterval = 0.07, Range = 50,
-		InkCost = 0.9, PaintRadius = 3, Spread = 0.7, SpreadGrow = 0.12, SpreadMax = 2.4,
-		Pellets = 1, Splash = 0, Recoil = 0.55, Auto = true, PathPaint = false, ZoomFov = 44, Sight = "Dot",
-		Color = Color3.fromRGB(40, 40, 44), Size = Vector3.new(0.4, 0.7, 2.2),
+		Id = "K3", Name = "K3 기관총", Class = "경기관총", Price = 5000, StoreModel = "K3", ModelLength = 3.8,
+		Damage = 15, HeadMul = 1.4, FireInterval = 0.085, Range = 85,
+		InkCost = 1.1, PaintRadius = 3.6, Spread = 0.5, SpreadGrow = 0.08, SpreadMax = 2.6,
+		Pellets = 1, Splash = 0, Recoil = 1.1, Auto = true, PathPaint = false, ZoomFov = 40, Sight = "Holo",
+		Color = Color3.fromRGB(48, 48, 44), Size = Vector3.new(0.5, 0.8, 3.8),
 	},
 	{
-		Id = "Deagle", Name = "데저트 이글", Class = "권총", Price = 3000, StoreModel = "Deagle", ModelLength = 1.6,
-		Damage = 40, HeadMul = 1.6, FireInterval = 0.38, Range = 75,
-		InkCost = 4, PaintRadius = 4.2, Spread = 0.2, SpreadGrow = 0.5, SpreadMax = 2,
-		Pellets = 1, Splash = 0, Recoil = 2.6, Auto = false, PathPaint = false, ZoomFov = 46, Sight = "Dot",
-		Color = Color3.fromRGB(150, 150, 155), Size = Vector3.new(0.35, 0.7, 1.6),
-	},
-	{
-		Id = "SPAS12", Name = "SPAS-12", Class = "산탄총", Price = 4000, StoreModel = "SPAS12", ModelLength = 3.2,
-		Damage = 14, HeadMul = 1.25, FireInterval = 0.85, Range = 32,
-		InkCost = 8, PaintRadius = 3.2, Spread = 3.8, SpreadGrow = 0, SpreadMax = 3.8,
-		Pellets = 7, Splash = 0, Recoil = 4.5, Auto = false, PathPaint = false, ZoomFov = 54, Sight = "Holo",
-		Color = Color3.fromRGB(36, 36, 40), Size = Vector3.new(0.45, 0.7, 3.2),
-	},
-	{
-		Id = "AWP", Name = "AWP", Class = "저격총", Price = 5000, StoreModel = "AWP", ModelLength = 4.4,
+		Id = "K14", Name = "K14 저격소총", Class = "저격총", Price = 5000, StoreModel = "K14", ModelLength = 4.3,
 		Damage = 100, HeadMul = 1.6, FireInterval = 1.5, Range = 260,
 		InkCost = 16, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
 		HipSpread = 1.4, Pellets = 1, Splash = 0, Recoil = 5.5, Auto = false, PathPaint = true,
 		PathStep = 10, PathRadius = 2, PathMax = 120,
 		Scope = true, ScopeFov = 12, ZoomFov = 12, Sight = "Scope",
-		Color = Color3.fromRGB(60, 74, 50), Size = Vector3.new(0.35, 0.6, 4.4),
+		Color = Color3.fromRGB(60, 64, 52), Size = Vector3.new(0.35, 0.6, 4.3),
+	},
+	{
+		Id = "K5", Name = "K5 권총", Class = "권총", Price = 2500, StoreModel = "K5", ModelLength = 1.5,
+		Damage = 34, HeadMul = 1.6, FireInterval = 0.26, Range = 75,
+		InkCost = 3, PaintRadius = 4, Spread = 0.15, SpreadGrow = 0.35, SpreadMax = 1.8,
+		Pellets = 1, Splash = 0, Recoil = 1.8, Auto = false, PathPaint = false, ZoomFov = 46, Sight = "Dot",
+		Color = Color3.fromRGB(36, 36, 40), Size = Vector3.new(0.35, 0.7, 1.5),
 	},
 }
 
