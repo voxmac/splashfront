@@ -16,7 +16,7 @@ Config.CBT = {
 	GroupId = 0,              -- 이 그룹 멤버도 입장 허용 (0이면 사용 안 함)
 	GroupMinRank = 1,         -- 그룹 내 최소 등급
 	Admins = {                -- 관리자 패널(F2) 사용 가능 UserId. Studio에서는 모두 관리자
-		-- 12345678,
+		12046530242,          -- VOXCHOI (소유자)
 	},
 	KickMessage = "SPLASH FRONT는 현재 클로즈 테스트 중입니다. 테스터 신청 후 입장해 주세요!",
 	FeedbackCooldown = 60,    -- 피드백 제출 간격(초)
