@@ -30,6 +30,10 @@ local baseHip = nil
 local speedTimer = 0
 local cellsFolder = nil
 local uiMode = false
+local thirdPerson = false -- V 키로 1인칭 ↔ 3인칭(어깨 시점) 전환
+local modalGui = nil      -- 창이 열려 있는 동안 마우스를 풀어 주는 투명 버튼
+local TP_ZOOM = 7         -- 3인칭 카메라 거리 (서버의 사격 원점 검사 10스터드 이내)
+local TP_OFFSET = Vector3.new(1.7, 0.5, 0)
 
 local function camera()
 	return workspace.CurrentCamera
@@ -66,7 +70,7 @@ local function buildViewmodel()
 	local _, size = m:GetBoundingBox()
 	vmLength = math.max(size.Z, 0.8)
 	vmMuzzle = muzzle
-	m.Parent = camera()
+	m.Parent = (not thirdPerson) and camera() or nil
 	viewmodel = m
 end
 
@@ -96,6 +100,17 @@ local function placeViewmodel(dt)
 end
 
 local function muzzleCFrame()
+	if thirdPerson then
+		local g = player.Character and player.Character:FindFirstChild("SF_Gun")
+		if g then
+			for _, p in ipairs(g:GetDescendants()) do
+				if p:IsA("BasePart") and p:GetAttribute("Kind") == "Muzzle" then
+					return p.CFrame
+				end
+			end
+			return g:GetPivot()
+		end
+	end
 	if vmMuzzle and vmMuzzle.Parent then
 		return vmMuzzle.CFrame
 	end
@@ -161,6 +176,19 @@ local function fire()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { player.Character, viewmodel, workspace:FindFirstChild("ClientFX"), workspace:FindFirstChild("FX") }
+	if thirdPerson then
+		-- 3인칭: 조준점이 가리키는 곳을 먼저 찾고, 실제 총알은 머리에서 그쪽으로
+		local head = player.Character and player.Character:FindFirstChild("Head")
+		if head then
+			local aimHit = workspace:Raycast(origin, look * w.Range, params)
+			local aimPoint = aimHit and aimHit.Position or (origin + look * w.Range)
+			origin = head.Position
+			local d = aimPoint - origin
+			if d.Magnitude > 0.5 then
+				look = d.Unit
+			end
+		end
+	end
 	local dirs = {}
 	local color = teamColor()
 	local muzzle = muzzleCFrame().Position
@@ -258,18 +286,94 @@ end
 ------------------------------------------------------------------------
 local bindAll, unbindAll
 
+local function setModal(on)
+	if not modalGui then
+		modalGui = Instance.new("ScreenGui")
+		modalGui.Name = "SF_Modal"
+		modalGui.ResetOnSpawn = false
+		modalGui.DisplayOrder = -10
+		local b = Instance.new("TextButton")
+		b.Name = "Modal"
+		b.Size = UDim2.fromOffset(1, 1)
+		b.BackgroundTransparency = 1
+		b.Text = ""
+		b.Modal = true -- 1인칭에서도 마우스 커서를 풀어 줌 (Roblox 공식 방법)
+		b.Parent = modalGui
+		modalGui.Parent = player:WaitForChild("PlayerGui")
+	end
+	modalGui.Enabled = on
+end
+
+-- 카메라를 강제로 바깥으로 빼서 1인칭 잠금을 확실히 풀기
+local function zoomOut(dist)
+	player.CameraMinZoomDistance = dist
+	player.CameraMaxZoomDistance = math.max(dist, 20)
+	task.delay(0.15, function()
+		if not enabled or uiMode then
+			player.CameraMinZoomDistance = 0.5
+			player.CameraMaxZoomDistance = 40
+		end
+	end)
+end
+
+-- 현재 상태(1인칭/3인칭/창 열림)에 맞게 카메라 적용
+local function applyView()
+	local hum = humanoid()
+	if not enabled then
+		return
+	end
+	if uiMode then
+		player.CameraMode = Enum.CameraMode.Classic
+		UserInputService.MouseIconEnabled = true
+		setModal(true)
+		return
+	end
+	setModal(false)
+	if thirdPerson then
+		player.CameraMode = Enum.CameraMode.Classic
+		player.CameraMaxZoomDistance = TP_ZOOM
+		player.CameraMinZoomDistance = TP_ZOOM
+		if hum then
+			hum.CameraOffset = TP_OFFSET
+			hum.AutoRotate = false
+		end
+	else
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMaxZoomDistance = 40
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		if hum then
+			hum.CameraOffset = Vector3.zero
+			hum.AutoRotate = true
+		end
+	end
+	UserInputService.MouseIconEnabled = false
+	if viewmodel then
+		viewmodel.Parent = thirdPerson and nil or camera()
+	end
+	if HUD and HUD.Banner then
+		-- (안내는 전환할 때만)
+	end
+end
+
+function WC.ToggleView()
+	thirdPerson = not thirdPerson
+	applyView()
+	if HUD and HUD.Banner then
+		HUD.Banner(thirdPerson and "3인칭 시점 [V]" or "1인칭 시점 [V]", Color3.fromRGB(200, 220, 255))
+	end
+end
+
 local function enable()
 	if enabled then
 		return
 	end
 	enabled = true
-	player.CameraMode = Enum.CameraMode.LockFirstPerson
-	UserInputService.MouseIconEnabled = false
 	localInk = player:GetAttribute("Ink") or Config.InkMax
 	buildViewmodel()
 	if uiMode then
 		WC.SetUIMode(true)
 	else
+		applyView()
 		bindAll()
 	end
 end
@@ -282,6 +386,9 @@ local function disable()
 	setCrouch(false)
 	player.CameraMode = Enum.CameraMode.Classic
 	UserInputService.MouseIconEnabled = true
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	setModal(uiMode)
+	zoomOut(12) -- 로비에서는 3인칭 + 마우스 자유
 	if viewmodel then
 		viewmodel:Destroy()
 		viewmodel = nil
@@ -289,6 +396,8 @@ local function disable()
 	local hum = humanoid()
 	if hum then
 		hum.WalkSpeed = Config.WalkSpeed
+		hum.CameraOffset = Vector3.zero
+		hum.AutoRotate = true
 	end
 end
 
@@ -308,6 +417,8 @@ local function onAction(name, inputState)
 		special()
 	elseif name == "SF_Crouch" and began then
 		setCrouch(not crouched)
+	elseif name == "SF_View" and began then
+		WC.ToggleView()
 	end
 	return Enum.ContextActionResult.Sink
 end
@@ -317,6 +428,7 @@ bindAll = function()
 	ContextActionService:BindAction("SF_Aim", onAction, true, Enum.UserInputType.MouseButton2, Enum.KeyCode.ButtonL2)
 	ContextActionService:BindAction("SF_Special", onAction, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonY)
 	ContextActionService:BindAction("SF_Crouch", onAction, true, Enum.KeyCode.C, Enum.KeyCode.LeftControl, Enum.KeyCode.ButtonB)
+	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
 	ContextActionService:SetTitle("SF_Special", "스페셜")
@@ -325,10 +437,12 @@ bindAll = function()
 	ContextActionService:SetPosition("SF_Aim", UDim2.new(1, -230, 1, -110))
 	ContextActionService:SetPosition("SF_Special", UDim2.new(1, -230, 1, -190))
 	ContextActionService:SetPosition("SF_Crouch", UDim2.new(1, -90, 1, -220))
+	ContextActionService:SetTitle("SF_View", "시점")
+	ContextActionService:SetPosition("SF_View", UDim2.new(1, -90, 1, -300))
 end
 
 unbindAll = function()
-	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch" }) do
+	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View" }) do
 		ContextActionService:UnbindAction(n)
 	end
 end
@@ -337,17 +451,20 @@ end
 function WC.SetUIMode(on)
 	uiMode = on
 	if not enabled then
+		-- 로비: 카메라는 이미 3인칭, 커서만 확실히 풀어 줌
+		setModal(on)
+		if on then
+			zoomOut(12)
+		end
 		return
 	end
 	if on then
 		firing = false
 		setAim(false)
 		unbindAll()
-		player.CameraMode = Enum.CameraMode.Classic
-		UserInputService.MouseIconEnabled = true
+		applyView()
 	else
-		player.CameraMode = Enum.CameraMode.LockFirstPerson
-		UserInputService.MouseIconEnabled = false
+		applyView()
 		bindAll()
 	end
 end
@@ -377,7 +494,10 @@ function WC.Init(remoteFolder, hud, effects)
 		crouched = false
 		aiming = false
 		if enabled then
-			task.defer(buildViewmodel)
+			task.defer(function()
+				buildViewmodel()
+				applyView()
+			end)
 		end
 		local hum = char:WaitForChild("Humanoid")
 		hum.Died:Connect(function()
@@ -387,6 +507,43 @@ function WC.Init(remoteFolder, hud, effects)
 	end)
 
 	-- 카메라 반동: 기본 카메라 갱신 직후에 덧붙임
+	RunService:BindToRenderStep("SF_Mouse", Enum.RenderPriority.Camera.Value + 2, function()
+		if uiMode then
+			-- 창이 열려 있으면 어떤 시점이든 커서 자유
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			UserInputService.MouseIconEnabled = true
+			return
+		end
+		if not enabled then
+			return
+		end
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		local char = player.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if thirdPerson and root then
+			-- 어깨 시점: 몸이 카메라가 보는 방향을 따라 돎
+			local look = camera().CFrame.LookVector
+			local flat = Vector3.new(look.X, 0, look.Z)
+			if flat.Magnitude > 0.01 then
+				root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
+			end
+		end
+		-- 1인칭: 내 헬멧·가방·손에 든 총이 화면을 가리지 않게 숨김
+		if char then
+			local hide = thirdPerson and 0 or 1
+			for _, n in ipairs({ "SF_Helmet", "SF_Backpack", "SF_Gun" }) do
+				local g = char:FindFirstChild(n)
+				if g then
+					for _, p in ipairs(g:GetDescendants()) do
+						if p:IsA("BasePart") then
+							p.LocalTransparencyModifier = hide
+						end
+					end
+				end
+			end
+		end
+	end)
+
 	RunService:BindToRenderStep("SF_Recoil", Enum.RenderPriority.Camera.Value + 1, function(dt)
 		if not enabled then
 			return

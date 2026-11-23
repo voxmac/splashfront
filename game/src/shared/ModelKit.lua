@@ -82,13 +82,54 @@ local function fallbackBackpack()
 	return m
 end
 
+-- 기대 크기(가장 긴 변, 스터드). FBX 단위 차이로 100배 커지거나 작아져도 여기에 맞춰 줄임
+local EXPECT = {
+	Gun_Pistol = 1.58, Gun_Rifle = 3.35, Gun_SMG = 2.11, Gun_Shotgun = 3.12, Gun_Sniper = 4.31, Gun_Launcher = 1.88,
+	Gear_Helmet = 1.58, Gear_Backpack = 1.68,
+}
+
 local function source(name)
 	local folder = ReplicatedStorage:FindFirstChild("SplashModels")
 	local src = folder and folder:FindFirstChild(name)
-	if src then
-		return src:Clone(), true
+	if not src then
+		return nil, false
 	end
-	return nil, false
+	local m = src:Clone()
+	-- 손잡이 표식(_Anchor)이 없으면 위치를 맞출 수 없으니 내장 모델 사용
+	local hasAnchor = false
+	for _, p in ipairs(m:GetDescendants()) do
+		if p:IsA("BasePart") and kindOf(p) == "Anchor" then
+			hasAnchor = true
+			break
+		end
+	end
+	if not hasAnchor then
+		m:Destroy()
+		return nil, false
+	end
+	local ok = pcall(function()
+		local size = m:GetExtentsSize()
+		local longest = math.max(size.X, size.Y, size.Z)
+		local want = EXPECT[name]
+		if want and longest > 0 then
+			local r = want / longest
+			if r < 0.8 or r > 1.25 then
+				m:ScaleTo(m:GetScale() * r)
+			end
+		end
+	end)
+	-- 총은 앞뒤(Z)가 가장 길어야 정상. 눕거나 돌아가 있으면 내장 모델 사용
+	if ok and string.sub(name, 1, 4) == "Gun_" then
+		local size = m:GetExtentsSize()
+		if size.Z < math.max(size.X, size.Y) * 0.9 then
+			ok = false
+		end
+	end
+	if not ok then
+		m:Destroy()
+		return nil, false
+	end
+	return m, true
 end
 
 -- 모델을 Anchor 기준으로 정리: PrimaryPart = Anchor, 표식 숨김, 색 입히기
