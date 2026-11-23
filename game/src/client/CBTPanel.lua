@@ -204,7 +204,7 @@ function CBT.Init(remoteFolder, hud)
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
 	-- 0.5: 왼쪽 아래 피드백 버튼 제거 (채팅창 자리). 피드백은 F4 또는 결과 화면 안내로
 	feedbackBtn = nil
-	label(gui, { Text = "CLOSED BETA · " .. Config.Build, Position = UDim2.new(1, -220, 0, 2), Size = UDim2.fromOffset(204, 20), TextSize = 12,
+	label(gui, { Text = (Config.CBT.Enabled and "CLOSED BETA · " or "SPLASH FRONT v") .. Config.Build, Position = UDim2.new(1, -220, 0, 2), Size = UDim2.fromOffset(204, 20), TextSize = 12,
 		TextXAlignment = Enum.TextXAlignment.Right, TextColor3 = Color3.fromRGB(200, 200, 220), Font = Enum.Font.GothamBold })
 
 	UserInputService.InputBegan:Connect(function(input, processed)

@@ -15,6 +15,7 @@ local RankService = require(script.Parent.RankService)
 local Telemetry = require(script.Parent.TelemetryService)
 local ItemService = require(script.Parent.ItemService)
 local QuestService = require(script.Parent.QuestService)
+local MapBuilder = require(script.Parent.MapBuilder)
 
 local MatchService = {}
 
@@ -901,6 +902,7 @@ local function endMatch()
 		end
 	end
 	Combatants.Clear()
+	MapBuilder.ApplyLighting("Day") -- 로비로 돌아오면 낮 조명
 	S.Phase = "Lobby"
 	S.Mode = nil
 	S.QueueId = nil
@@ -1101,6 +1103,7 @@ end
 -- 이번 경기에 쓸 맵으로 모든 서비스를 전환
 function MatchService.ApplyMap(info)
 	arena = info
+	MapBuilder.ApplyLighting(info.Lighting or "Day")
 	PaintService.Init(info.Cells)
 	BotService.SetCells(info.Cells)
 	MissionService.SetMap(info)

@@ -188,11 +188,12 @@ function HUD.Build()
 	end
 
 	-- 미션
-	missionFrame = make("Frame", { Size = UDim2.new(0, 380, 0, 56), Position = UDim2.new(0.5, -190, 0, 228),
+	missionFrame = make("Frame", { Size = UDim2.new(0, 480, 0, 72), Position = UDim2.new(0.5, -240, 0, 228),
 		BackgroundColor3 = Color3.fromRGB(255, 196, 40), BackgroundTransparency = 0.1, Visible = false }, gui)
 	corner(missionFrame, 10)
-	missionLbl = text(missionFrame, { Size = UDim2.new(1, -70, 1, -8), Position = UDim2.new(0, 10, 0, 4), TextColor3 = Color3.fromRGB(30, 20, 0),
-		TextStrokeTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold })
+	-- 두 줄: 1줄 미션 이름·보너스(굵게), 2줄 설명 → 잘리지 않음
+	missionLbl = text(missionFrame, { Size = UDim2.new(1, -78, 1, -10), Position = UDim2.new(0, 12, 0, 5), TextColor3 = Color3.fromRGB(30, 20, 0),
+		TextStrokeTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, RichText = true, LineHeight = 1.05 })
 	missionTimer = text(missionFrame, { Size = UDim2.new(0, 56, 1, -8), Position = UDim2.new(1, -62, 0, 4), TextColor3 = Color3.fromRGB(30, 20, 0),
 		TextStrokeTransparency = 1 })
 
@@ -233,31 +234,32 @@ function HUD.Build()
 	UI.Icon(xb, "chest", "", { Size = UDim2.fromOffset(44, 44), Position = UDim2.new(1, -30, 0.5, -22), ZIndex = 3 })
 
 	-- 오른쪽 아래: 잉크(탄) 칸 + 숫자, 슬롯 카드 [1 무기] [Q 스페셜] [F 아이템]
-	local ammo = make("Frame", { Size = UDim2.fromOffset(300, 44), Position = UDim2.new(1, -16, 1, -128), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
+	local ammo = make("Frame", { Size = UDim2.fromOffset(250, 36), Position = UDim2.new(1, -16, 1, -98), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
 	inkPips = {}
 	for i = 1, 10 do
-		local pip = make("Frame", { Size = UDim2.fromOffset(12, 26), Position = UDim2.fromOffset((i - 1) * 15, 10), BackgroundColor3 = Color3.new(1, 1, 1),
+		local pip = make("Frame", { Size = UDim2.fromOffset(10, 20), Position = UDim2.fromOffset((i - 1) * 13, 10), BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0 }, ammo)
 		corner(pip, 4)
 		make("UIStroke", { Thickness = 1.5, Color = DARKP, Transparency = 0.2 }, pip)
 		inkPips[i] = pip
 	end
-	inkNum = text(ammo, { Size = UDim2.fromOffset(140, 44), Position = UDim2.new(1, -140, 0, 0), Text = "100", Font = Enum.Font.FredokaOne,
+	inkNum = text(ammo, { Size = UDim2.fromOffset(110, 36), Position = UDim2.new(1, -110, 0, 0), Text = "100", Font = Enum.Font.FredokaOne,
 		TextXAlignment = Enum.TextXAlignment.Right, RichText = true })
-	local slots = make("Frame", { Size = UDim2.fromOffset(470, 96), Position = UDim2.new(1, -16, 1, -24), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
+	-- 작게(무기 116 + 스페셜·아이템 88) → 가운데 경험치 막대와 겹치지 않음
+	local slots = make("Frame", { Size = UDim2.fromOffset(310, 74), Position = UDim2.new(1, -16, 1, -16), AnchorPoint = Vector2.new(1, 1), BackgroundTransparency = 1 }, gui)
 	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Right, Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder }, slots)
 	local function card(order, key, wide)
-		local c = make("Frame", { Size = UDim2.fromOffset(wide and 170 or 140, 96), BackgroundColor3 = Color3.fromRGB(28, 26, 44), BackgroundTransparency = 0.12,
+		local c = make("Frame", { Size = UDim2.fromOffset(wide and 116 or 88, 74), BackgroundColor3 = Color3.fromRGB(28, 26, 44), BackgroundTransparency = 0.12,
 			LayoutOrder = order }, slots)
 		corner(c, 12)
 		make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(230, 230, 245), Transparency = 0.6 }, c)
 		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 170, 190)), Rotation = 90 }, c)
-		local badge = make("Frame", { Size = UDim2.fromOffset(24, 24), Position = UDim2.fromOffset(6, 6), BackgroundColor3 = Color3.fromRGB(240, 240, 248), ZIndex = 3 }, c)
+		local badge = make("Frame", { Size = UDim2.fromOffset(18, 18), Position = UDim2.fromOffset(4, 4), BackgroundColor3 = Color3.fromRGB(240, 240, 248), ZIndex = 3 }, c)
 		corner(badge, 6)
 		text(badge, { Size = UDim2.fromScale(1, 1), Text = key, TextColor3 = DARKP, TextStrokeTransparency = 1, Font = Enum.Font.GothamBlack, ZIndex = 4 })
-		local pic = make("Frame", { Size = UDim2.new(1, -12, 1, -32), Position = UDim2.fromOffset(6, 6), BackgroundTransparency = 1 }, c)
-		local name = text(c, { Size = UDim2.new(1, -12, 0, 20), Position = UDim2.new(0, 6, 1, -24), Text = "", Font = Enum.Font.GothamBlack,
+		local pic = make("Frame", { Size = UDim2.new(1, -10, 1, -24), Position = UDim2.fromOffset(5, 4), BackgroundTransparency = 1 }, c)
+		local name = text(c, { Size = UDim2.new(1, -10, 0, 15), Position = UDim2.new(0, 5, 1, -18), Text = "", Font = Enum.Font.GothamBlack,
 			TextStrokeTransparency = 0.5, ZIndex = 3 })
 		return c, pic, name
 	end
@@ -266,7 +268,7 @@ function HUD.Build()
 	weaponLbl = wname
 	local sc, spic, sname = card(2, "Q")
 	UI.Icon(spic, "bomb", "", { Size = UDim2.fromScale(1, 1) })
-	local sb = make("Frame", { Size = UDim2.new(1, -16, 0, 6), Position = UDim2.new(0, 8, 1, -30), BackgroundColor3 = DARKP, ZIndex = 3 }, sc)
+	local sb = make("Frame", { Size = UDim2.new(1, -12, 0, 5), Position = UDim2.new(0, 6, 1, -22), BackgroundColor3 = DARKP, ZIndex = 3 }, sc)
 	corner(sb, 3)
 	specialFill = make("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.fromRGB(255, 220, 60), BorderSizePixel = 0, ZIndex = 3 }, sb)
 	corner(specialFill, 3)
@@ -414,7 +416,7 @@ function HUD.OnState(s)
 	-- 미션
 	if s.Mission then
 		missionFrame.Visible = true
-		missionLbl.Text = "미션! " .. s.Mission.Name .. " — " .. s.Mission.Desc .. " (+" .. s.Mission.Bonus .. ")"
+		missionLbl.Text = string.format("<b>미션! %s  (+%s)</b>\n%s", s.Mission.Name, tostring(s.Mission.Bonus), s.Mission.Desc)
 	else
 		missionFrame.Visible = false
 	end

@@ -95,6 +95,36 @@ local function ramp(parent, x1, x2, z, width, baseY, height)
 	})
 end
 
+-- 맵별 조명: Day(크로마 스퀘어·로비) / Sunset(스카이 루프탑, 처음 버전의 노을 네온)
+local PRESETS = {
+	Day = { Clock = 14.2, Bright = 3, Amb = Color3.fromRGB(140, 146, 165), Out = Color3.fromRGB(165, 172, 192), Spec = 0.6,
+		AtmDensity = 0.27, AtmColor = Color3.fromRGB(199, 222, 255), AtmDecay = Color3.fromRGB(110, 150, 215), Haze = 1.1, Glare = 0.2,
+		Sat = 0.22, Con = 0.06, Tint = Color3.fromRGB(255, 252, 248), Bloom = 0.35, Thresh = 1.7 },
+	Sunset = { Clock = 17.6, Bright = 2.2, Amb = Color3.fromRGB(90, 90, 110), Out = Color3.fromRGB(140, 140, 160), Spec = 1,
+		AtmDensity = 0.25, AtmColor = Color3.fromRGB(220, 200, 255), AtmDecay = Color3.fromRGB(120, 80, 160), Haze = 0, Glare = 0,
+		Sat = 0.18, Con = 0.08, Tint = Color3.fromRGB(255, 244, 250), Bloom = 0.6, Thresh = 1.4 },
+}
+function MapBuilder.ApplyLighting(name)
+	local p = PRESETS[name] or PRESETS.Day
+	Lighting.ClockTime = p.Clock
+	Lighting.Brightness = p.Bright
+	Lighting.Ambient = p.Amb
+	Lighting.OutdoorAmbient = p.Out
+	Lighting.EnvironmentSpecularScale = p.Spec
+	local a = Lighting:FindFirstChildOfClass("Atmosphere")
+	if a then
+		a.Density, a.Color, a.Decay, a.Haze, a.Glare = p.AtmDensity, p.AtmColor, p.AtmDecay, p.Haze, p.Glare
+	end
+	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect")
+	if cc then
+		cc.Saturation, cc.Contrast, cc.TintColor = p.Sat, p.Con, p.Tint
+	end
+	local b = Lighting:FindFirstChildOfClass("BloomEffect")
+	if b then
+		b.Intensity, b.Threshold = p.Bloom, p.Thresh
+	end
+end
+
 function MapBuilder.SetupLighting()
 	-- 0.6: 밝은 한낮 카툰 톤 (흰 구조물 위에 진한 팀 페인트가 또렷하게)
 	Lighting.ClockTime = 14.2
@@ -252,8 +282,10 @@ local function stylize(folder)
 	end
 end
 
-local function addOutlines(folder)
-	stylize(folder)
+local function addOutlines(folder, keepOriginal)
+	if not keepOriginal then
+		stylize(folder)
+	end
 	for _, p in ipairs(folder:GetDescendants()) do
 		if p:IsA("BasePart") and OUTLINED[p.Name] then
 			local sb = Instance.new("SelectionBox")
@@ -1368,8 +1400,8 @@ function MapBuilder.BuildSkyRooftop()
 		table.insert(solo, CFrame.lookAt(skyPos(p3[1], p3[2], p3[3]), skyPos(0, p3[2], 0)))
 	end
 
-	stylize(deco) -- 배경 빌딩도 파스텔 톤
-	addOutlines(geo)
+	-- 스카이 루프탑은 처음의 어두운 네온 도시 + 노을 분위기 그대로 (흰색 팔레트·표면 텍스처 적용 안 함)
+	addOutlines(geo, true)
 	return {
 		Id = "SkyRooftop",
 		Name = "스카이 루프탑",
@@ -1388,6 +1420,8 @@ function MapBuilder.BuildSkyRooftop()
 			skyPos(-30, 0, 42), skyPos(30, 0, -42), skyPos(40, 0, 0), skyPos(-40, 0, 0), skyPos(10, 11, 0),
 		},
 		KillY = SKY_Y - 30,
+		Lighting = "Sunset",
+		NoTextures = true,
 		Jumbotron = jumbotron,
 		TeamBanners = skyBanners,
 	}

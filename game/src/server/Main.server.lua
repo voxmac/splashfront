@@ -70,7 +70,9 @@ local maps = {
 ImageService.Load()
 ImageService.ApplyTextures(lobby.Folder, ImageService.LobbyRules)
 for _, m in ipairs(maps) do
-	ImageService.ApplyTextures(m.Folder)
+	if not m.NoTextures then
+		ImageService.ApplyTextures(m.Folder)
+	end
 end
 local activeCells = Instance.new("ObjectValue")
 activeCells.Name = "ActiveCells" -- 클라이언트가 현재 맵의 바닥 셀을 찾는 용도

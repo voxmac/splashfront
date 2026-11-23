@@ -2,14 +2,14 @@
 local Config = {}
 
 Config.GameName = "SPLASH FRONT"
-Config.Build = "0.6-CBT"
+Config.Build = "1.0"
 
 -- 저장 데이터 버전: 클로즈 테스트 데이터와 정식 출시 데이터를 분리 (출시 때 "v1"로 변경)
-Config.DataVersion = "CBT1"
+Config.DataVersion = "v1" -- 정식 출시: 클로즈 테스트(CBT1) 데이터와 분리해 모두 새로 시작
 
 -- 클로즈 테스트(CBT) 설정
 Config.CBT = {
-	Enabled = true,           -- false로 바꾸면 누구나 입장 (정식 출시)
+	Enabled = false,          -- 정식 출시: 누구나 입장 (true로 바꾸면 테스터 명단만 입장)
 	Testers = {               -- 입장 허용 UserId 목록
 		-- 12345678,
 	},
