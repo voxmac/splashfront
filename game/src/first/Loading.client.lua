@@ -121,7 +121,9 @@ status.Text = "프로필 불러오는 중"
 local function lobbyCharacter()
 	local c = player.Character
 	local root = c and c:FindFirstChild("HumanoidRootPart")
-	if root and root.Position.Y > 300 then
+	-- 캐릭터가 로비에 있고, 프로필(코인)과 로비 UI까지 준비됐을 때 화면을 엶
+	local pg = player:FindFirstChild("PlayerGui")
+	if root and root.Position.Y > 300 and player:GetAttribute("Coins") ~= nil and pg and pg:FindFirstChild("SplashLobby") then
 		return c, root
 	end
 	return nil
