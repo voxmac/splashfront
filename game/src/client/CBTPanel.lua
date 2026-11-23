@@ -142,6 +142,9 @@ local function admin(action, arg)
 end
 
 local function buildAdmin()
+	if adminFrame then
+		adminFrame:Destroy()
+	end
 	adminFrame = make("Frame", { Size = UDim2.fromOffset(560, 470), Position = UDim2.new(0.5, -280, 0.5, -235), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
@@ -216,6 +219,12 @@ function CBT.Init(remoteFolder, hud)
 			task.wait(0.1)
 		end
 		buildAdmin()
+		-- 서버가 DevTools(Studio)를 늦게 알려 주면 버튼 목록을 다시 만듦
+		player:GetAttributeChangedSignal("DevTools"):Connect(function()
+			local open = adminFrame and adminFrame.Visible
+			buildAdmin()
+			adminFrame.Visible = open or false
+		end)
 	end)
 
 	-- 항상 보이는 피드백 버튼 (로비 + 결과 화면)
