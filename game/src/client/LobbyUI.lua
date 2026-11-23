@@ -178,6 +178,34 @@ local function buildCollection(page)
 	local kinds = { { "Skin", "무기 스킨" }, { "Pattern", "페인트 패턴" }, { "Effect", "처치 이펙트" } }
 	local order = 1
 	local any = false
+	-- 보유 무기 (상점에서 산 총은 계속 남아 있고 여기서 바로 장착)
+	label(page, { Text = "보유 무기", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
+	order = order + 1
+	local wgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, wgrid)
+	order = order + 1
+	local equippedW = player:GetAttribute("Weapon")
+	for i, w in ipairs(Weapons.List) do
+		if owned("Owned", w.Id) then
+			local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, wgrid)
+			corner(cardF, 12)
+			UI.stroke(cardF, (equippedW == w.Id) and C.Cyan or C.Dim, 2, (equippedW == w.Id) and 0 or 0.5)
+			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 70), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+			corner(pic, 10)
+			UI.GunImage(pic, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""])
+			label(cardF, { Text = w.Name, TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 80), Size = UDim2.new(1, -20, 0, 20),
+				TextTruncate = Enum.TextTruncate.AtEnd })
+			local b = button(cardF, (equippedW == w.Id) and "장착 중" or "장착", (equippedW == w.Id) and C.Dim or C.Green,
+				{ Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
+			b.MouseButton1Click:Connect(function()
+				if equippedW ~= w.Id then
+					shopCall("equip", w.Id)
+					task.wait(0.2)
+					buildCollection(page)
+				end
+			end)
+		end
+	end
 	for _, k in ipairs(kinds) do
 		label(page, { Text = k[2], TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
 		order = order + 1

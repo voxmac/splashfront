@@ -12,6 +12,9 @@ local Telemetry = require(script.Parent.TelemetryService)
 local ShopService = {}
 
 local function handle(player, action, weaponId)
+	if (action == "buy" or action == "buyCosmetic") and not DataService.IsSafe(player) then
+		return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
+	end
 	if action == "crateTest" then
 		return CrateService.TestOpen(player)
 	elseif action == "equipCosmetic" then
@@ -101,7 +104,8 @@ function ShopService.Init(remotes)
 
 	MarketplaceService.ProcessReceipt = function(receipt)
 		local player = Players:GetPlayerByUserId(receipt.PlayerId)
-		if not player or not DataService.Get(player) then
+		-- 데이터를 못 불러온 상태면 지급을 미룸 (로벅스 구매품이 저장 안 되는 일이 없게, 다음 접속 때 다시 처리됨)
+		if not player or not DataService.Get(player) or not DataService.IsSafe(player) then
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
 		local key = "p_" .. tostring(receipt.PurchaseId)

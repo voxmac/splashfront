@@ -65,6 +65,16 @@ ItemClient.Init(remotes, HUD)
 HUD.UpdateQuests()
 LobbyUI.UpdateQuests()
 
+-- 저장 데이터 경고 (불러오기 실패 시)
+local function dataWarn()
+	local w = player:GetAttribute("DataWarning")
+	if w then
+		HUD.Banner(w, Color3.fromRGB(255, 140, 120))
+	end
+end
+player:GetAttributeChangedSignal("DataWarning"):Connect(dataWarn)
+task.delay(3, dataWarn)
+
 -- 레벨 업 축하
 player:GetAttributeChangedSignal("LevelUp"):Connect(function()
 	local v = player:GetAttribute("LevelUp") or ""

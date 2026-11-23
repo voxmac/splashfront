@@ -77,14 +77,21 @@ end
 
 function DataService.Load(player)
 	local data = nil
+	local failed = false
 	if store then
-		local ok, result = pcall(function()
-			return store:GetAsync("u" .. player.UserId)
-		end)
-		if ok then
-			data = result
-		else
-			warn("[SplashFront] 데이터 불러오기 실패:", result)
+		-- 일시적 오류는 몇 번 다시 시도. 끝내 실패하면 이번 접속은 저장하지 않음 (빈 데이터로 덮어써 구매품을 잃지 않게)
+		failed = true
+		for attempt = 1, 4 do
+			local ok, result = pcall(function()
+				return store:GetAsync("u" .. player.UserId)
+			end)
+			if ok then
+				data = result
+				failed = false
+				break
+			end
+			warn("[SplashFront] 데이터 불러오기 실패(" .. attempt .. "/4):", result)
+			task.wait(attempt * 1.5)
 		end
 	end
 	local p = defaultProfile()
@@ -100,7 +107,11 @@ function DataService.Load(player)
 			p.Cosmetics = {}
 		end
 	end
+	p.LoadFailed = failed or nil
 	profiles[player] = p
+	if failed then
+		player:SetAttribute("DataWarning", "저장 데이터를 불러오지 못했어요. 이번 접속의 구매·진행은 저장되지 않으니 잠시 후 다시 접속해 주세요")
+	end
 
 	local ls = Instance.new("Folder")
 	ls.Name = "leaderstats"
@@ -148,22 +159,60 @@ end
 
 function DataService.Reset(player)
 	local p = defaultProfile()
+	p.ForceReset = true -- 관리자 초기화: 이번 저장은 합치지 않고 덮어씀
 	profiles[player] = p
 	DataService.Publish(player)
 	DataService.Save(player)
 end
 
+-- 보유 목록은 합집합으로 저장: 다른 서버가 먼저 저장한 구매품이 있어도 절대 지워지지 않음
+local function union(a, b)
+	local out = {}
+	for k, v in pairs(type(a) == "table" and a or {}) do
+		if v then
+			out[k] = true
+		end
+	end
+	for k, v in pairs(type(b) == "table" and b or {}) do
+		if v then
+			out[k] = true
+		end
+	end
+	return out
+end
+
 function DataService.Save(player)
 	local p = profiles[player]
-	if not p or not store then
-		return
+	if not p or not store or p.LoadFailed then
+		return false
 	end
-	local ok, err = pcall(function()
-		store:SetAsync("u" .. player.UserId, p)
-	end)
-	if not ok then
-		warn("[SplashFront] 저장 실패:", err)
+	for attempt = 1, 3 do
+		local ok, err = pcall(function()
+			store:UpdateAsync("u" .. player.UserId, function(old)
+				if type(old) == "table" and not p.ForceReset then
+					p.Owned = union(old.Owned, p.Owned)
+					p.Cosmetics = union(old.Cosmetics, p.Cosmetics)
+				end
+				p.SavedAt = os.time()
+				local copy = table.clone(p)
+				copy.LoadFailed = nil
+				copy.ForceReset = nil
+				return copy
+			end)
+		end)
+		if ok then
+			p.ForceReset = nil
+			return true
+		end
+		warn("[SplashFront] 저장 실패(" .. attempt .. "/3):", err)
+		task.wait(attempt)
 	end
+	return false
+end
+
+function DataService.IsSafe(player)
+	local p = profiles[player]
+	return p ~= nil and not p.LoadFailed
 end
 
 function DataService.Get(player)
@@ -191,8 +240,18 @@ end
 function DataService.Start()
 	Players.PlayerRemoving:Connect(DataService.Unload)
 	game:BindToClose(function()
+		-- 서버 종료: 모두 동시에 저장하고 끝날 때까지 기다림
+		local pending = 0
 		for _, pl in ipairs(Players:GetPlayers()) do
-			DataService.Save(pl)
+			pending = pending + 1
+			task.spawn(function()
+				DataService.Save(pl)
+				pending = pending - 1
+			end)
+		end
+		local t0 = os.clock()
+		while pending > 0 and os.clock() - t0 < 25 do
+			task.wait(0.2)
 		end
 	end)
 	task.spawn(function()
