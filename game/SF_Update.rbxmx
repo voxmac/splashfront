@@ -8,7 +8,7 @@ return {
 		victory = 91809035108902,
 		defeat = 87734150667942,
 	},
-	SfxAtlas = 125014700826708,
+	SfxAtlas = 126178007674975,
 	SfxRegions = {
 		fire_pistol = { 0.0, 0.401 },
 		fire_rifle = { 0.901, 1.254 },
@@ -47,6 +47,13 @@ return {
 		crate_rare = { 39.984, 41.623 },
 		crate_epic = { 42.123, 43.903 },
 		crate_legendary = { 44.403, 46.603 },
+		fire_k2 = { 47.103, 48.033 },
+		fire_k2c1 = { 48.533, 49.363 },
+		fire_k3 = { 49.863, 50.843 },
+		fire_k14 = { 51.343, 53.123 },
+		fire_k5 = { 53.623, 54.353 },
+		hit_real = { 54.853, 54.943 },
+		hit_real_head = { 55.443, 55.797 },
 	},
 	Models = {
 		Gun_Pistol = 121488403845338,
