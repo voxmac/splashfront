@@ -33,6 +33,7 @@
  "icon/scope": 117533216271432,
  "icon/splat": 100690865730328,
  "icon/logo": 135119594284967,
+ "icon/mvp": 116291458971339,
  "_sha1": {
   "music/lobby": "afeeea847fbf1d82dd205a78f443fc6f24d31dcc",
   "music/chroma": "7c69173ba532e0cf0725c95b393728e1d837fb86",
@@ -67,6 +68,7 @@
   "icon/trophy": "8c480fb9807fd13d957563d7b1dc32f1a1be638e",
   "icon/scope": "d9d193094aec21fa3686246ee6361ad6fcc7c311",
   "icon/splat": "fd4288f6757eee69889d538b6ad4153ff71becfd",
-  "icon/logo": "c66a2e5da9db59a85bcb3087ee71ba9ab85170b9"
+  "icon/logo": "c66a2e5da9db59a85bcb3087ee71ba9ab85170b9",
+  "icon/mvp": "0e9c323752464755dfa686ad4f8de8dd0e0c22d2"
  }
 }
