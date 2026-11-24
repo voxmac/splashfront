@@ -29,13 +29,6 @@ task.spawn(function()
 		cfg.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		cfg.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	end
-	-- 채팅 열기: 엔터 (기본은 '/' 키). 채팅 중 엔터는 그대로 '보내기'
-	local bar = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration") or TextChatService:WaitForChild("ChatInputBarConfiguration", 10)
-	if bar then
-		pcall(function()
-			bar.KeyboardKeyCode = Enum.KeyCode.Return
-		end)
-	end
 	for _ = 1, 10 do
 		if pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
