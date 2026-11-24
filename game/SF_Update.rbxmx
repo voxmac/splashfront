@@ -8918,7 +8918,14 @@ remotes.HitConfirm.OnClientEvent:Connect(function(d)
 	if d.Pos then
 		Effects.DamageNumber(d.Pos + Vector3.new(0, 1, 0), d.Damage, d.Head, d.Kill)
 	end
-	SoundBank.Play(d.Head and "hit_head" or "hit", nil, d.Head and 0.8 or 0.6)
+	-- 실총은 둔탁한 실탄 타격음 + 옅은 페인트 튐, 페인트총은 페인트 타격음
+	local myW = require(ReplicatedStorage.Shared.Weapons).Get(player:GetAttribute("Weapon"))
+	if myW and myW.StoreModel then
+		SoundBank.Play(d.Head and "hit_real_head" or "hit_real", nil, d.Head and 0.9 or 0.8)
+		SoundBank.Play("hit", nil, 0.25)
+	else
+		SoundBank.Play(d.Head and "hit_head" or "hit", nil, d.Head and 0.8 or 0.6)
+	end
 	if d.Kill then
 		SoundBank.Play("kill", nil, 0.8)
 	end
@@ -12190,7 +12197,14 @@ local function container(position)
 end
 
 -- name: atlas 이름(fire_rifle, hit_head …), position: 3D 위치(없으면 2D), volume 0~1, pitch 배속
+-- 아틀라스에 아직 없는 소리는 비슷한 소리로 대신 (새 효과음 업로드 전·새 총 추가 직후에도 무음이 되지 않게)
+local ALIAS = { fire_k2 = "fire_rifle", fire_k2c1 = "fire_rifle", fire_k3 = "fire_smg", fire_k14 = "fire_sniper", fire_k5 = "fire_pistol",
+	hit_real = "hit", hit_real_head = "hit_head" }
+
 function SoundBank.Play(name, position, volume, pitch, looped)
+	if not AssetIds.SfxRegions[name] then
+		name = ALIAS[name] or (string.sub(name, 1, 5) == "fire_" and "fire_rifle") or name
+	end
 	local region = AssetIds.SfxRegions[name]
 	local s = Instance.new("Sound")
 	s.Volume = volume or 0.6
@@ -12792,7 +12806,7 @@ local function fire()
 	remotes.Fire:FireServer(w.Id, origin, dirs, claims)
 
 	Effects.Muzzle(muzzleCFrame(), color)
-	SoundBank.Play("fire_" .. string.lower(w.Id), nil, 0.55, 0.96 + math.random() * 0.08)
+	SoundBank.Play("fire_" .. string.lower(w.Id), nil, w.StoreModel and 0.75 or 0.55, 0.96 + math.random() * 0.08)
 	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
 	kick = math.min(kick + w.Recoil * 0.35, 4)
 	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)

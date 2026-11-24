@@ -304,7 +304,7 @@ local function fire()
 	remotes.Fire:FireServer(w.Id, origin, dirs, claims)
 
 	Effects.Muzzle(muzzleCFrame(), color)
-	SoundBank.Play("fire_" .. string.lower(w.Id), nil, 0.55, 0.96 + math.random() * 0.08)
+	SoundBank.Play("fire_" .. string.lower(w.Id), nil, w.StoreModel and 0.75 or 0.55, 0.96 + math.random() * 0.08)
 	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
 	kick = math.min(kick + w.Recoil * 0.35, 4)
 	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)

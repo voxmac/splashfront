@@ -185,7 +185,14 @@ remotes.HitConfirm.OnClientEvent:Connect(function(d)
 	if d.Pos then
 		Effects.DamageNumber(d.Pos + Vector3.new(0, 1, 0), d.Damage, d.Head, d.Kill)
 	end
-	SoundBank.Play(d.Head and "hit_head" or "hit", nil, d.Head and 0.8 or 0.6)
+	-- 실총은 둔탁한 실탄 타격음 + 옅은 페인트 튐, 페인트총은 페인트 타격음
+	local myW = require(ReplicatedStorage.Shared.Weapons).Get(player:GetAttribute("Weapon"))
+	if myW and myW.StoreModel then
+		SoundBank.Play(d.Head and "hit_real_head" or "hit_real", nil, d.Head and 0.9 or 0.8)
+		SoundBank.Play("hit", nil, 0.25)
+	else
+		SoundBank.Play(d.Head and "hit_head" or "hit", nil, d.Head and 0.8 or 0.6)
+	end
 	if d.Kill then
 		SoundBank.Play("kill", nil, 0.8)
 	end

@@ -36,7 +36,14 @@
   "crate_shake",
   "crate_rare",
   "crate_epic",
-  "crate_legendary"
+  "crate_legendary",
+  "fire_k2",
+  "fire_k2c1",
+  "fire_k3",
+  "fire_k14",
+  "fire_k5",
+  "hit_real",
+  "hit_real_head"
  ],
  "seconds": {
   "fire_pistol": 0.4,
@@ -75,7 +82,14 @@
   "crate_shake": 0.46,
   "crate_rare": 1.64,
   "crate_epic": 1.78,
-  "crate_legendary": 2.2
+  "crate_legendary": 2.2,
+  "fire_k2": 0.93,
+  "fire_k2c1": 0.83,
+  "fire_k3": 0.98,
+  "fire_k14": 1.78,
+  "fire_k5": 0.73,
+  "hit_real": 0.09,
+  "hit_real_head": 0.35
  },
  "note": "synthesised by tools/make_sfx.py, no samples"
 }

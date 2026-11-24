@@ -87,6 +87,35 @@ def low_ink():
     return mix((0, c * 0.8), (0.01, sput), (0.12, c * 0.5))
 
 
+# ---------------------------------------------------------------- real guns (K-series): crack + blast + low thump + bolt + echo tail
+def real_shot(crack=1.0, blast_lo=250, blast_hi=3200, blast_d=0.14, thump_f=(95, 45), weight=1.0, bolt=0.35, tail=0.6, tail_lo=180, tail_hi=1400):
+    crack_ = hp(noise(0.02), 2600) * edecay(0.02, 260) * 1.2 * crack                    # 총구 파열음
+    blast = bp(noise(blast_d), blast_lo, blast_hi) * edecay(blast_d, 30) * 0.95 * weight   # 폭발 압력
+    th = np.sin(2 * np.pi * np.cumsum(np.linspace(thump_f[0], thump_f[1], int(SR * 0.16))) / SR) * edecay(0.16, 22) * 0.9 * weight
+    mech = bp(noise(0.012), 3000, 7000) * edecay(0.012, 300) * 0.35
+    boltc = bp(noise(0.02), 2200, 6000) * edecay(0.02, 220) * bolt                      # 노리쇠 소리
+    echo = bp(noise(tail), tail_lo, tail_hi) * edecay(tail, 5.5 / tail) * 0.22 * weight   # 건물 사이 메아리
+    x = mix((0, crack_), (0, blast), (0, th), (0, mech), (0.055, boltc), (0.03, echo))
+    return room(attack(x, 1), 0.35, 0.16)
+def fire_k2():    return real_shot(1.0, 250, 3200, 0.13, (95, 45), 1.0, 0.3, 0.55)
+def fire_k2c1():  return real_shot(1.15, 350, 4200, 0.10, (110, 55), 0.85, 0.3, 0.45)
+def fire_k3():    return real_shot(0.9, 180, 2600, 0.15, (80, 38), 1.25, 0.25, 0.6, 150, 1200)
+def fire_k14():
+    x = real_shot(1.4, 150, 3800, 0.24, (70, 30), 1.7, 0.0, 1.4, 120, 1100)
+    bolt_cycle = mix((0, bp(noise(0.03), 1500, 5000) * edecay(0.03, 120) * 0.35), (0.09, bp(noise(0.03), 1800, 6000) * edecay(0.03, 140) * 0.3))
+    return mix((0, x), (0.55, bolt_cycle))
+def fire_k5():    return real_shot(1.2, 400, 4500, 0.08, (130, 70), 0.7, 0.45, 0.35, 250, 1800)
+def hit_real():
+    # 몸통 명중: 둔탁한 타격 + 짧은 금속성 틱 (총알이 박히는 느낌)
+    thud = lp(noise(0.09), 700) * edecay(0.09, 45) * 0.9
+    knock = np.sin(2 * np.pi * np.cumsum(np.linspace(180, 70, int(SR * 0.07))) / SR) * edecay(0.07, 55) * 0.8
+    tick = bp(noise(0.015), 2500, 6000) * edecay(0.015, 250) * 0.45
+    return attack(mix((0, thud), (0, knock), (0, tick)), 1)
+def hit_real_head():
+    ding = mix((0, bell(98, 0.35, 0.4)), (0, bell(105, 0.3, 0.2)))
+    return mix((0, hit_real() * 0.9), (0.004, ding))
+
+
 # ---------------------------------------------------------------- hits and kills
 def splat(size=1.0):
     d = 0.35 * size
@@ -197,6 +226,9 @@ SOUNDS = {
     # UI·상점·크레이트
     "ui_click": ui_click, "ui_buy": ui_buy, "ui_error": ui_error, "crate_shake": crate_shake,
     "crate_rare": lambda: crate_reveal("rare"), "crate_epic": lambda: crate_reveal("epic"), "crate_legendary": lambda: crate_reveal("legendary"),
+    # 실총 (K 시리즈) — 기존 소리 순서·난수가 바뀌지 않게 맨 뒤에 추가
+    "fire_k2": fire_k2, "fire_k2c1": fire_k2c1, "fire_k3": fire_k3, "fire_k14": fire_k14, "fire_k5": fire_k5,
+    "hit_real": hit_real, "hit_real_head": hit_real_head,
 }
 
 if __name__ == "__main__":
