@@ -79,7 +79,7 @@ local function startRide(pole)
 		return
 	end
 	-- 위로 오를 때는 꼭대기 기둥과 겹치지 않게 조금 앞에서 내림
-	riding = { From = from, To = to, T = 0, Len = (to - from).Magnitude, EndT = (to.Y > from.Y + 1) and 0.94 or 1 }
+	riding = { From = from, To = to, T = 0, Len = (to - from).Magnitude, EndT = (to.Y > from.Y + 1) and 0.97 or 1 }
 	hum.PlatformStand = true
 	SoundBank.Play("zipline_start", nil, 0.7)
 	rideSound = SoundBank.Play("zipline_ride", nil, 0.45, 1, true)
