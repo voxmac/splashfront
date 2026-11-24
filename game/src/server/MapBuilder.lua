@@ -920,7 +920,8 @@ function MapBuilder.BuildLobby()
 	local bx = -W / 2 + 3
 	local lb = part({ Name = "Leaderboard", Parent = lobby, Size = Vector3.new(30, 20, 1), Position = Vector3.new(bx, Y + 12, 10),
 		Color = Color3.fromRGB(16, 14, 28) })
-	lb.CFrame = CFrame.new(lb.Position) * CFrame.Angles(0, math.rad(90), 0)
+	-- 앞면(글씨 면)이 로비 안쪽(+X)을 보게. 90°로 돌리면 글씨가 벽 쪽을 향해 빈 판처럼 보였음
+	lb.CFrame = CFrame.new(lb.Position) * CFrame.Angles(0, math.rad(-90), 0)
 	for _, e in ipairs({ { 0, 10.3, 31, 0.6 }, { 0, -10.3, 31, 0.6 }, { -15.3, 0, 0.6, 21 }, { 15.3, 0, 0.6, 21 } }) do
 		part({ Name = "BoardFrame", Parent = deco, Size = Vector3.new(e[3], e[4], 1.2), CFrame = lb.CFrame * CFrame.new(e[1], e[2], 0),
 			Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })

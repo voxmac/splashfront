@@ -97,7 +97,7 @@ Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 
 Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
-Config.RankedAllowBots = false  -- 봇이 섞인 랭크전은 레이팅 미반영 (테스트 때는 true로)
+Config.RankedAllowBots = true  -- 봇이 빈자리를 채운 경기도 레이팅 반영 (사람 플레이어만 점수 변동)
 
 -- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
 -- 플래그 러시는 깃발 점수로 판정
@@ -110,7 +110,7 @@ Config.Modes = {
 	Solo = { Id = "Solo", Name = "솔로 페인트 로얄", Desc = "8인 개인전, 면적 1위" },
 }
 Config.Queues = {
-	{ Id = "2v2", Mode = "Turf", TeamSize = 2, Ranked = false },
+	{ Id = "2v2", Mode = "Turf", TeamSize = 2, Ranked = true },
 	{ Id = "3v3", Mode = "Turf", TeamSize = 3, Ranked = true },
 	{ Id = "5v5", Mode = "Turf", TeamSize = 5, Ranked = true },
 	{ Id = "Flag3v3", Mode = "Flag", TeamSize = 3, Ranked = true },
