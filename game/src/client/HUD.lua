@@ -877,14 +877,16 @@ function HUD.RefreshWeaponCard()
 	for _, c in ipairs(weaponCard.Pic:GetChildren()) do
 		c:Destroy()
 	end
-	local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+	local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 	if player:GetAttribute("Golden") then
 		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
 	else
-		UI.GunImage(weaponCard.Pic, player:GetAttribute("Weapon") or "Pistol", player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""])
+		local wid = player:GetAttribute("Weapon") or "Pistol"
+		UI.GunImage(weaponCard.Pic, wid, player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, wid))
 	end
 end
-for _, a in ipairs({ "Weapon", "Skin", "Golden", "TeamColor" }) do
+for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor" }) do
 	player:GetAttributeChangedSignal(a):Connect(function()
 		HUD.RefreshWeaponCard()
 	end)

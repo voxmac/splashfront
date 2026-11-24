@@ -109,8 +109,8 @@ ACTIONS.bots = function()
 end
 
 ACTIONS.rankedBots = function()
-	Config.RankedAllowBots = not Config.RankedAllowBots
-	return "봇 포함 랭크 반영: " .. (Config.RankedAllowBots and "켜짐" or "꺼짐")
+	SettingsService.Set("RankedAllowBots", Config.RankedAllowBots and 0 or 1) -- 저장 + 모든 서버에 반영
+	return "봇 포함 랭크 반영: " .. (Config.RankedAllowBots and "켜짐" or "꺼짐") .. " (저장됨)"
 end
 
 ACTIONS.fastMissions = function()

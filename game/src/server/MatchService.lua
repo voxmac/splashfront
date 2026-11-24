@@ -11,6 +11,7 @@ local CombatService = require(script.Parent.CombatService)
 local MissionService = require(script.Parent.MissionService)
 local BotService = require(script.Parent.BotService)
 local DataService = require(script.Parent.DataService)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local RankService = require(script.Parent.RankService)
 local Telemetry = require(script.Parent.TelemetryService)
 local ItemService = require(script.Parent.ItemService)
@@ -333,7 +334,8 @@ local function attachGun(e, model)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
 	if hand then
 		local skin = e.Player and Cosmetics.ById[e.Player:GetAttribute("Skin") or ""] or nil
-		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+		local look = e.Player and WeaponSkins.LookFor(e.Player, e.WeaponId) or nil
+		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 		gun.Name = "SF_Gun"
 		ModelKit.WeldTo(gun, hand, GUN_GRIP)
 	end
@@ -587,7 +589,7 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and killer.KillEffect or nil,
+		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
 		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
 		WeaponId = killer and killer.WeaponId or nil,
 		KillerStreak = killer and killer.Streak or 0,

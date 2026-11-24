@@ -198,6 +198,36 @@ function Effects.KillEffect(kind, pos, color)
 				{ Size = Vector3.new(0.3, 10 + i * 2, 10 + i * 2), Transparency = 1 }):Play()
 			Debris:AddItem(ring, 1)
 		end
+	elseif kind == "Inferno" then
+		-- 얼티밋 스킨 피니셔: 솟구치는 화염 기둥 + 불씨
+		for i = 1, 10 do
+			local h = 1 + i * 0.9
+			local p = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * (2.6 - i * 0.15), Color = Color3.fromRGB(255, 120 + i * 10, 30),
+				Material = Enum.Material.Neon, Transparency = 0.15, Position = pos + Vector3.new(0, 0.3, 0) })
+			TweenService:Create(p, TweenInfo.new(0.35 + i * 0.04, Enum.EasingStyle.Quad), { Position = pos + Vector3.new((math.random() - 0.5) * 1.2, h, (math.random() - 0.5) * 1.2),
+				Size = Vector3.one * 0.3, Transparency = 1 }):Play()
+			Debris:AddItem(p, 0.9)
+		end
+		for _ = 1, 14 do
+			local p = fxPart({ Size = Vector3.new(0.15, 0.15, 0.15), Color = Color3.fromRGB(255, 200, 80), Material = Enum.Material.Neon, Position = pos })
+			TweenService:Create(p, TweenInfo.new(0.9), { Position = pos + Vector3.new((math.random() - 0.5) * 8, math.random() * 7, (math.random() - 0.5) * 8),
+				Transparency = 1 }):Play()
+			Debris:AddItem(p, 1)
+		end
+	elseif kind == "Galaxy" then
+		-- 얼티밋 스킨 피니셔: 회전하며 퍼지는 별빛 고리 + 중심 섬광
+		local core = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.2, Color = Color3.fromRGB(230, 220, 255), Material = Enum.Material.Neon, Position = pos })
+		TweenService:Create(core, TweenInfo.new(0.45), { Size = Vector3.one * 6, Transparency = 1 }):Play()
+		Debris:AddItem(core, 0.5)
+		for i = 1, 18 do
+			local a = i / 18 * math.pi * 2
+			local cc = Color3.fromHSV(0.7 + (i % 6) * 0.04, 0.6, 1)
+			local p = fxPart({ Size = Vector3.new(0.25, 0.25, 0.25), Color = cc, Material = Enum.Material.Neon, Position = pos })
+			local r = 5 + (i % 3)
+			TweenService:Create(p, TweenInfo.new(0.8, Enum.EasingStyle.Quart), { Position = pos + Vector3.new(math.cos(a + 1) * r, 1 + (i % 4) * 0.6, math.sin(a + 1) * r),
+				Transparency = 1 }):Play()
+			Debris:AddItem(p, 0.85)
+		end
 	else
 		Effects.Splash(pos, color, 3)
 	end

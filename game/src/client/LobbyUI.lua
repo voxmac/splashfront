@@ -11,6 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local UI = require(script.Parent:WaitForChild("UIKit"))
 
@@ -82,7 +83,7 @@ local function buildWeapons(page)
 		local img = make("Frame", { Size = UDim2.fromOffset(170, 96), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, row)
 		corner(img, 12)
 		UI.gradient(img, Color3.fromRGB(70, 66, 110), Color3.fromRGB(34, 32, 54), 90)
-		UI.GunImage(img, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""])
+		UI.GunImage(img, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, w.Id))
 		label(row, { Text = w.Name, Font = Enum.Font.GothamBlack, TextSize = 26, Position = UDim2.fromOffset(194, 10), Size = UDim2.new(1, -380, 0, 30) })
 		label(row, { Text = w.Class, TextSize = 18, TextColor3 = C.Gold, Position = UDim2.fromOffset(194, 42), Size = UDim2.new(1, -380, 0, 22) })
 		label(row, { Text = string.format("피해 %s · 연사 %.2f초 · 사거리 %d · 페인트 %s", w.Pellets > 1 and (w.Damage .. "×" .. w.Pellets) or tostring(w.Damage),
@@ -207,7 +208,7 @@ local function buildCollection(page)
 			UI.stroke(cardF, (equippedW == w.Id) and C.Cyan or C.Dim, 2, (equippedW == w.Id) and 0 or 0.5)
 			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 70), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
 			corner(pic, 10)
-			UI.GunImage(pic, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""])
+			UI.GunImage(pic, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, w.Id))
 			label(cardF, { Text = w.Name, TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 80), Size = UDim2.new(1, -20, 0, 20),
 				TextTruncate = Enum.TextTruncate.AtEnd })
 			local b = button(cardF, (equippedW == w.Id) and "장착 중" or "장착", (equippedW == w.Id) and C.Dim or C.Green,
@@ -219,6 +220,43 @@ local function buildCollection(page)
 					buildCollection(page)
 				end
 			end)
+		end
+	end
+	-- 보유 무기 스킨 (총별 장착)
+	local wsOwned = {}
+	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
+		table.insert(wsOwned, x)
+	end
+	if #wsOwned > 0 then
+		any = true
+		table.sort(wsOwned)
+		local eq = WeaponSkins.ParseEquip(player:GetAttribute("WSkinEquip"))
+		label(page, { Text = "무기 스킨", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
+		order = order + 1
+		local sgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
+		order = order + 1
+		for i, sid in ipairs(wsOwned) do
+			local lineId, wid = WeaponSkins.Split(sid)
+			local line = WeaponSkins.LineById[lineId or ""]
+			if line and Weapons.ById[wid] then
+				local on = eq[wid] and eq[wid].Line == lineId
+				local tier = WeaponSkins.TierById[line.Tier]
+				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
+				corner(cardF, 12)
+				UI.stroke(cardF, tier.Color, 2, on and 0 or 0.5)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 64), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				corner(pic, 10)
+				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
+				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 74),
+					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
+				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
+				b.MouseButton1Click:Connect(function()
+					shopCall(on and "unequipWSkin" or "equipWSkin", on and wid or sid)
+					task.wait(0.2)
+					buildCollection(page)
+				end)
+			end
 		end
 	end
 	for _, k in ipairs(kinds) do
@@ -299,6 +337,178 @@ local function buildSkins(page)
 	end
 end
 
+------------------------------------------------------------------------
+-- 무기 스킨 상점: 총을 고르고 → 등급별 컬렉션 스킨을 사서 → 그 총에만 장착 (변형 색상 선택)
+------------------------------------------------------------------------
+local wsWeapon = nil       -- 지금 보고 있는 총
+local wsPreview = {}       -- [라인 Id] = 미리보기 변형 번호
+
+local function shopWeaponIds()
+	local list = {}
+	for _, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then
+			table.insert(list, w.Id)
+		end
+	end
+	return list
+end
+
+local function ownedSet()
+	local set = {}
+	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
+		set[x] = true
+	end
+	return set
+end
+
+local function buildWeaponSkins(page)
+	clear(page)
+	local coins = player:GetAttribute("Coins") or 0
+	local have = ownedSet()
+	local equip = WeaponSkins.ParseEquip(player:GetAttribute("WSkinEquip"))
+	local ids = shopWeaponIds()
+	if not wsWeapon or not table.find(ids, wsWeapon) then
+		wsWeapon = table.find(ids, player:GetAttribute("Weapon")) and player:GetAttribute("Weapon") or ids[1]
+	end
+	local w = Weapons.Get(wsWeapon)
+	local order = 0
+	local function nextOrder()
+		order = order + 1
+		return order
+	end
+	label(page, { Text = string.format("보유 코인 %d · 총마다 따로 사고 따로 장착해요 (외형 전용, 능력치 변화 없음)", coins), TextSize = 17,
+		TextColor3 = C.Gold, Size = UDim2.new(1, -10, 0, 26), LayoutOrder = nextOrder() })
+
+	-- 총 고르기
+	local chips = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
+	make("UIGridLayout", { CellSize = UDim2.new(1 / 6, -6, 0, 36), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chips)
+	for i, wid in ipairs(ids) do
+		local ww = Weapons.Get(wid)
+		local sel = wid == wsWeapon
+		local b = button(chips, ww.Name, sel and C.Pink or C.Panel2, { TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		b.MouseButton1Click:Connect(function()
+			wsWeapon = wid
+			buildWeaponSkins(page)
+		end)
+	end
+
+	-- 지금 장착한 모습
+	local cur = equip[wsWeapon]
+	local curLine = cur and WeaponSkins.LineById[cur.Line]
+	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 120), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+	corner(top, 14)
+	UI.gradient(top, Color3.fromRGB(70, 50, 120), Color3.fromRGB(30, 28, 48), 0)
+	local pic = make("Frame", { Size = UDim2.fromOffset(230, 104), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
+	corner(pic, 12)
+	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
+	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(254, 14), Size = UDim2.new(1, -440, 0, 30) })
+	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
+		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(254, 50), Size = UDim2.new(1, -440, 0, 24) })
+	label(top, { Text = "스탠다드 → 디럭스(투톤) → 프리미엄(발광·색상 변형) → 얼티밋(입자·전용 피니셔)", TextSize = 14, TextColor3 = C.Sub,
+		Position = UDim2.fromOffset(254, 80), Size = UDim2.new(1, -440, 0, 20), TextWrapped = true })
+	if curLine then
+		local rb = button(top, "기본으로", C.Dim, { Size = UDim2.fromOffset(150, 46), Position = UDim2.new(1, -166, 0.5, -23), TextSize = 18 })
+		rb.MouseButton1Click:Connect(function()
+			shopCall("unequipWSkin", wsWeapon)
+			task.wait(0.2)
+			buildWeaponSkins(page)
+		end)
+	end
+
+	-- 등급별 스킨 카드
+	for _, tier in ipairs(WeaponSkins.Tiers) do
+		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 38), BackgroundColor3 = tier.Color, LayoutOrder = nextOrder() }, page)
+		corner(head, 10)
+		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
+			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
+		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
+		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 236), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		for _, line in ipairs(WeaponSkins.Lines) do
+			if line.Tier == tier.Id then
+				local skinId = WeaponSkins.SkinId(line.Id, wsWeapon)
+				local mine = have[skinId]
+				local isOn = cur and cur.Line == line.Id
+				local v = wsPreview[line.Id] or (isOn and cur.V) or 1
+				local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = line.Order }, grid)
+				corner(card, 12)
+				UI.stroke(card, tier.Color, 2, (mine or isOn) and 0 or 0.5)
+				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 110), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
+				corner(cp, 10)
+				UI.gradient(cp, tier.Color:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(24, 22, 38), 90)
+				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
+				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 122), Size = UDim2.new(1, -24, 0, 22),
+					TextTruncate = Enum.TextTruncate.AtEnd })
+				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 145), Size = UDim2.new(1, -24, 0, 18),
+					TextTruncate = Enum.TextTruncate.AtEnd })
+				-- 색상 변형 점 (보유했으면 누르면 그 색으로 장착, 아니면 미리보기)
+				if #line.Variants > 1 then
+					for vi, vv in ipairs(line.Variants) do
+						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 168), Text = "",
+							BackgroundColor3 = vv.Accent or vv.Body, AutoButtonColor = true }, card)
+						corner(dot, 13)
+						UI.stroke(dot, (vi == v) and Color3.new(1, 1, 1) or Color3.fromRGB(20, 20, 30), 2)
+						dot.MouseButton1Click:Connect(function()
+							wsPreview[line.Id] = vi
+							if mine then
+								shopCall("equipWSkin", skinId .. ":" .. vi)
+								task.wait(0.2)
+							end
+							buildWeaponSkins(page)
+						end)
+					end
+					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 170),
+						Size = UDim2.fromOffset(110, 22) })
+				end
+				local text, color
+				if isOn then
+					text, color = "장착 중", C.Dim
+				elseif mine then
+					text, color = "장착", C.Green
+				else
+					text, color = tier.Price .. " 코인", (coins >= tier.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+				end
+				local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -48), TextSize = 18 })
+				b.MouseButton1Click:Connect(function()
+					if isOn then
+						return
+					end
+					if mine then
+						shopCall("equipWSkin", skinId .. ":" .. v)
+					else
+						shopCall("buyWSkin", skinId)
+					end
+					task.wait(0.25)
+					buildWeaponSkins(page)
+				end)
+			end
+		end
+	end
+
+	-- 컬렉션 묶음: 그 컬렉션을 모든 총에 한 번에 (할인)
+	label(page, { Text = string.format("컬렉션 묶음 · 모든 총 한 번에 %d%% 할인", math.floor(WeaponSkins.BundleDiscount * 100)), TextSize = 22,
+		Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = nextOrder() })
+	for _, line in ipairs(WeaponSkins.Lines) do
+		local tier = WeaponSkins.TierById[line.Tier]
+		local price, n = WeaponSkins.BundlePrice(line.Id, ids, have)
+		local row = make("Frame", { Size = UDim2.new(1, -10, 0, 54), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+		corner(row, 10)
+		UI.stroke(row, tier.Color, 2, 0.5)
+		label(row, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 0), Size = UDim2.new(0.4, 0, 1, 0) })
+		label(row, { Text = n > 0 and string.format("%s · 남은 %d종", tier.Name, n) or (tier.Name .. " · 모두 보유"), TextSize = 15, TextColor3 = tier.Color,
+			Position = UDim2.new(0.4, 0, 0, 0), Size = UDim2.new(0.3, 0, 1, 0) })
+		local b = button(row, n > 0 and (price .. " 코인") or "보유", n > 0 and ((coins >= price) and C.Pink or Color3.fromRGB(90, 60, 80)) or C.Dim,
+			{ Size = UDim2.fromOffset(170, 40), Position = UDim2.new(1, -180, 0.5, -20), TextSize = 17 })
+		b.MouseButton1Click:Connect(function()
+			if n == 0 then
+				return
+			end
+			shopCall("buyWBundle", line.Id)
+			task.wait(0.3)
+			buildWeaponSkins(page)
+		end)
+	end
+end
+
 -- 로벅스 충전: VIP 게임패스 + 코인 팩 (가격은 Roblox에서 실시간으로 읽음)
 local priceCache = {}
 local function robuxPrice(id, infoType)
@@ -373,7 +583,7 @@ local function buildRobux(page)
 	end
 end
 
-local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection, Robux = buildRobux }
+local builders = { Weapons = buildWeapons, WSkins = buildWeaponSkins, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection, Robux = buildRobux }
 local currentTab = "Weapons"
 
 local function showTab(name)
@@ -957,9 +1167,9 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	tabButtons = {}
 	pages = {}
-	local tabs = { { "Weapons", "무기" }, { "Skins", "스킨 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" }, { "Robux", "충전 · VIP" } }
+	local tabs = { { "Weapons", "무기" }, { "WSkins", "무기 스킨" }, { "Skins", "외형 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" }, { "Robux", "충전 · VIP" } }
 	for i, t in ipairs(tabs) do
-		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(156, 48), Position = UDim2.fromOffset(20 + (i - 1) * 164, 76), TextSize = 19 })
+		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(130, 48), Position = UDim2.fromOffset(20 + (i - 1) * 137, 76), TextSize = 18 })
 		b.MouseButton1Click:Connect(function()
 			showTab(t[1])
 		end)

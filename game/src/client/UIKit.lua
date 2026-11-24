@@ -200,8 +200,8 @@ function UI.ModelImage(parent, model, size, rotY)
 	return viewportModel(parent, model, size, rotY)
 end
 
-function UI.GunImage(parent, weaponId, accent, skin, size)
-	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+function UI.GunImage(parent, weaponId, accent, skin, size, look)
+	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 	return viewportModel(parent, model, size, math.rad(90))
 end
 

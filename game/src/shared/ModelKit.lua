@@ -294,15 +294,101 @@ local function finish(model, accentColor, bodyColor, bodyMaterial)
 	return model, muzzle
 end
 
--- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택)
-function ModelKit.Gun(weaponId, accent, skin, skinMaterial)
+local function mat(name, default)
+	local ok, m = pcall(function()
+		return Enum.Material[name]
+	end)
+	return (ok and m) or default
+end
+
+-- 무기 스킨(WeaponSkins.Look) 입히기. 상점 실총은 원래 텍스처를 걷어내고 큰 부품=몸체, 작은 부품=금속 색으로
+function ModelKit.ApplyLook(model, look)
+	if not look then
+		return
+	end
+	local parts = {}
+	local biggest, bigVol = nil, 0
+	for _, p in ipairs(model:GetDescendants()) do
+		if p:IsA("BasePart") and p.Transparency < 1 then
+			table.insert(parts, p)
+			local v = p.Size.X * p.Size.Y * p.Size.Z
+			if v > bigVol then
+				biggest, bigVol = p, v
+			end
+		end
+	end
+	local bodyMat = mat(look.BodyMat, Enum.Material.SmoothPlastic)
+	local metalMat = mat(look.MetalMat, Enum.Material.Metal)
+	for _, p in ipairs(parts) do
+		local k = p:GetAttribute("Kind")
+		if k == "Store" then
+			for _, d in ipairs(p:GetChildren()) do
+				if d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
+					d:Destroy()
+				end
+			end
+			if p:IsA("MeshPart") then
+				pcall(function()
+					p.TextureID = ""
+				end)
+			end
+			local v = p.Size.X * p.Size.Y * p.Size.Z
+			local small = v < bigVol * 0.08
+			p.Color = small and look.Metal or look.Body
+			p.Material = small and metalMat or bodyMat
+		elseif k == "Accent" then
+			if look.Accent then
+				p.Color = look.Accent
+			end
+		elseif k == "Metal" then
+			p.Color = look.Metal
+			p.Material = metalMat
+		elseif k ~= "Anchor" and k ~= "Muzzle" then
+			p.Color = look.Body
+			p.Material = bodyMat
+		end
+	end
+	-- 프리미엄 이상: 몸체를 따라 빛나는 라인
+	if look.Glow and look.Accent and biggest then
+		-- 1인칭 총의 외곽선을 이 색으로 (WeaponController가 읽음)
+		model:SetAttribute("SkinOutline", look.Accent)
+		local light = Instance.new("PointLight")
+		light.Name = "SkinLight"
+		light.Color = look.Accent
+		light.Range = 4
+		light.Brightness = 1.2
+		light.Parent = biggest
+	end
+	-- 얼티밋: 총에서 흩날리는 입자
+	if look.Particle and biggest then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Name = "SkinParticles"
+		pe.Color = ColorSequence.new(look.Particle, look.Accent or look.Particle)
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(1, 0) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+		pe.Lifetime = NumberRange.new(0.5, 1)
+		pe.Rate = 14
+		pe.Speed = NumberRange.new(0.3, 1)
+		pe.SpreadAngle = Vector2.new(180, 180)
+		pe.Acceleration = Vector3.new(0, (look.Finisher == "Inferno") and 2 or 0.3, 0)
+		pe.Shape = Enum.ParticleEmitterShape.Box
+		pe.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+		pe.Parent = biggest
+	end
+end
+
+-- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택), look: 무기별 스킨(WeaponSkins.Look, 있으면 우선)
+function ModelKit.Gun(weaponId, accent, skin, skinMaterial, look)
 	local w = Weapons.Get(weaponId)
 	if w.StoreModel then
 		local sm = storeSource(w)
 		if sm then
 			sm:SetAttribute("Imported", true)
 			sm:SetAttribute("StoreGun", true)
-			return finish(sm, accent, nil, nil)
+			local m, muzzle = finish(sm, accent, nil, nil)
+			ModelKit.ApplyLook(m, look)
+			return m, muzzle
 		end
 	end
 	local model, imported = source("Gun_" .. weaponId)
@@ -310,6 +396,11 @@ function ModelKit.Gun(weaponId, accent, skin, skinMaterial)
 		model = fallbackGun(weaponId)
 	end
 	model:SetAttribute("Imported", imported)
+	if look then
+		local m, muzzle = finish(model, accent, nil, nil)
+		ModelKit.ApplyLook(m, look)
+		return m, muzzle
+	end
 	return finish(model, accent, skin and skin.Color or nil, skinMaterial)
 end
 

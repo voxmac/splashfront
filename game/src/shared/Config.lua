@@ -97,7 +97,7 @@ Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 
 Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
-Config.RankedAllowBots = true  -- 봇이 빈자리를 채운 경기도 레이팅 반영 (사람 플레이어만 점수 변동)
+Config.RankedAllowBots = false  -- 봇이 섞인 경기는 레이팅 미반영 · 관리자 설정 '봇 포함 랭크 반영'에서 켜고 끔(저장됨)
 
 -- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
 -- 플래그 러시는 깃발 점수로 판정
@@ -216,6 +216,7 @@ Config.Tunables = {
 	{ Key = "Item:Zoom6", Name = "6배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
 	{ Key = "CrateCoinPrice", Name = "크레이트 코인가", Min = 500, Max = 50000, Step = 500 },
 	{ Key = "FillWithBots", Name = "빈자리 봇 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
+	{ Key = "RankedAllowBots", Name = "봇 포함 랭크 반영 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
 }
 
 function Config.GetTunable(key)

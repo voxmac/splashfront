@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBXL"><Properties><string name="Name">Lighting</string><token name="Technology">4</token><float name="EnvironmentDiffuseScale">1</float><float name="EnvironmentSpecularScale">0.6</float></Properties></Item><Item class="ReplicatedStorage" referent="RBX7"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX6"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Workspace" referent="RBX0"><Properties><string name="Name">Workspace</string><bool name="StreamingEnabled">false</bool></Properties></Item><Item class="Lighting" referent="RBXL"><Properties><string name="Name">Lighting</string><token name="Technology">4</token><float name="EnvironmentDiffuseScale">1</float><float name="EnvironmentSpecularScale">0.6</float></Properties></Item><Item class="ReplicatedStorage" referent="RBX8"><Properties><string name="Name">ReplicatedStorage</string></Properties><Item class="Folder" referent="RBX7"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
@@ -191,7 +191,7 @@ Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 
 Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
 Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
-Config.RankedAllowBots = true  -- 봇이 빈자리를 채운 경기도 레이팅 반영 (사람 플레이어만 점수 변동)
+Config.RankedAllowBots = false  -- 봇이 섞인 경기는 레이팅 미반영 · 관리자 설정 '봇 포함 랭크 반영'에서 켜고 끔(저장됨)
 
 -- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
 -- 플래그 러시는 깃발 점수로 판정
@@ -310,6 +310,7 @@ Config.Tunables = {
 	{ Key = "Item:Zoom6", Name = "6배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
 	{ Key = "CrateCoinPrice", Name = "크레이트 코인가", Min = 500, Max = 50000, Step = 500 },
 	{ Key = "FillWithBots", Name = "빈자리 봇 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
+	{ Key = "RankedAllowBots", Name = "봇 포함 랭크 반영 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
 }
 
 function Config.GetTunable(key)
@@ -785,15 +786,101 @@ local function finish(model, accentColor, bodyColor, bodyMaterial)
 	return model, muzzle
 end
 
--- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택)
-function ModelKit.Gun(weaponId, accent, skin, skinMaterial)
+local function mat(name, default)
+	local ok, m = pcall(function()
+		return Enum.Material[name]
+	end)
+	return (ok and m) or default
+end
+
+-- 무기 스킨(WeaponSkins.Look) 입히기. 상점 실총은 원래 텍스처를 걷어내고 큰 부품=몸체, 작은 부품=금속 색으로
+function ModelKit.ApplyLook(model, look)
+	if not look then
+		return
+	end
+	local parts = {}
+	local biggest, bigVol = nil, 0
+	for _, p in ipairs(model:GetDescendants()) do
+		if p:IsA("BasePart") and p.Transparency < 1 then
+			table.insert(parts, p)
+			local v = p.Size.X * p.Size.Y * p.Size.Z
+			if v > bigVol then
+				biggest, bigVol = p, v
+			end
+		end
+	end
+	local bodyMat = mat(look.BodyMat, Enum.Material.SmoothPlastic)
+	local metalMat = mat(look.MetalMat, Enum.Material.Metal)
+	for _, p in ipairs(parts) do
+		local k = p:GetAttribute("Kind")
+		if k == "Store" then
+			for _, d in ipairs(p:GetChildren()) do
+				if d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
+					d:Destroy()
+				end
+			end
+			if p:IsA("MeshPart") then
+				pcall(function()
+					p.TextureID = ""
+				end)
+			end
+			local v = p.Size.X * p.Size.Y * p.Size.Z
+			local small = v < bigVol * 0.08
+			p.Color = small and look.Metal or look.Body
+			p.Material = small and metalMat or bodyMat
+		elseif k == "Accent" then
+			if look.Accent then
+				p.Color = look.Accent
+			end
+		elseif k == "Metal" then
+			p.Color = look.Metal
+			p.Material = metalMat
+		elseif k ~= "Anchor" and k ~= "Muzzle" then
+			p.Color = look.Body
+			p.Material = bodyMat
+		end
+	end
+	-- 프리미엄 이상: 몸체를 따라 빛나는 라인
+	if look.Glow and look.Accent and biggest then
+		-- 1인칭 총의 외곽선을 이 색으로 (WeaponController가 읽음)
+		model:SetAttribute("SkinOutline", look.Accent)
+		local light = Instance.new("PointLight")
+		light.Name = "SkinLight"
+		light.Color = look.Accent
+		light.Range = 4
+		light.Brightness = 1.2
+		light.Parent = biggest
+	end
+	-- 얼티밋: 총에서 흩날리는 입자
+	if look.Particle and biggest then
+		local pe = Instance.new("ParticleEmitter")
+		pe.Name = "SkinParticles"
+		pe.Color = ColorSequence.new(look.Particle, look.Accent or look.Particle)
+		pe.LightEmission = 1
+		pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.12), NumberSequenceKeypoint.new(1, 0) })
+		pe.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+		pe.Lifetime = NumberRange.new(0.5, 1)
+		pe.Rate = 14
+		pe.Speed = NumberRange.new(0.3, 1)
+		pe.SpreadAngle = Vector2.new(180, 180)
+		pe.Acceleration = Vector3.new(0, (look.Finisher == "Inferno") and 2 or 0.3, 0)
+		pe.Shape = Enum.ParticleEmitterShape.Box
+		pe.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+		pe.Parent = biggest
+	end
+end
+
+-- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택), look: 무기별 스킨(WeaponSkins.Look, 있으면 우선)
+function ModelKit.Gun(weaponId, accent, skin, skinMaterial, look)
 	local w = Weapons.Get(weaponId)
 	if w.StoreModel then
 		local sm = storeSource(w)
 		if sm then
 			sm:SetAttribute("Imported", true)
 			sm:SetAttribute("StoreGun", true)
-			return finish(sm, accent, nil, nil)
+			local m, muzzle = finish(sm, accent, nil, nil)
+			ModelKit.ApplyLook(m, look)
+			return m, muzzle
 		end
 	end
 	local model, imported = source("Gun_" .. weaponId)
@@ -801,6 +888,11 @@ function ModelKit.Gun(weaponId, accent, skin, skinMaterial)
 		model = fallbackGun(weaponId)
 	end
 	model:SetAttribute("Imported", imported)
+	if look then
+		local m, muzzle = finish(model, accent, nil, nil)
+		ModelKit.ApplyLook(m, look)
+		return m, muzzle
+	end
 	return finish(model, accent, skin and skin.Color or nil, skinMaterial)
 end
 
@@ -1088,7 +1180,146 @@ function ModelKit.SetGolden(gun, on, accent)
 	end
 end
 
-return ModelKit]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">Weapons</string><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT : 무기 정의 (사이드그레이드 원칙 — 강해지는 업그레이드 없음)
+return ModelKit]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX5"><Properties><string name="Name">WeaponSkins</string><ProtectedString name="Source"><![CDATA[-- 무기 스킨 컬렉션: 총 종류마다 따로 사서, 총마다 따로 장착
+-- 등급이 오를수록 연출이 늘어남
+--   스탠다드: 몸체 색·재질
+--   디럭스  : + 투톤(금속 부품 색·재질)
+--   프리미엄: + 발광 라인 + 색상 변형 3종
+--   얼티밋  : + 총에서 흐르는 입자·빛 + 전용 처치 피니셔 + 색상 변형 3종
+-- 스킨 Id = 컬렉션Id .. "@" .. 무기Id  (예: "NeonPulse@K2")
+-- 장착 정보(플레이어 속성 WSkinEquip) = "K2=NeonPulse:2;Rifle=SteelWave:1"
+local WeaponSkins = {}
+
+WeaponSkins.Tiers = {
+	{ Id = "Standard", Name = "스탠다드", Price = 1200, Color = Color3.fromRGB(90, 170, 255) },
+	{ Id = "Deluxe", Name = "디럭스", Price = 2500, Color = Color3.fromRGB(60, 220, 160) },
+	{ Id = "Premium", Name = "프리미엄", Price = 4500, Color = Color3.fromRGB(210, 90, 255) },
+	{ Id = "Ultimate", Name = "얼티밋", Price = 8000, Color = Color3.fromRGB(255, 190, 40) },
+}
+WeaponSkins.BundleDiscount = 0.25 -- 컬렉션 전체(모든 총) 한 번에 사면 25% 할인
+
+local function c(r, g, b)
+	return Color3.fromRGB(r, g, b)
+end
+
+-- Body/BodyMat: 몸체, Metal/MetalMat: 금속 부품, Accent: 발광 라인(없으면 팀 색), Particle: 입자 색, Finisher: 처치 연출
+WeaponSkins.Lines = {
+	{ Id = "SteelWave", Name = "스틸 웨이브", Tier = "Standard", Desc = "빛을 머금은 헤어라인 스틸",
+		Variants = { { Name = "기본", Body = c(178, 184, 196), BodyMat = "Metal", Metal = c(70, 74, 86), MetalMat = "Metal" } } },
+	{ Id = "DesertRanger", Name = "데저트 레인저", Tier = "Standard", Desc = "모래바람을 견디는 전술 도장",
+		Variants = { { Name = "기본", Body = c(196, 168, 120), BodyMat = "Fabric", Metal = c(84, 82, 60), MetalMat = "Metal" } } },
+	{ Id = "BlackOnyx", Name = "블랙 오닉스", Tier = "Deluxe", Desc = "무광 블랙에 금빛 부품",
+		Variants = { { Name = "기본", Body = c(24, 24, 28), BodyMat = "SmoothPlastic", Metal = c(230, 180, 70), MetalMat = "Foil" } } },
+	{ Id = "SakuraBloom", Name = "사쿠라 블룸", Tier = "Deluxe", Desc = "벚꽃 대리석과 진주빛 금속",
+		Variants = { { Name = "기본", Body = c(255, 176, 205), BodyMat = "Marble", Metal = c(240, 236, 245), MetalMat = "Metal" } } },
+	{ Id = "NeonPulse", Name = "네온 펄스", Tier = "Premium", Desc = "어둠 속에서 맥박처럼 빛나는 네온 라인",
+		Variants = {
+			{ Name = "마젠타", Body = c(20, 18, 34), BodyMat = "Glass", Metal = c(44, 40, 66), MetalMat = "Metal", Accent = c(255, 40, 200) },
+			{ Name = "시안", Body = c(14, 24, 36), BodyMat = "Glass", Metal = c(36, 50, 70), MetalMat = "Metal", Accent = c(40, 230, 255) },
+			{ Name = "라임", Body = c(18, 28, 18), BodyMat = "Glass", Metal = c(40, 60, 40), MetalMat = "Metal", Accent = c(170, 255, 50) },
+		} },
+	{ Id = "FrostCrystal", Name = "프로스트 크리스탈", Tier = "Premium", Desc = "얼음 결정으로 깎아 만든 총",
+		Variants = {
+			{ Name = "아이스", Body = c(170, 225, 255), BodyMat = "Ice", Metal = c(210, 220, 235), MetalMat = "Metal", Accent = c(140, 220, 255) },
+			{ Name = "아메시스트", Body = c(190, 150, 255), BodyMat = "Ice", Metal = c(220, 210, 240), MetalMat = "Metal", Accent = c(200, 130, 255) },
+			{ Name = "에메랄드", Body = c(120, 230, 170), BodyMat = "Ice", Metal = c(210, 235, 220), MetalMat = "Metal", Accent = c(90, 255, 170) },
+		} },
+	{ Id = "InfernoCore", Name = "인페르노 코어", Tier = "Ultimate", Desc = "갈라진 용암 사이로 불씨가 흩날림 · 처치 시 화염 기둥",
+		Finisher = "Inferno",
+		Variants = {
+			{ Name = "화염", Body = c(255, 90, 20), BodyMat = "CrackedLava", Metal = c(40, 30, 30), MetalMat = "Metal", Accent = c(255, 140, 30), Particle = c(255, 150, 40) },
+			{ Name = "청염", Body = c(40, 140, 255), BodyMat = "CrackedLava", Metal = c(26, 30, 46), MetalMat = "Metal", Accent = c(80, 190, 255), Particle = c(90, 200, 255) },
+			{ Name = "흑염", Body = c(150, 40, 255), BodyMat = "CrackedLava", Metal = c(20, 16, 26), MetalMat = "Metal", Accent = c(190, 90, 255), Particle = c(200, 120, 255) },
+		} },
+	{ Id = "ChromaGalaxy", Name = "크로마 갤럭시", Tier = "Ultimate", Desc = "별빛이 흐르는 우주 도장 · 처치 시 은하 폭발",
+		Finisher = "Galaxy",
+		Variants = {
+			{ Name = "갤럭시", Body = c(60, 30, 140), BodyMat = "Glass", Metal = c(30, 24, 60), MetalMat = "Metal", Accent = c(150, 110, 255), Particle = c(230, 220, 255) },
+			{ Name = "오로라", Body = c(20, 110, 120), BodyMat = "Glass", Metal = c(18, 40, 50), MetalMat = "Metal", Accent = c(60, 255, 200), Particle = c(180, 255, 230) },
+			{ Name = "선셋", Body = c(200, 70, 110), BodyMat = "Glass", Metal = c(60, 26, 40), MetalMat = "Metal", Accent = c(255, 170, 60), Particle = c(255, 220, 160) },
+		} },
+}
+
+WeaponSkins.LineById = {}
+WeaponSkins.TierById = {}
+for _, t in ipairs(WeaponSkins.Tiers) do
+	WeaponSkins.TierById[t.Id] = t
+end
+for i, l in ipairs(WeaponSkins.Lines) do
+	l.Order = i
+	WeaponSkins.LineById[l.Id] = l
+end
+
+function WeaponSkins.SkinId(lineId, weaponId)
+	return lineId .. "@" .. weaponId
+end
+
+function WeaponSkins.Split(skinId)
+	return string.match(skinId or "", "^([%w_]+)@([%w_]+)$")
+end
+
+function WeaponSkins.Price(lineId)
+	local l = WeaponSkins.LineById[lineId]
+	return l and WeaponSkins.TierById[l.Tier].Price or nil
+end
+
+-- weaponIds: 상점에 나오는 총 목록
+function WeaponSkins.BundlePrice(lineId, weaponIds, ownedSet)
+	local each = WeaponSkins.Price(lineId) or 0
+	local n = 0
+	for _, wid in ipairs(weaponIds) do
+		if not (ownedSet and ownedSet[WeaponSkins.SkinId(lineId, wid)]) then
+			n = n + 1
+		end
+	end
+	return math.floor(each * n * (1 - WeaponSkins.BundleDiscount) / 10 + 0.5) * 10, n
+end
+
+-- "K2=NeonPulse:2;Rifle=SteelWave:1" -> { K2 = { Line = "NeonPulse", V = 2 }, ... }
+function WeaponSkins.ParseEquip(s)
+	local out = {}
+	for wid, line, v in string.gmatch(s or "", "([%w_]+)=([%w_]+):(%d+)") do
+		out[wid] = { Line = line, V = tonumber(v) }
+	end
+	return out
+end
+
+function WeaponSkins.EncodeEquip(t)
+	local parts = {}
+	for wid, e in pairs(t or {}) do
+		table.insert(parts, string.format("%s=%s:%d", wid, e.Line, e.V or 1))
+	end
+	table.sort(parts)
+	return table.concat(parts, ";")
+end
+
+-- 화면에 쓸 외형(Look) 하나: 라인 + 변형 번호
+function WeaponSkins.Look(lineId, variant)
+	local l = WeaponSkins.LineById[lineId or ""]
+	if not l then
+		return nil
+	end
+	local v = l.Variants[math.clamp(variant or 1, 1, #l.Variants)]
+	local look = table.clone(v)
+	look.Line = l.Id
+	look.Tier = l.Tier
+	look.Glow = (l.Tier == "Premium" or l.Tier == "Ultimate")
+	look.Finisher = l.Finisher
+	return look
+end
+
+-- 플레이어(또는 속성 문자열)가 그 총에 장착한 스킨의 Look
+function WeaponSkins.LookFor(playerOrEquip, weaponId)
+	local s = playerOrEquip
+	if typeof(playerOrEquip) == "Instance" then
+		s = playerOrEquip:GetAttribute("WSkinEquip")
+	end
+	local e = WeaponSkins.ParseEquip(s)[weaponId or ""]
+	return e and WeaponSkins.Look(e.Line, e.V) or nil
+end
+
+return WeaponSkins
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX6"><Properties><string name="Name">Weapons</string><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT : 무기 정의 (사이드그레이드 원칙 — 강해지는 업그레이드 없음)
 -- Damage: 1발 피해 / FireInterval: 발사 간격(초) / Range: 사거리
 -- InkCost: 1발 잉크 소모 / PaintRadius: 착탄 페인트 반경
 -- Spread: 기본 탄퍼짐(도) / SpreadGrow: 연사 시 증가량 / SpreadMax: 최대
@@ -1197,7 +1428,7 @@ function Weapons.Get(id)
 end
 
 return Weapons
-]]></ProtectedString></Properties></Item></Item></Item><Item class="ReplicatedFirst" referent="RBX9"><Properties><string name="Name">ReplicatedFirst</string></Properties><Item class="LocalScript" referent="RBX8"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ReplicatedFirst" referent="RBX10"><Properties><string name="Name">ReplicatedFirst</string></Properties><Item class="LocalScript" referent="RBX9"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
 -- 격납고 유리 천장 위에서 카메라가 떨어지듯 내려와 캐릭터 뒤에 붙으며 화면이 열림 (하늘·빈 공간이 보이지 않게)
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
@@ -1427,7 +1658,7 @@ end
 done = true
 task.wait(0.5)
 gui:Destroy()
-]]></ProtectedString></Properties></Item></Item><Item class="ServerScriptService" referent="RBX31"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX10"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
+]]></ProtectedString></Properties></Item></Item><Item class="ServerScriptService" referent="RBX32"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX11"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1538,8 +1769,8 @@ ACTIONS.bots = function()
 end
 
 ACTIONS.rankedBots = function()
-	Config.RankedAllowBots = not Config.RankedAllowBots
-	return "봇 포함 랭크 반영: " .. (Config.RankedAllowBots and "켜짐" or "꺼짐")
+	SettingsService.Set("RankedAllowBots", Config.RankedAllowBots and 0 or 1) -- 저장 + 모든 서버에 반영
+	return "봇 포함 랭크 반영: " .. (Config.RankedAllowBots and "켜짐" or "꺼짐") .. " (저장됨)"
 end
 
 ACTIONS.fastMissions = function()
@@ -1635,7 +1866,7 @@ function AdminService.Gate(player)
 end
 
 return AdminService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX11"><Properties><string name="Name">BotService</string><ProtectedString name="Source"><![CDATA[-- 인원이 부족할 때 자리를 채우는 간단한 AI 봇
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX12"><Properties><string name="Name">BotService</string><ProtectedString name="Source"><![CDATA[-- 인원이 부족할 때 자리를 채우는 간단한 AI 봇
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1965,7 +2196,7 @@ function BotService.Stop()
 end
 
 return BotService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX12"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 크로마 시티 (Big City 시가전)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX13"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 크로마 시티 (Big City 시가전)
 -- Studio 인벤토리에서 넣은 "BigCity" 모델(ServerStorage 또는 ServerStorage.Maps 안)을 복제해 전장으로 씀.
 -- 모델 안의 스크립트는 안전을 위해 모두 지우고, 도로·광장처럼 평평한 바닥을 위에서 쏘아 찾아 페인트 셀을 깐다.
 -- 카툰 외곽선·흰색 팔레트·표면 텍스처는 적용하지 않음 (원본 질감 + 사실적인 흐린 오후 조명)
@@ -2265,7 +2496,7 @@ function CityMap.Build()
 end
 
 return CityMap
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX13"><Properties><string name="Name">CombatService</string><ProtectedString name="Source"><![CDATA[-- 사격·피해·스페셜·잉크/체력 회복 (서버 권한 판정)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX14"><Properties><string name="Name">CombatService</string><ProtectedString name="Source"><![CDATA[-- 사격·피해·스페셜·잉크/체력 회복 (서버 권한 판정)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
@@ -2719,7 +2950,7 @@ function CombatService.Tick(dt)
 end
 
 return CombatService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX14"><Properties><string name="Name">Combatants</string><ProtectedString name="Source"><![CDATA[-- 매치 참가자(플레이어 + 봇) 레지스트리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX15"><Properties><string name="Name">Combatants</string><ProtectedString name="Source"><![CDATA[-- 매치 참가자(플레이어 + 봇) 레지스트리
 -- entity = { Id, Name, IsBot, Player, Model, OwnerId, TeamId, WeaponId,
 --            Ink, Special, Kills, Deaths, Cells, LastFire, LastDamaged,
 --            ProtectedUntil, Spread, Alive }
@@ -2825,7 +3056,7 @@ function Combatants.Sync(e)
 end
 
 return Combatants
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX15"><Properties><string name="Name">CrateService</string><ProtectedString name="Source"><![CDATA[-- 크로마 크레이트(랜덤 상자) 개봉 + 외형 장착
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">CrateService</string><ProtectedString name="Source"><![CDATA[-- 크로마 크레이트(랜덤 상자) 개봉 + 외형 장착
 -- 실제 판매: Creator Hub에서 79 R$ 개발자 상품을 만들고 Config.Monetization.CrateProductId에 ID 입력
 -- Studio에서는 상품 ID 없이 "테스트 개봉" 버튼으로 확률·연출 확인 가능
 local RunService = game:GetService("RunService")
@@ -2911,7 +3142,7 @@ function CrateService.Init(remoteFolder)
 end
 
 return CrateService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX16"><Properties><string name="Name">DataService</string><ProtectedString name="Source"><![CDATA[-- 플레이어 저장 데이터 (코인, 보유 무기, 장착 무기, 레이팅, 통계)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">DataService</string><ProtectedString name="Source"><![CDATA[-- 플레이어 저장 데이터 (코인, 보유 무기, 장착 무기, 레이팅, 통계)
 -- Studio에서 저장하려면: 게임 설정 > 보안 > "Studio의 API 서비스 액세스 사용" 켜기
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -2919,6 +3150,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 
 local DataService = {}
 
@@ -2941,6 +3173,8 @@ local function defaultProfile()
 		Kills = 0,
 		Cells = 0,
 		Cosmetics = {},          -- [아이템 Id] = true
+		WSkins = {},             -- 무기 스킨 ["라인@무기"] = true
+		WSkinEquip = {},         -- [무기 Id] = { Line = 라인 Id, V = 변형 번호 }
 		EquippedSkin = nil,
 		EquippedPattern = nil,
 		EquippedEffect = nil,
@@ -2979,6 +3213,8 @@ function DataService.Publish(player)
 	player:SetAttribute("Pattern", p.EquippedPattern)
 	player:SetAttribute("KillEffect", p.EquippedEffect)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
+	player:SetAttribute("OwnedWSkins", ownedString(p.WSkins or {}))
+	player:SetAttribute("WSkinEquip", WeaponSkins.EncodeEquip(p.WSkinEquip))
 	player:SetAttribute("CratePity", p.CratePity or 0)
 	player:SetAttribute("Level", p.Level or 1)
 	player:SetAttribute("XP", p.XP or 0)
@@ -3020,6 +3256,12 @@ function DataService.Load(player)
 		p.Owned[Weapons.Default] = true
 		if type(p.Cosmetics) ~= "table" then
 			p.Cosmetics = {}
+		end
+		if type(p.WSkins) ~= "table" then
+			p.WSkins = {}
+		end
+		if type(p.WSkinEquip) ~= "table" then
+			p.WSkinEquip = {}
 		end
 	end
 	p.LoadFailed = failed or nil
@@ -3180,7 +3422,7 @@ function DataService.Start()
 end
 
 return DataService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">ImageService</string><ProtectedString name="Source"><![CDATA[-- 업로드한 이미지(데칼)를 게임에 적용
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">ImageService</string><ProtectedString name="Source"><![CDATA[-- 업로드한 이미지(데칼)를 게임에 적용
 -- 1) 데칼 ID → 실제 이미지 주소 (InsertService로 데칼을 불러와 Texture 속성을 읽음)
 -- 2) ReplicatedStorage.Images 폴더 속성으로 공유 (클라이언트 HUD 아이콘: "icon_coin" 등)
 -- 3) 맵 표면에 Texture(타일 반복) 입히기 — 판정용 모양은 그대로
@@ -3305,7 +3547,7 @@ ImageService.LobbyRules = {
 }
 
 return ImageService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX18"><Properties><string name="Name">ItemService</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템: 보관(최대 3개) · 사용(F) · 순서 바꾸기(G) · 효과 시간 관리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">ItemService</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템: 보관(최대 3개) · 사용(F) · 순서 바꾸기(G) · 효과 시간 관리
 -- 보관함은 플레이어 속성 "Items"(쉼표 목록)로 클라이언트에 보임
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
@@ -3615,7 +3857,7 @@ function ItemService.OnSpawn(e)
 end
 
 return ItemService
-]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX19"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
+]]></ProtectedString></Properties></Item><Item class="Script" referent="RBX20"><Properties><string name="Name">Main</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 서버 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -3812,7 +4054,7 @@ end
 
 MatchService.Run()
 print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") · 로비의 발판을 밟아 매치에 참가하세요")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
 -- 새 맵은 BuildXXX 함수를 추가하고 같은 형태의 info 테이블을 돌려주면 됨
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
@@ -5574,7 +5816,7 @@ function MapBuilder.BuildSkyRooftop()
 end
 
 return MapBuilder
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -5587,6 +5829,7 @@ local CombatService = require(script.Parent.CombatService)
 local MissionService = require(script.Parent.MissionService)
 local BotService = require(script.Parent.BotService)
 local DataService = require(script.Parent.DataService)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local RankService = require(script.Parent.RankService)
 local Telemetry = require(script.Parent.TelemetryService)
 local ItemService = require(script.Parent.ItemService)
@@ -5909,7 +6152,8 @@ local function attachGun(e, model)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
 	if hand then
 		local skin = e.Player and Cosmetics.ById[e.Player:GetAttribute("Skin") or ""] or nil
-		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+		local look = e.Player and WeaponSkins.LookFor(e.Player, e.WeaponId) or nil
+		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 		gun.Name = "SF_Gun"
 		ModelKit.WeldTo(gun, hand, GUN_GRIP)
 	end
@@ -6163,7 +6407,7 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and killer.KillEffect or nil,
+		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
 		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
 		WeaponId = killer and killer.WeaponId or nil,
 		KillerStreak = killer and killer.Streak or 0,
@@ -7224,7 +7468,7 @@ Combatants.Killed:Connect(function(killer)
 end)
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
 -- 새 미션 추가: MISSIONS 테이블에 { Id, Name, Desc, Duration, Bonus, Begin, Finish } 하나 추가
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -7475,7 +7719,7 @@ function MissionService.Stop()
 end
 
 return MissionService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
 -- Studio 3D 가져오기로 직접 넣은 모델이 이미 SplashModels에 있으면 그대로 씀
 local InsertService = game:GetService("InsertService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -7525,7 +7769,7 @@ function ModelService.Load()
 end
 
 return ModelService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Combatants = require(script.Parent.Combatants)
@@ -7661,7 +7905,7 @@ function PaintService.GetCoverage()
 end
 
 return PaintService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
 -- 진행도는 프로필(p.Quests)에 저장, 달성하면 자동으로 코인·경험치 지급
 -- 클라이언트에는 속성 "Quests"(JSON)로 보냄
 local HttpService = game:GetService("HttpService")
@@ -7803,7 +8047,7 @@ function QuestService.Init(remoteFolder)
 end
 
 return QuestService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8041,7 +8285,7 @@ function RankService.StartBoard(textLabel)
 end
 
 return RankService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">SettingsService</string><ProtectedString name="Source"><![CDATA[-- 운영 설정 (관리자 패널): 부활 시간·경기 시간·아이템 유지 시간 등
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">SettingsService</string><ProtectedString name="Source"><![CDATA[-- 운영 설정 (관리자 패널): 부활 시간·경기 시간·아이템 유지 시간 등
 -- 바꾸면 DataStore에 저장(재시작해도 유지) + MessagingService로 다른 서버에도 즉시 반영 + 클라이언트에 공유
 local DataStoreService = game:GetService("DataStoreService")
 local MessagingService = game:GetService("MessagingService")
@@ -8137,7 +8381,7 @@ function SettingsService.List()
 end
 
 return SettingsService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -8150,9 +8394,101 @@ local Telemetry = require(script.Parent.TelemetryService)
 
 local ShopService = {}
 
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
+local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
+
+-- 상점에 나오는 총(실총 모델이 있는 것만)
+local function shopWeapons()
+	local list = {}
+	for _, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then
+			table.insert(list, w.Id)
+		end
+	end
+	return list
+end
+
+-- 무기 스킨: 구매(낱개·컬렉션 묶음) / 장착(변형 선택) / 해제
+local function weaponSkin(player, action, arg)
+	local p = DataService.Get(player)
+	if not p then
+		return { ok = false, msg = "데이터 없음" }
+	end
+	p.WSkins = p.WSkins or {}
+	p.WSkinEquip = p.WSkinEquip or {}
+	if action == "buyWSkin" then
+		local lineId, wid = WeaponSkins.Split(arg)
+		local line = WeaponSkins.LineById[lineId or ""]
+		local w = Weapons.ById[wid or ""]
+		if not line or not w then
+			return { ok = false, msg = "알 수 없는 스킨" }
+		end
+		if p.WSkins[arg] then
+			return { ok = false, msg = "이미 보유 중" }
+		end
+		local price = WeaponSkins.Price(lineId)
+		if p.Coins < price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - price
+		p.WSkins[arg] = true
+		p.WSkinEquip[wid] = { Line = lineId, V = 1 }
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, price, p.Coins, "Shop", "WSkin_" .. arg)
+		return { ok = true, msg = string.format("%s %s 구매 완료! 바로 장착했어요", line.Name, w.Name) }
+	elseif action == "buyWBundle" then
+		local line = WeaponSkins.LineById[arg or ""]
+		if not line then
+			return { ok = false, msg = "알 수 없는 컬렉션" }
+		end
+		local list = shopWeapons()
+		local price, n = WeaponSkins.BundlePrice(line.Id, list, p.WSkins)
+		if n == 0 then
+			return { ok = false, msg = "이미 모두 보유 중" }
+		end
+		if p.Coins < price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - price
+		for _, wid in ipairs(list) do
+			local id = WeaponSkins.SkinId(line.Id, wid)
+			if not p.WSkins[id] then
+				p.WSkins[id] = true
+				p.WSkinEquip[wid] = { Line = line.Id, V = 1 }
+			end
+		end
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, price, p.Coins, "Shop", "WBundle_" .. line.Id)
+		return { ok = true, msg = string.format("%s 컬렉션 %d종 구매 완료! 모든 총에 장착했어요", line.Name, n) }
+	elseif action == "equipWSkin" then
+		local skinId, v = string.match(arg or "", "^([%w_@]+):(%d+)$")
+		skinId = skinId or arg
+		local lineId, wid = WeaponSkins.Split(skinId)
+		local line = WeaponSkins.LineById[lineId or ""]
+		if not line or not p.WSkins[skinId] then
+			return { ok = false, msg = "먼저 구매하세요" }
+		end
+		v = math.clamp(tonumber(v) or 1, 1, #line.Variants)
+		p.WSkinEquip[wid] = { Line = lineId, V = v }
+		DataService.Publish(player)
+		return { ok = true, msg = string.format("%s 장착 (%s)", line.Name, line.Variants[v].Name) }
+	elseif action == "unequipWSkin" then
+		p.WSkinEquip[arg or ""] = nil
+		DataService.Publish(player)
+		return { ok = true, msg = "기본 외형으로 되돌렸어요" }
+	end
+	return nil
+end
+
 local function handle(player, action, weaponId)
-	if (action == "buy" or action == "buyCosmetic") and not DataService.IsSafe(player) then
+	if (action == "buy" or action == "buyCosmetic" or action == "buyWSkin" or action == "buyWBundle") and not DataService.IsSafe(player) then
 		return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
+	end
+	local ws = weaponSkin(player, action, weaponId)
+	if ws then
+		return ws
 	end
 	if action == "crateCoins" then
 		-- 포인트(코인)로 크레이트 개봉
@@ -8301,7 +8637,7 @@ function ShopService.Init(remotes)
 end
 
 return ShopService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
 local Signal = {}
 Signal.__index = Signal
 
@@ -8331,7 +8667,7 @@ function Signal:Fire(...)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
 -- 1) Roblox AnalyticsService: 온보딩 퍼널 / 경제 / 커스텀 이벤트 → Creator Hub > 분석 에서 확인
 -- 2) 무기별 밸런스 통계 (자체 DataStore) → 관리자 패널 "밸런스 리포트"
 -- 3) 게임 내 피드백 (자체 DataStore) → 관리자 패널 "피드백 보기"
@@ -8600,7 +8936,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX46"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX45"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX47"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX46"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8912,7 +9248,7 @@ function CBT.OnResults()
 end
 
 return CBT
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
 --  · 조준: 총을 앞으로 겨누고 상체·머리·팔이 조준 각도(AimPitch)를 나눠서 따라감
 --  · 달리기: 상체를 숙이고 총을 비스듬히 내려 듦 · 걷기: 몸을 낮추고 조심스럽게 · 앉기: 무릎을 굽힌 자세 (움직이면 종종걸음)
 --  · 사격 반동: 팔이 위로 튀었다가 돌아옴
@@ -9088,7 +9424,7 @@ function Pose.Init()
 end
 
 return Pose
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX34"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX35"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -9300,7 +9636,7 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 end)
 
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -9500,6 +9836,36 @@ function Effects.KillEffect(kind, pos, color)
 				{ Size = Vector3.new(0.3, 10 + i * 2, 10 + i * 2), Transparency = 1 }):Play()
 			Debris:AddItem(ring, 1)
 		end
+	elseif kind == "Inferno" then
+		-- 얼티밋 스킨 피니셔: 솟구치는 화염 기둥 + 불씨
+		for i = 1, 10 do
+			local h = 1 + i * 0.9
+			local p = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * (2.6 - i * 0.15), Color = Color3.fromRGB(255, 120 + i * 10, 30),
+				Material = Enum.Material.Neon, Transparency = 0.15, Position = pos + Vector3.new(0, 0.3, 0) })
+			TweenService:Create(p, TweenInfo.new(0.35 + i * 0.04, Enum.EasingStyle.Quad), { Position = pos + Vector3.new((math.random() - 0.5) * 1.2, h, (math.random() - 0.5) * 1.2),
+				Size = Vector3.one * 0.3, Transparency = 1 }):Play()
+			Debris:AddItem(p, 0.9)
+		end
+		for _ = 1, 14 do
+			local p = fxPart({ Size = Vector3.new(0.15, 0.15, 0.15), Color = Color3.fromRGB(255, 200, 80), Material = Enum.Material.Neon, Position = pos })
+			TweenService:Create(p, TweenInfo.new(0.9), { Position = pos + Vector3.new((math.random() - 0.5) * 8, math.random() * 7, (math.random() - 0.5) * 8),
+				Transparency = 1 }):Play()
+			Debris:AddItem(p, 1)
+		end
+	elseif kind == "Galaxy" then
+		-- 얼티밋 스킨 피니셔: 회전하며 퍼지는 별빛 고리 + 중심 섬광
+		local core = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.2, Color = Color3.fromRGB(230, 220, 255), Material = Enum.Material.Neon, Position = pos })
+		TweenService:Create(core, TweenInfo.new(0.45), { Size = Vector3.one * 6, Transparency = 1 }):Play()
+		Debris:AddItem(core, 0.5)
+		for i = 1, 18 do
+			local a = i / 18 * math.pi * 2
+			local cc = Color3.fromHSV(0.7 + (i % 6) * 0.04, 0.6, 1)
+			local p = fxPart({ Size = Vector3.new(0.25, 0.25, 0.25), Color = cc, Material = Enum.Material.Neon, Position = pos })
+			local r = 5 + (i % 3)
+			TweenService:Create(p, TweenInfo.new(0.8, Enum.EasingStyle.Quart), { Position = pos + Vector3.new(math.cos(a + 1) * r, 1 + (i % 4) * 0.6, math.sin(a + 1) * r),
+				Transparency = 1 }):Play()
+			Debris:AddItem(p, 0.85)
+		end
 	else
 		Effects.Splash(pos, color, 3)
 	end
@@ -9683,7 +10049,7 @@ function Effects.OnFX(kind, d)
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10562,14 +10928,16 @@ function HUD.RefreshWeaponCard()
 	for _, c in ipairs(weaponCard.Pic:GetChildren()) do
 		c:Destroy()
 	end
-	local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+	local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
+local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 	if player:GetAttribute("Golden") then
 		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
 	else
-		UI.GunImage(weaponCard.Pic, player:GetAttribute("Weapon") or "Pistol", player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""])
+		local wid = player:GetAttribute("Weapon") or "Pistol"
+		UI.GunImage(weaponCard.Pic, wid, player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, wid))
 	end
 end
-for _, a in ipairs({ "Weapon", "Skin", "Golden", "TeamColor" }) do
+for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor" }) do
 	player:GetAttributeChangedSignal(a):Connect(function()
 		HUD.RefreshWeaponCard()
 	end)
@@ -10876,7 +11244,7 @@ function HUD.ItemToast(id)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -10996,7 +11364,7 @@ function ItemClient.Init(remoteFolder, hud)
 end
 
 return ItemClient
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -11009,6 +11377,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 local UI = require(script.Parent:WaitForChild("UIKit"))
 
@@ -11080,7 +11449,7 @@ local function buildWeapons(page)
 		local img = make("Frame", { Size = UDim2.fromOffset(170, 96), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, row)
 		corner(img, 12)
 		UI.gradient(img, Color3.fromRGB(70, 66, 110), Color3.fromRGB(34, 32, 54), 90)
-		UI.GunImage(img, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""])
+		UI.GunImage(img, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, w.Id))
 		label(row, { Text = w.Name, Font = Enum.Font.GothamBlack, TextSize = 26, Position = UDim2.fromOffset(194, 10), Size = UDim2.new(1, -380, 0, 30) })
 		label(row, { Text = w.Class, TextSize = 18, TextColor3 = C.Gold, Position = UDim2.fromOffset(194, 42), Size = UDim2.new(1, -380, 0, 22) })
 		label(row, { Text = string.format("피해 %s · 연사 %.2f초 · 사거리 %d · 페인트 %s", w.Pellets > 1 and (w.Damage .. "×" .. w.Pellets) or tostring(w.Damage),
@@ -11205,7 +11574,7 @@ local function buildCollection(page)
 			UI.stroke(cardF, (equippedW == w.Id) and C.Cyan or C.Dim, 2, (equippedW == w.Id) and 0 or 0.5)
 			local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 70), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
 			corner(pic, 10)
-			UI.GunImage(pic, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""])
+			UI.GunImage(pic, w.Id, C.Cyan, Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, w.Id))
 			label(cardF, { Text = w.Name, TextSize = 16, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 80), Size = UDim2.new(1, -20, 0, 20),
 				TextTruncate = Enum.TextTruncate.AtEnd })
 			local b = button(cardF, (equippedW == w.Id) and "장착 중" or "장착", (equippedW == w.Id) and C.Dim or C.Green,
@@ -11217,6 +11586,43 @@ local function buildCollection(page)
 					buildCollection(page)
 				end
 			end)
+		end
+	end
+	-- 보유 무기 스킨 (총별 장착)
+	local wsOwned = {}
+	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
+		table.insert(wsOwned, x)
+	end
+	if #wsOwned > 0 then
+		any = true
+		table.sort(wsOwned)
+		local eq = WeaponSkins.ParseEquip(player:GetAttribute("WSkinEquip"))
+		label(page, { Text = "무기 스킨", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
+		order = order + 1
+		local sgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
+		order = order + 1
+		for i, sid in ipairs(wsOwned) do
+			local lineId, wid = WeaponSkins.Split(sid)
+			local line = WeaponSkins.LineById[lineId or ""]
+			if line and Weapons.ById[wid] then
+				local on = eq[wid] and eq[wid].Line == lineId
+				local tier = WeaponSkins.TierById[line.Tier]
+				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
+				corner(cardF, 12)
+				UI.stroke(cardF, tier.Color, 2, on and 0 or 0.5)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 64), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				corner(pic, 10)
+				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
+				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 74),
+					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
+				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
+				b.MouseButton1Click:Connect(function()
+					shopCall(on and "unequipWSkin" or "equipWSkin", on and wid or sid)
+					task.wait(0.2)
+					buildCollection(page)
+				end)
+			end
 		end
 	end
 	for _, k in ipairs(kinds) do
@@ -11297,6 +11703,178 @@ local function buildSkins(page)
 	end
 end
 
+------------------------------------------------------------------------
+-- 무기 스킨 상점: 총을 고르고 → 등급별 컬렉션 스킨을 사서 → 그 총에만 장착 (변형 색상 선택)
+------------------------------------------------------------------------
+local wsWeapon = nil       -- 지금 보고 있는 총
+local wsPreview = {}       -- [라인 Id] = 미리보기 변형 번호
+
+local function shopWeaponIds()
+	local list = {}
+	for _, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then
+			table.insert(list, w.Id)
+		end
+	end
+	return list
+end
+
+local function ownedSet()
+	local set = {}
+	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
+		set[x] = true
+	end
+	return set
+end
+
+local function buildWeaponSkins(page)
+	clear(page)
+	local coins = player:GetAttribute("Coins") or 0
+	local have = ownedSet()
+	local equip = WeaponSkins.ParseEquip(player:GetAttribute("WSkinEquip"))
+	local ids = shopWeaponIds()
+	if not wsWeapon or not table.find(ids, wsWeapon) then
+		wsWeapon = table.find(ids, player:GetAttribute("Weapon")) and player:GetAttribute("Weapon") or ids[1]
+	end
+	local w = Weapons.Get(wsWeapon)
+	local order = 0
+	local function nextOrder()
+		order = order + 1
+		return order
+	end
+	label(page, { Text = string.format("보유 코인 %d · 총마다 따로 사고 따로 장착해요 (외형 전용, 능력치 변화 없음)", coins), TextSize = 17,
+		TextColor3 = C.Gold, Size = UDim2.new(1, -10, 0, 26), LayoutOrder = nextOrder() })
+
+	-- 총 고르기
+	local chips = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
+	make("UIGridLayout", { CellSize = UDim2.new(1 / 6, -6, 0, 36), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chips)
+	for i, wid in ipairs(ids) do
+		local ww = Weapons.Get(wid)
+		local sel = wid == wsWeapon
+		local b = button(chips, ww.Name, sel and C.Pink or C.Panel2, { TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		b.MouseButton1Click:Connect(function()
+			wsWeapon = wid
+			buildWeaponSkins(page)
+		end)
+	end
+
+	-- 지금 장착한 모습
+	local cur = equip[wsWeapon]
+	local curLine = cur and WeaponSkins.LineById[cur.Line]
+	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 120), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+	corner(top, 14)
+	UI.gradient(top, Color3.fromRGB(70, 50, 120), Color3.fromRGB(30, 28, 48), 0)
+	local pic = make("Frame", { Size = UDim2.fromOffset(230, 104), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
+	corner(pic, 12)
+	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
+	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(254, 14), Size = UDim2.new(1, -440, 0, 30) })
+	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
+		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(254, 50), Size = UDim2.new(1, -440, 0, 24) })
+	label(top, { Text = "스탠다드 → 디럭스(투톤) → 프리미엄(발광·색상 변형) → 얼티밋(입자·전용 피니셔)", TextSize = 14, TextColor3 = C.Sub,
+		Position = UDim2.fromOffset(254, 80), Size = UDim2.new(1, -440, 0, 20), TextWrapped = true })
+	if curLine then
+		local rb = button(top, "기본으로", C.Dim, { Size = UDim2.fromOffset(150, 46), Position = UDim2.new(1, -166, 0.5, -23), TextSize = 18 })
+		rb.MouseButton1Click:Connect(function()
+			shopCall("unequipWSkin", wsWeapon)
+			task.wait(0.2)
+			buildWeaponSkins(page)
+		end)
+	end
+
+	-- 등급별 스킨 카드
+	for _, tier in ipairs(WeaponSkins.Tiers) do
+		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 38), BackgroundColor3 = tier.Color, LayoutOrder = nextOrder() }, page)
+		corner(head, 10)
+		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
+			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
+		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
+		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 236), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		for _, line in ipairs(WeaponSkins.Lines) do
+			if line.Tier == tier.Id then
+				local skinId = WeaponSkins.SkinId(line.Id, wsWeapon)
+				local mine = have[skinId]
+				local isOn = cur and cur.Line == line.Id
+				local v = wsPreview[line.Id] or (isOn and cur.V) or 1
+				local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = line.Order }, grid)
+				corner(card, 12)
+				UI.stroke(card, tier.Color, 2, (mine or isOn) and 0 or 0.5)
+				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 110), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
+				corner(cp, 10)
+				UI.gradient(cp, tier.Color:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(24, 22, 38), 90)
+				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
+				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 122), Size = UDim2.new(1, -24, 0, 22),
+					TextTruncate = Enum.TextTruncate.AtEnd })
+				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 145), Size = UDim2.new(1, -24, 0, 18),
+					TextTruncate = Enum.TextTruncate.AtEnd })
+				-- 색상 변형 점 (보유했으면 누르면 그 색으로 장착, 아니면 미리보기)
+				if #line.Variants > 1 then
+					for vi, vv in ipairs(line.Variants) do
+						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 168), Text = "",
+							BackgroundColor3 = vv.Accent or vv.Body, AutoButtonColor = true }, card)
+						corner(dot, 13)
+						UI.stroke(dot, (vi == v) and Color3.new(1, 1, 1) or Color3.fromRGB(20, 20, 30), 2)
+						dot.MouseButton1Click:Connect(function()
+							wsPreview[line.Id] = vi
+							if mine then
+								shopCall("equipWSkin", skinId .. ":" .. vi)
+								task.wait(0.2)
+							end
+							buildWeaponSkins(page)
+						end)
+					end
+					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 170),
+						Size = UDim2.fromOffset(110, 22) })
+				end
+				local text, color
+				if isOn then
+					text, color = "장착 중", C.Dim
+				elseif mine then
+					text, color = "장착", C.Green
+				else
+					text, color = tier.Price .. " 코인", (coins >= tier.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+				end
+				local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -48), TextSize = 18 })
+				b.MouseButton1Click:Connect(function()
+					if isOn then
+						return
+					end
+					if mine then
+						shopCall("equipWSkin", skinId .. ":" .. v)
+					else
+						shopCall("buyWSkin", skinId)
+					end
+					task.wait(0.25)
+					buildWeaponSkins(page)
+				end)
+			end
+		end
+	end
+
+	-- 컬렉션 묶음: 그 컬렉션을 모든 총에 한 번에 (할인)
+	label(page, { Text = string.format("컬렉션 묶음 · 모든 총 한 번에 %d%% 할인", math.floor(WeaponSkins.BundleDiscount * 100)), TextSize = 22,
+		Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = nextOrder() })
+	for _, line in ipairs(WeaponSkins.Lines) do
+		local tier = WeaponSkins.TierById[line.Tier]
+		local price, n = WeaponSkins.BundlePrice(line.Id, ids, have)
+		local row = make("Frame", { Size = UDim2.new(1, -10, 0, 54), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+		corner(row, 10)
+		UI.stroke(row, tier.Color, 2, 0.5)
+		label(row, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(14, 0), Size = UDim2.new(0.4, 0, 1, 0) })
+		label(row, { Text = n > 0 and string.format("%s · 남은 %d종", tier.Name, n) or (tier.Name .. " · 모두 보유"), TextSize = 15, TextColor3 = tier.Color,
+			Position = UDim2.new(0.4, 0, 0, 0), Size = UDim2.new(0.3, 0, 1, 0) })
+		local b = button(row, n > 0 and (price .. " 코인") or "보유", n > 0 and ((coins >= price) and C.Pink or Color3.fromRGB(90, 60, 80)) or C.Dim,
+			{ Size = UDim2.fromOffset(170, 40), Position = UDim2.new(1, -180, 0.5, -20), TextSize = 17 })
+		b.MouseButton1Click:Connect(function()
+			if n == 0 then
+				return
+			end
+			shopCall("buyWBundle", line.Id)
+			task.wait(0.3)
+			buildWeaponSkins(page)
+		end)
+	end
+end
+
 -- 로벅스 충전: VIP 게임패스 + 코인 팩 (가격은 Roblox에서 실시간으로 읽음)
 local priceCache = {}
 local function robuxPrice(id, infoType)
@@ -11371,7 +11949,7 @@ local function buildRobux(page)
 	end
 end
 
-local builders = { Weapons = buildWeapons, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection, Robux = buildRobux }
+local builders = { Weapons = buildWeapons, WSkins = buildWeaponSkins, Skins = buildSkins, Crate = buildCrate, Collection = buildCollection, Robux = buildRobux }
 local currentTab = "Weapons"
 
 local function showTab(name)
@@ -11955,9 +12533,9 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	tabButtons = {}
 	pages = {}
-	local tabs = { { "Weapons", "무기" }, { "Skins", "스킨 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" }, { "Robux", "충전 · VIP" } }
+	local tabs = { { "Weapons", "무기" }, { "WSkins", "무기 스킨" }, { "Skins", "외형 상점" }, { "Crate", "크레이트" }, { "Collection", "컬렉션" }, { "Robux", "충전 · VIP" } }
 	for i, t in ipairs(tabs) do
-		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(156, 48), Position = UDim2.fromOffset(20 + (i - 1) * 164, 76), TextSize = 19 })
+		local b = button(shop, t[2], C.Panel2, { Size = UDim2.fromOffset(130, 48), Position = UDim2.fromOffset(20 + (i - 1) * 137, 76), TextSize = 18 })
 		b.MouseButton1Click:Connect(function()
 			showTab(t[1])
 		end)
@@ -12066,7 +12644,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -12238,7 +12816,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -12331,7 +12909,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -12554,7 +13132,7 @@ function PV.Init()
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -12638,7 +13216,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX44"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -12840,8 +13418,8 @@ function UI.ModelImage(parent, model, size, rotY)
 	return viewportModel(parent, model, size, rotY)
 end
 
-function UI.GunImage(parent, weaponId, accent, skin, size)
-	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+function UI.GunImage(parent, weaponId, accent, skin, size, look)
+	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 	return viewportModel(parent, model, size, math.rad(90))
 end
 
@@ -12900,7 +13478,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX44"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX45"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -12909,6 +13487,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
@@ -13005,7 +13584,8 @@ local function buildViewmodel()
 	end
 	local w = weapon()
 	local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
-	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+	local look = WeaponSkins.LookFor(player, w.Id)
+	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 	m.Name = "Viewmodel"
 	m:PivotTo(CFrame.new())
 	local _, size = m:GetBoundingBox()
@@ -13014,7 +13594,7 @@ local function buildViewmodel()
 	-- 카툰 외곽선 (셀 셰이딩 느낌)
 	local hl = Instance.new("Highlight")
 	hl.FillTransparency = 1
-	hl.OutlineColor = Color3.fromRGB(18, 16, 28)
+	hl.OutlineColor = m:GetAttribute("SkinOutline") or Color3.fromRGB(18, 16, 28)
 	hl.OutlineTransparency = 0
 	hl.DepthMode = Enum.HighlightDepthMode.Occluded
 	hl.Parent = m
@@ -13543,6 +14123,11 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 	end)
 	player:GetAttributeChangedSignal("Skin"):Connect(function()
+		if enabled then
+			buildViewmodel()
+		end
+	end)
+		player:GetAttributeChangedSignal("WSkinEquip"):Connect(function()
 		if enabled then
 			buildViewmodel()
 		end

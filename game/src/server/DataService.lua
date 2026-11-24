@@ -6,6 +6,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 
 local DataService = {}
 
@@ -28,6 +29,8 @@ local function defaultProfile()
 		Kills = 0,
 		Cells = 0,
 		Cosmetics = {},          -- [아이템 Id] = true
+		WSkins = {},             -- 무기 스킨 ["라인@무기"] = true
+		WSkinEquip = {},         -- [무기 Id] = { Line = 라인 Id, V = 변형 번호 }
 		EquippedSkin = nil,
 		EquippedPattern = nil,
 		EquippedEffect = nil,
@@ -66,6 +69,8 @@ function DataService.Publish(player)
 	player:SetAttribute("Pattern", p.EquippedPattern)
 	player:SetAttribute("KillEffect", p.EquippedEffect)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
+	player:SetAttribute("OwnedWSkins", ownedString(p.WSkins or {}))
+	player:SetAttribute("WSkinEquip", WeaponSkins.EncodeEquip(p.WSkinEquip))
 	player:SetAttribute("CratePity", p.CratePity or 0)
 	player:SetAttribute("Level", p.Level or 1)
 	player:SetAttribute("XP", p.XP or 0)
@@ -107,6 +112,12 @@ function DataService.Load(player)
 		p.Owned[Weapons.Default] = true
 		if type(p.Cosmetics) ~= "table" then
 			p.Cosmetics = {}
+		end
+		if type(p.WSkins) ~= "table" then
+			p.WSkins = {}
+		end
+		if type(p.WSkinEquip) ~= "table" then
+			p.WSkinEquip = {}
 		end
 	end
 	p.LoadFailed = failed or nil

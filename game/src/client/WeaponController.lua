@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Weapons = require(ReplicatedStorage.Shared.Weapons)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
@@ -103,7 +104,8 @@ local function buildViewmodel()
 	end
 	local w = weapon()
 	local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
-	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil)
+	local look = WeaponSkins.LookFor(player, w.Id)
+	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 	m.Name = "Viewmodel"
 	m:PivotTo(CFrame.new())
 	local _, size = m:GetBoundingBox()
@@ -112,7 +114,7 @@ local function buildViewmodel()
 	-- 카툰 외곽선 (셀 셰이딩 느낌)
 	local hl = Instance.new("Highlight")
 	hl.FillTransparency = 1
-	hl.OutlineColor = Color3.fromRGB(18, 16, 28)
+	hl.OutlineColor = m:GetAttribute("SkinOutline") or Color3.fromRGB(18, 16, 28)
 	hl.OutlineTransparency = 0
 	hl.DepthMode = Enum.HighlightDepthMode.Occluded
 	hl.Parent = m
@@ -641,6 +643,11 @@ function WC.Init(remoteFolder, hud, effects)
 		end
 	end)
 	player:GetAttributeChangedSignal("Skin"):Connect(function()
+		if enabled then
+			buildViewmodel()
+		end
+	end)
+		player:GetAttributeChangedSignal("WSkinEquip"):Connect(function()
 		if enabled then
 			buildViewmodel()
 		end
