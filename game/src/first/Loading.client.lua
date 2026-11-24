@@ -9,6 +9,10 @@ local player = Players.LocalPlayer
 pcall(function()
 	ReplicatedFirst:RemoveDefaultLoadingScreen()
 end)
+-- Roblox 기본 체력 바(오른쪽 위)는 숨김 (게임 HUD에 자체 체력 바가 있음)
+pcall(function()
+	game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+end)
 
 local HEAVY = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
 

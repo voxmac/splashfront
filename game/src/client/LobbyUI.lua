@@ -971,6 +971,8 @@ function Lobby.Init(remoteFolder, hud)
 		local page = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -150), Position = UDim2.fromOffset(16, 138), BackgroundTransparency = 1,
 			ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false, BorderSizePixel = 0 }, shop)
 		make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 10) }, page)
+		-- 카드 테두리(UIStroke)가 스크롤 영역 가장자리에서 잘리지 않게 안쪽 여백 (오른쪽은 스크롤바 자리까지)
+		make("UIPadding", { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 16), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 10) }, page)
 		pages[t[1]] = page
 	end
 

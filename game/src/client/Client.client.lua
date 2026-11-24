@@ -30,6 +30,7 @@ task.spawn(function()
 	for _ = 1, 10 do
 		if pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
 		end) then
 			break
 		end
