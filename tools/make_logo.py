@@ -4,9 +4,10 @@ import math, os, random
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageChops
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "assets", "icons", "logo.png")
+OUT = os.environ.get("SF_LOGO_OUT") or os.path.join(ROOT, "assets", "icons", "logo.png")
+OUT_W = int(os.environ.get("SF_LOGO_W", "1024"))
 FONT = "/usr/share/fonts/truetype/google-fonts/ofl/montserrat/Montserrat-Italic[wght].ttf"
-S = 3  # 슈퍼샘플링
+S = int(os.environ.get("SF_LOGO_SCALE", "3"))  # 슈퍼샘플링 (6 = 고해상도 마케팅용)
 W, H = 1024 * S, 420 * S
 NAVY = (12, 14, 34)
 
@@ -151,6 +152,6 @@ for (sx, sy, r) in [(x1 + t1.width - 90 * S, 42 * S, 26 * S), (x1 + 70 * S, 210 
                 (sx - r, sy), (sx - r * 0.18, sy - r * 0.18)], fill=(255, 255, 255, 255))
 img.alpha_composite(spark.filter(ImageFilter.GaussianBlur(0.6 * S)))
 
-img = img.resize((1024, 420), Image.LANCZOS)
+img = img.resize((OUT_W, int(OUT_W * 420 / 1024)), Image.LANCZOS)
 img.save(OUT)
 print("wrote", OUT)

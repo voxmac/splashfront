@@ -89,20 +89,52 @@ def drips(img, x0, x1, y, color, n, rng_seed=1, scale=1.0):
 
 
 def logo(width):
-    """SPLASH(분홍) / FRONT(하늘) 2단 로고 + 흘러내리는 페인트"""
-    f1 = latin(int(width * 0.26))
-    f2 = latin(int(width * 0.2))
-    a = styled_text("SPLASH", f1, PINK)
-    b = styled_text("FRONT", f2, CYAN)
-    W = max(a.width, b.width) + 40
-    H = a.height + b.height - int(width * 0.06) + int(width * 0.12)
-    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    dr = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    drips(dr, W * 0.12, W * 0.88, a.height * 0.8, PINK[1], 9, 3, width / 900)
-    out.alpha_composite(dr)
-    out.alpha_composite(a, ((W - a.width) // 2, 0))
-    out.alpha_composite(b, ((W - b.width) // 2 + int(width * 0.04), a.height - int(width * 0.08)))
-    return out
+    """게임 입장 타이틀과 같은 로고 (tools/make_logo.py가 만든 assets/marketing/logo_hi.png)"""
+    hi = os.path.join(M, "logo_hi.png")
+    if not os.path.exists(hi):
+        hi = os.path.join(ICONS, "logo.png")
+    im = Image.open(hi).convert("RGBA")
+    return im.resize((width, int(im.height * width / im.width)), Image.LANCZOS)
+
+
+def sf_plate(img, text, y, font, edge=(0, 230, 255), accent=(240, 255, 40), fill=(10, 14, 34), cx=None):
+    """입장 타이틀의 FRONT 판과 같은 SF 네온 평행사변형 띠"""
+    l, t, r, b = font.getbbox(text)
+    pad_x, pad_y = 70, 26
+    w, h = r - l + pad_x * 2, b - t + pad_y * 2
+    cx = img.width // 2 if cx is None else cx
+    x0, x1 = cx - w // 2, cx + w // 2
+    sk = h * 0.32
+    poly = [(x0 + sk, y), (x1 + sk, y), (x1 - sk, y + h), (x0 - sk, y + h)]
+    glow = Image.new("L", img.size, 0)
+    ImageDraw.Draw(glow).polygon(poly, fill=255)
+    img.paste(edge + (255,), (0, 0), glow.filter(ImageFilter.MaxFilter(15)).filter(ImageFilter.GaussianBlur(18)).point(lambda v: int(v * 0.55)))
+    d = ImageDraw.Draw(img)
+    d.polygon(poly, fill=fill + (235,))
+    d.line(poly + [poly[0]], fill=edge + (255,), width=6)
+    d.line([(x0 + sk + 24, y + 12), (x0 + sk + 170, y + 12)], fill=accent + (255,), width=6)
+    d.text((cx - (r - l) // 2 - l, y + pad_y - t), text, font=font, fill=(255, 255, 255), stroke_width=2, stroke_fill=(10, 14, 34))
+
+
+def neon_caption(img, text, xy, font, fill=(255, 255, 255), glow=(255, 40, 200)):
+    """두꺼운 글자 + 남색 테두리 + 네온 번짐"""
+    g = Image.new("L", img.size, 0)
+    ImageDraw.Draw(g).text(xy, text, font=font, fill=255, stroke_width=max(6, font.size // 8), stroke_fill=255)
+    img.paste(glow + (255,), (0, 0), g.filter(ImageFilter.GaussianBlur(font.size // 5)).point(lambda v: int(v * 0.7)))
+    ImageDraw.Draw(img).text(xy, text, font=font, fill=fill, stroke_width=max(4, font.size // 11), stroke_fill=(10, 12, 30))
+
+
+def grade(img, tint=(30, 20, 70), strength=0.18):
+    """입장 화면 톤(남색·자홍)으로 살짝 색 보정 + 위아래 어둡게"""
+    w, h = img.size
+    over = Image.new("RGBA", (w, h), tint + (int(255 * strength),))
+    img.alpha_composite(over)
+    band = Image.new("L", (w, h), 0)
+    bd = ImageDraw.Draw(band)
+    for y in range(h):
+        k = max(0.0, (abs(y - h * 0.55) / (h * 0.55)) - 0.35) / 0.65
+        bd.line([(0, y), (w, y)], fill=int(170 * min(1, k) ** 1.6))
+    img.paste((6, 6, 20, 255), (0, 0), band)
 
 
 def ribbon(img, text, y, font, color=(255, 46, 170), pad=26):
@@ -136,30 +168,39 @@ def load(name, size):
 
 
 def thumbs():
-    # 1) 대표: 큰 로고 + 아래 띠
-    im = load("key", (1920, 1080)); vignette(im, 0.28)
-    lg = logo(860); im.alpha_composite(lg, ((1920 - lg.width) // 2, 30))
-    ribbon(im, "팀 페인트 FPS  ·  2:2  3:3  5:5  솔로  ·  랭크전", 930, kr(54))
+    # 1) 대표: 큰 로고 + SF 띠
+    im = load("key", (1920, 1080)); grade(im, (40, 20, 90), 0.14); vignette(im, 0.22)
+    lg = logo(1000); im.alpha_composite(lg, ((1920 - lg.width) // 2, 10))
+    sf_plate(im, "팀 페인트 FPS  ·  2:2  3:3  5:5  솔로  ·  랭크전", 920, kr(50))
     im.convert("RGB").save(os.path.join(M, "thumb_1_key.png"), quality=95)
     # 2) 무기·저격
-    im = load("sniper", (1920, 1080)); vignette(im, 0.3)
-    lg = logo(460); im.alpha_composite(lg, (40, 30))
-    caption(im, "6종 페인트총", (70, 640), kr(120), (255, 225, 90))
-    caption(im, "저격 스코프 · 산탄 · 런처 · 제트팩", (76, 800), kr(58))
+    im = load("sniper", (1920, 1080)); grade(im, (30, 20, 80), 0.16); vignette(im, 0.25)
+    lg = logo(620); im.alpha_composite(lg, (30, 10))
+    neon_caption(im, "실총 라인업 + 페인트총", (80, 600), kr(104), (255, 236, 90), (255, 140, 0))
+    sf_plate(im, "K2 · K14 저격 · 산탄 · 런처 · 제트팩", 790, kr(50), cx=640)
     im.convert("RGB").save(os.path.join(M, "thumb_2_weapons.png"), quality=95)
     # 3) 맵·페인트 승패
-    im = load("map", (1920, 1080)); vignette(im, 0.25)
-    lg = logo(420); im.alpha_composite(lg, (1920 - lg.width - 40, 26))
-    caption(im, "많이 칠한 팀이 이긴다!", (70, 70), kr(104), (255, 255, 255))
-    ribbon(im, "승패 = 페인트 80% + 처치·미션 20%", 940, kr(56), (0, 150, 255))
+    im = load("map", (1920, 1080)); grade(im, (30, 20, 80), 0.14); vignette(im, 0.22)
+    lg = logo(560); im.alpha_composite(lg, (1920 - lg.width - 20, 10))
+    neon_caption(im, "많이 칠한 팀이 이긴다!", (70, 70), kr(100), (255, 255, 255), (0, 200, 255))
+    sf_plate(im, "승패 = 페인트 80% + 처치·미션 20%", 930, kr(52), edge=(255, 40, 200))
     im.convert("RGB").save(os.path.join(M, "thumb_3_paint.png"), quality=95)
 
 
 def game_icon():
-    im = load("icon", (1024, 1024)); vignette(im, 0.22)
-    lg = logo(760)
-    lg = lg.resize((int(lg.width * 0.92), int(lg.height * 0.92)), Image.LANCZOS)
-    im.alpha_composite(lg, ((1024 - lg.width) // 2, 1024 - lg.height - 10))
+    im = load("icon", (1024, 1024)); grade(im, (40, 20, 90), 0.12); vignette(im, 0.2)
+    # 아래쪽을 남색으로 깔아 로고가 또렷하게
+    fade = Image.new("L", (1024, 1024), 0)
+    fd = ImageDraw.Draw(fade)
+    for y in range(560, 1024):
+        fd.line([(0, y), (1024, y)], fill=int(235 * ((y - 560) / 464) ** 1.3))
+    im.paste((10, 12, 30, 255), (0, 0), fade)
+    lg = logo(980)
+    im.alpha_composite(lg, ((1024 - lg.width) // 2, 1024 - lg.height - 6))
+    # 네온 테두리
+    d = ImageDraw.Draw(im)
+    d.rectangle([6, 6, 1017, 1017], outline=(0, 230, 255, 255), width=10)
+    d.rectangle([22, 22, 1001, 1001], outline=(255, 40, 200, 180), width=4)
     im.resize((512, 512), Image.LANCZOS).convert("RGB").save(os.path.join(M, "game_icon.png"))
 
 
