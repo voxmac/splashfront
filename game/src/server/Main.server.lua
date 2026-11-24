@@ -102,6 +102,26 @@ end
 -- 업로드한 표면 텍스처·HUD 아이콘 (없으면 단색·이모지로 대체)
 ImageService.Load()
 ImageService.ApplyTextures(lobby.Folder, ImageService.LobbyRules)
+-- 로비 대형 간판: 업로드한 로고 이미지가 있으면 글자 대신 이미지로
+do
+	local url = ReplicatedStorage:FindFirstChild("Images") and ReplicatedStorage.Images:GetAttribute("icon_logo")
+	local board = lobby.Folder:FindFirstChild("TitleBoard")
+	local sg = board and board:FindFirstChild("Logo")
+	if url and sg then
+		for _, c in ipairs(sg:GetChildren()) do
+			if c:IsA("GuiObject") then
+				c.Visible = false
+			end
+		end
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.fromScale(0.96, 0.96)
+		img.Position = UDim2.fromScale(0.02, 0.02)
+		img.BackgroundTransparency = 1
+		img.ScaleType = Enum.ScaleType.Fit
+		img.Image = url
+		img.Parent = sg
+	end
+end
 for _, m in ipairs(maps) do
 	if not m.NoTextures then
 		ImageService.ApplyTextures(m.Folder)

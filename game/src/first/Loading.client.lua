@@ -70,6 +70,33 @@ for _, t in ipairs({ t1, t2 }) do
 	st.Color = Color3.fromRGB(10, 10, 24)
 	st.Parent = t
 end
+-- 업로드한 로고 이미지가 준비되면 글자 로고 대신 표시 (서버 ImageService가 ReplicatedStorage.Images에 주소를 올림)
+local logoImg = Instance.new("ImageLabel")
+logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
+logoImg.Position = UDim2.fromScale(0.5, 0.44)
+logoImg.Size = UDim2.fromScale(0.62, 0.36)
+logoImg.BackgroundTransparency = 1
+logoImg.ScaleType = Enum.ScaleType.Fit
+logoImg.Visible = false
+logoImg.Parent = bg
+task.spawn(function()
+	local RS = game:GetService("ReplicatedStorage")
+	local imgs = RS:WaitForChild("Images", 15)
+	if not imgs then
+		return
+	end
+	local function use()
+		local url = imgs:GetAttribute("icon_logo")
+		if url then
+			logoImg.Image = url
+			logoImg.Visible = true
+			t1.Visible = false
+			t2.Visible = false
+		end
+	end
+	use()
+	imgs:GetAttributeChangedSignal("icon_logo"):Connect(use)
+end)
 local status = text({ Text = "격납고에 연결하는 중", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.7), Size = UDim2.fromScale(0.5, 0.04),
 	TextColor3 = Color3.fromRGB(200, 210, 240) })
 local tips = {
@@ -158,6 +185,8 @@ if char and root and cam then
 			if st then
 				TweenService:Create(st, TweenInfo.new(0.35), { Transparency = 1 }):Play()
 			end
+		elseif d:IsA("ImageLabel") then
+			TweenService:Create(d, TweenInfo.new(0.35), { ImageTransparency = 1 }):Play()
 		elseif d:IsA("Frame") then
 			TweenService:Create(d, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
 		end
