@@ -188,7 +188,7 @@ local function finish(ctx)
 		api.Announce(string.format("%s 성공! %s +%d", ctx.Def.Name, api.OwnerName(winner), ctx.Def.Bonus), api.ColorOf(winner))
 	elseif running then
 		api.Cue("mission_fail")
-		api.Announce(ctx.Def.Name .. " — 아무도 달성하지 못했어요", Color3.fromRGB(200, 200, 200))
+		api.Announce(ctx.Def.Name .. " · 아무도 달성하지 못했어요", Color3.fromRGB(200, 200, 200))
 	end
 end
 

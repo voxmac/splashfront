@@ -120,7 +120,7 @@ local function buildCrate(page)
 	label(top, { Text = "무기 스킨 · 페인트 패턴 · 처치 이펙트 중 1개 (외형 전용, 능력치 변화 없음)", TextSize = 17, Font = Enum.Font.GothamMedium,
 		TextColor3 = C.Sub, Position = UDim2.fromOffset(18, 54), Size = UDim2.new(0.64, 0, 0, 22), TextWrapped = true })
 	local pity = player:GetAttribute("CratePity") or 0
-	label(top, { Text = string.format("천장 %d / %d — %d회 안에 레전더리 확정", pity, Cosmetics.PityCount, Cosmetics.PityCount - pity), TextSize = 17,
+	label(top, { Text = string.format("천장 %d / %d · %d회 안에 레전더리 확정", pity, Cosmetics.PityCount, Cosmetics.PityCount - pity), TextSize = 17,
 		TextColor3 = C.Gold, Position = UDim2.fromOffset(18, 84), Size = UDim2.new(0.64, 0, 0, 22) })
 	if randomItemsRestricted then
 		label(top, { Text = "이 계정/지역에서는 유료 랜덤 상자를 이용할 수 없어요.", TextColor3 = Color3.fromRGB(255, 140, 140), TextSize = 17,
@@ -258,7 +258,7 @@ end
 local function buildSkins(page)
 	clear(page)
 	local coins = player:GetAttribute("Coins") or 0
-	label(page, { Text = string.format("보유 코인 %d  —  일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
+	label(page, { Text = string.format("보유 코인 %d · 일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
 		Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 0, TextWrapped = true })
 	local order = 1
 	for _, r in ipairs(Cosmetics.Rarities) do
@@ -477,7 +477,7 @@ end
 ------------------------------------------------------------------------
 -- 랭킹 TOP 50
 ------------------------------------------------------------------------
-local COLS = { { "순위", 70 }, { "이름", 250 }, { "등급", 150 }, { "Rating", 110 }, { "승리", 90 } }
+local COLS = { { "순위", 70 }, { "이름", 200 }, { "등급", 130 }, { "Rating", 110 }, { "승리", 80 }, { "MVP", 80 } }
 local function rowCells(parent, values, color, font, size)
 	local x = 16
 	for i, col in ipairs(COLS) do
@@ -520,14 +520,10 @@ local function openBoard()
 			end
 			local medal = tostring(i)
 			local tierColor = TIER_COLOR[r.Tier] or C.Text
-			rowCells(row, { medal, r.Name, r.Tier, tostring(r.Rating), tostring(r.Wins or 0) }, { C.Gold, C.Text, tierColor, C.Cyan, C.Text })
+			rowCells(row, { medal, r.Name, r.Tier, tostring(r.Rating), tostring(r.Wins or 0), tostring(r.MVPs or 0) }, { C.Gold, C.Text, tierColor, C.Cyan, C.Text, C.Gold })
 		end
 		if #res.Rows == 0 then
-			label(boardList, { Text = "아직 랭크 기록이 없어요 — 랭크전에 참가해 보세요!", Size = UDim2.new(1, 0, 0, 40), TextXAlignment = Enum.TextXAlignment.Center })
-		end
-		if not res.Global then
-			label(boardList, { Text = "(현재 서버 기준 · 게임을 게시하면 전체 랭킹이 표시돼요)", Size = UDim2.new(1, 0, 0, 30), LayoutOrder = 999, TextSize = 15,
-				TextColor3 = C.Sub, TextXAlignment = Enum.TextXAlignment.Center })
+			label(boardList, { Text = "아직 랭크 기록이 없어요 · 랭크전에 참가해 보세요!", Size = UDim2.new(1, 0, 0, 40), TextXAlignment = Enum.TextXAlignment.Center })
 		end
 	end)
 end
@@ -683,7 +679,7 @@ local function rebuildMatch()
 		end
 	end
 	if not any then
-		label(matchBody, { Text = "지금 대기 중인 배틀이 없어요 — 아래에서 새로 시작하세요", TextSize = 16, TextColor3 = C.Sub, TextWrapped = true,
+		label(matchBody, { Text = "지금 대기 중인 배틀이 없어요 · 아래에서 새로 시작하세요", TextSize = 16, TextColor3 = C.Sub, TextWrapped = true,
 			Size = UDim2.new(1, 0, 0, 40), LayoutOrder = nextOrder() })
 	end
 
@@ -691,7 +687,7 @@ local function rebuildMatch()
 	if mine then
 		local qi = info[mine] or {}
 		if qi.HostId == player.UserId and s and s.Maps then
-			label(matchBody, { Text = "방장 — 맵을 고르세요", TextSize = 17, TextColor3 = C.Gold, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = nextOrder() })
+			label(matchBody, { Text = "방장 · 맵을 고르세요", TextSize = 17, TextColor3 = C.Gold, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = nextOrder() })
 			local row = make("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = nextOrder() }, matchBody)
 			make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, row)
 			local opts = { { nil, "순환" }, { "random", "랜덤" } }
@@ -715,7 +711,7 @@ local function rebuildMatch()
 					remotes.Queue:FireServer("startNow")
 				end)
 			else
-				label(matchBody, { Text = string.format("정원 %d / %d — 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
+				label(matchBody, { Text = string.format("정원 %d / %d · 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
 					TextColor3 = C.Sub, TextWrapped = true, Size = UDim2.new(1, 0, 0, 36), LayoutOrder = nextOrder() })
 			end
 		end
@@ -742,7 +738,7 @@ local function refreshStatus()
 		local qi = s.QueueInfo and s.QueueInfo[s.QueueId] or {}
 		statusLbl.Text = string.format("%s 시작까지 %d초 · 맵 %s", s.QueueId or "", math.max(0, math.ceil(s.EndsAt - workspace:GetServerTimeNow())), qi.Map or "")
 	elseif s.Phase == "Playing" or s.Phase == "Results" then
-		statusLbl.Text = "다른 경기 진행 중 — 대기하면 다음 판에 참가해요"
+		statusLbl.Text = "다른 경기 진행 중 · 대기하면 다음 판에 참가해요"
 	else
 		statusLbl.Text = mine and "참가자를 기다리는 중... 발판에서 내려오면 취소" or "발판을 밟거나 아래에서 배틀을 고르세요"
 	end
@@ -985,7 +981,7 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	local header = make("Frame", { Size = UDim2.new(1, -32, 0, 36), Position = UDim2.fromOffset(16, 76), BackgroundColor3 = C.Panel2 }, board)
 	corner(header, 8)
-	rowCells(header, { "순위", "이름", "등급", "Rating", "승리" }, C.Sub, Enum.Font.GothamBlack, 17)
+	rowCells(header, { "순위", "이름", "등급", "Rating", "승리", "MVP" }, C.Sub, Enum.Font.GothamBlack, 17)
 	boardList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -136), Position = UDim2.fromOffset(16, 120), BackgroundTransparency = 1, BorderSizePixel = 0,
 		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, board)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, boardList)

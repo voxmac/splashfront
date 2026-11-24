@@ -23,6 +23,7 @@ local function defaultProfile()
 		Equipped = Weapons.Default,
 		Rating = Config.Rating.Start,
 		Wins = 0,
+		MVPs = 0,                -- 경기 MVP(전체 최고 점수) 횟수
 		Matches = 0,
 		Kills = 0,
 		Cells = 0,
@@ -60,6 +61,7 @@ function DataService.Publish(player)
 	player:SetAttribute("Weapon", p.Equipped)
 	player:SetAttribute("Owned", ownedString(p.Owned))
 	player:SetAttribute("Wins", p.Wins)
+	player:SetAttribute("MVPs", p.MVPs or 0)
 	player:SetAttribute("Skin", p.EquippedSkin)
 	player:SetAttribute("Pattern", p.EquippedPattern)
 	player:SetAttribute("KillEffect", p.EquippedEffect)

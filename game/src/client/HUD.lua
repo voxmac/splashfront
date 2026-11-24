@@ -466,7 +466,7 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 		table.insert(parts, string.format('<font color="#90FF90"> %d배 줌 %d초</font>', player:GetAttribute("ZoomBuff") or 1, math.ceil(zu - now)))
 	end
 	if player:GetAttribute("Golden") then
-		table.insert(parts, '<font color="#FFD040"> 황금총 장전 — 다음 1발 즉사</font>')
+		table.insert(parts, '<font color="#FFD040"> 황금총 장전 · 다음 1발 즉사</font>')
 	end
 	buffLbl.Text = table.concat(parts, "   ")
 
@@ -913,11 +913,11 @@ end)
 
 -- 첫 경기 안내 (온보딩)
 local TIPS = {
-	"바닥을 우리 색으로 칠하세요 — 칠한 면적이 곧 점수!",
+	"바닥을 우리 색으로 칠하세요 · 칠한 면적이 곧 점수!",
 	"우리 색 위에서는 빨라지고 잉크가 빨리 차요. 적 색 위에서는 느려져요",
 	"상자 뒤에서 C로 앉으면 숨을 수 있어요 · 우클릭 조준",
 	"V 키로 1인칭 <-> 3인칭(어깨 시점) 전환",
-	"많이 칠하면 스페셜이 차요 — Q로 크로마 봄 투척!",
+	"많이 칠하면 스페셜이 차요 · Q로 크로마 봄 투척!",
 	"노란 미션이 뜨면 팀 보너스 기회! 마지막 30초는 페인트 1.5배",
 }
 function HUD.ShowTips()
@@ -966,6 +966,22 @@ local function sortRows(list)
 	return list
 end
 
+-- MVP 엠블럼 이미지 (업로드 전이면 왕관 아이콘, 둘 다 없으면 금색 글자 배지)
+local function mvpIcon(parent, size, pos, z)
+	local imgs = ReplicatedStorage:FindFirstChild("Images")
+	local url = imgs and (imgs:GetAttribute("icon_mvp") or imgs:GetAttribute("icon_crown"))
+	if url then
+		return make("ImageLabel", { Size = size, Position = pos, BackgroundTransparency = 1, Image = url, ScaleType = Enum.ScaleType.Fit, ZIndex = z }, parent)
+	end
+	local b = make("TextLabel", { Size = size, Position = pos, BackgroundColor3 = Color3.fromRGB(255, 200, 50), Text = "MVP", TextScaled = true,
+		FontFace = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
+		TextColor3 = Color3.fromRGB(30, 16, 50), ZIndex = z }, parent)
+	corner(b, 6)
+	return b
+end
+
+local mvpRow -- 이번 판 MVP(전체 최고 점수)
+
 local function teamTable(parent, x, width, title, color, scoreText, rows)
 	local box = make("Frame", { Size = UDim2.new(0, width, 1, -150), Position = UDim2.fromOffset(x, 112), BackgroundColor3 = Color3.fromRGB(28, 26, 42),
 		ZIndex = 11 }, parent)
@@ -991,7 +1007,15 @@ local function teamTable(parent, x, width, title, color, scoreText, rows)
 			corner(hl, 6)
 		end
 		local rating = row.RatingDelta and string.format("%+d", row.RatingDelta) or "-"
-		local name = (i == 1 and "MVP " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
+		local isMvp = (row == mvpRow)
+		local name = (isMvp and "        " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
+		if isMvp then
+			local glow = make("Frame", { Size = UDim2.new(1, -8, 0, 28), Position = UDim2.fromOffset(4, y - 2), BackgroundColor3 = Color3.fromRGB(255, 200, 50),
+				BackgroundTransparency = 0.78, ZIndex = 11 }, box)
+			corner(glow, 6)
+			make("UIStroke", { Color = Color3.fromRGB(255, 210, 80), Thickness = 1.5, Transparency = 0.2 }, glow)
+			mvpIcon(box, UDim2.fromOffset(30, 30), UDim2.fromOffset(RCOLS[1][2] * width / 482 + 2, y - 3), 13)
+		end
 		resultRow(box, y, { tostring(i), name, tostring(row.Kills), tostring(row.Deaths), tostring(row.Score or row.Cells), tostring(row.Coins), rating },
 			(row.Player == player) and Color3.new(1, 1, 1) or Color3.fromRGB(225, 225, 240), row.Player == player, width)
 	end
@@ -1013,10 +1037,33 @@ function HUD.ShowResults(r)
 			won = row.Won
 		end
 	end
-	text(results, { Size = UDim2.new(1, -40, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
+	text(results, { Size = UDim2.new(1, -360, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
 		TextColor3 = r.WinnerColor or Color3.new(1, 1, 1), ZIndex = 11 })
-	text(results, { Size = UDim2.new(1, -40, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
+	text(results, { Size = UDim2.new(1, -360, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
 		Font = Enum.Font.GothamBold, TextColor3 = won and Color3.fromRGB(255, 215, 60) or Color3.fromRGB(200, 200, 220), ZIndex = 11 })
+	mvpRow = nil
+	for _, row in ipairs(r.Rows) do
+		if not mvpRow or (row.Score or 0) > (mvpRow.Score or 0) then
+			mvpRow = row
+		end
+	end
+	if mvpRow then
+		-- 오른쪽 위 MVP 카드: 엠블럼 + 이름 + 기록
+		local card = make("Frame", { Size = UDim2.fromOffset(300, 84), Position = UDim2.new(1, -318, 0, 14), BackgroundColor3 = Color3.fromRGB(30, 20, 60), ZIndex = 11 }, results)
+		corner(card, 12)
+		make("UIStroke", { Color = Color3.fromRGB(255, 200, 60), Thickness = 2 }, card)
+		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 120, 200)), Rotation = 90 }, card)
+		mvpIcon(card, UDim2.fromOffset(92, 92), UDim2.fromOffset(-6, -6), 13)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 28), Position = UDim2.fromOffset(92, 8), BackgroundTransparency = 1, Text = "MATCH MVP",
+			FontFace = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic), TextScaled = true,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 214, 80), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 24), Position = UDim2.fromOffset(92, 36), BackgroundTransparency = 1,
+			Text = mvpRow.Name .. (mvpRow.IsBot and " (봇)" or ""), Font = Enum.Font.GothamBlack, TextScaled = true, TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 18), Position = UDim2.fromOffset(92, 60), BackgroundTransparency = 1,
+			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(220, 215, 245), ZIndex = 12 }, card)
+	end
 	local unit = (r.Mode == "Flag") and "점" or "%"
 	if r.Mode == "Solo" then
 		local t = r.Teams[1]

@@ -158,6 +158,7 @@ Config.MaxHealth = 100
 Config.RegenDelay = 3
 Config.RegenPerSecond = 25
 Config.RespawnTime = 10 -- 사망 후 부활까지(초) · 관리자 패널 설정에서 변경 가능
+Config.TeamSpawnRadius = 22 -- 팀전 리스폰: 우리 팀 스폰 지점 반경(스터드) 안에서 랜덤
 Config.SpawnProtection = 2
 
 Config.InkMax = 100
@@ -1733,7 +1734,7 @@ function BotService.Stop()
 end
 
 return BotService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX9"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 시가전 (Big City)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX9"><Properties><string name="Name">CityMap</string><ProtectedString name="Source"><![CDATA[-- 맵 3: 크로마 시티 (Big City 시가전)
 -- Studio 인벤토리에서 넣은 "BigCity" 모델(ServerStorage 또는 ServerStorage.Maps 안)을 복제해 전장으로 씀.
 -- 모델 안의 스크립트는 안전을 위해 모두 지우고, 도로·광장처럼 평평한 바닥을 위에서 쏘아 찾아 페인트 셀을 깐다.
 -- 카툰 외곽선·흰색 팔레트·표면 텍스처는 적용하지 않음 (원본 질감 + 사실적인 흐린 오후 조명)
@@ -2008,10 +2009,10 @@ function CityMap.Build()
 		table.insert(missionSpots, nearestGround(axisPos(p[1] * along, p[2] * side)))
 	end
 
-	print(string.format("[SplashFront] 시가전 맵 준비: 바닥 셀 %d개, 도로 높이 %.1f, 전투 구역 %dx%d", #list, groundY, hx * 2, hz * 2))
+	print(string.format("[SplashFront] 크로마 시티 맵 준비: 바닥 셀 %d개, 도로 높이 %.1f, 전투 구역 %dx%d", #list, groundY, hx * 2, hz * 2))
 	return {
 		Id = "BigCity",
-		Name = "시가전",
+		Name = "크로마 시티",
 		Folder = root,
 		Geometry = model,
 		Cells = cells,
@@ -2704,6 +2705,7 @@ local function defaultProfile()
 		Equipped = Weapons.Default,
 		Rating = Config.Rating.Start,
 		Wins = 0,
+		MVPs = 0,                -- 경기 MVP(전체 최고 점수) 횟수
 		Matches = 0,
 		Kills = 0,
 		Cells = 0,
@@ -2741,6 +2743,7 @@ function DataService.Publish(player)
 	player:SetAttribute("Weapon", p.Equipped)
 	player:SetAttribute("Owned", ownedString(p.Owned))
 	player:SetAttribute("Wins", p.Wins)
+	player:SetAttribute("MVPs", p.MVPs or 0)
 	player:SetAttribute("Skin", p.EquippedSkin)
 	player:SetAttribute("Pattern", p.EquippedPattern)
 	player:SetAttribute("KillEffect", p.EquippedEffect)
@@ -3465,7 +3468,7 @@ do
 			table.insert(maps, city) -- MatchService가 같은 표를 쓰므로 바로 맵 목록에 나타남
 			return true
 		elseif not ok then
-			warn("[SplashFront] 시가전 맵 생성 실패: " .. tostring(city))
+			warn("[SplashFront] 크로마 시티 맵 생성 실패: " .. tostring(city))
 		end
 		return false
 	end
@@ -3476,7 +3479,7 @@ do
 				task.wait(2)
 				tryCity()
 			else
-				warn("[SplashFront] 시가전 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
+				warn("[SplashFront] 크로마 시티 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
 			end
 		end)
 	end
@@ -3490,6 +3493,9 @@ do
 	local url = ReplicatedStorage:FindFirstChild("Images") and ReplicatedStorage.Images:GetAttribute("icon_logo")
 	local board = lobby.Folder:FindFirstChild("TitleBoard")
 	local sg = board and board:FindFirstChild("Logo")
+	if url then
+		MapBuilder.ApplyMonitorLogo(lobby.Folder, url)
+	end
 	if url and sg then
 		for _, c in ipairs(sg:GetChildren()) do
 			if c:IsA("GuiObject") then
@@ -3574,7 +3580,7 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 
 MatchService.Run()
-print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") — 로비의 발판을 밟아 매치에 참가하세요")
+print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") · 로비의 발판을 밟아 매치에 참가하세요")
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX17"><Properties><string name="Name">MapBuilder</string><ProtectedString name="Source"><![CDATA[-- 로비와 아레나(크로마 스퀘어)를 코드로 생성
 -- 새 맵은 BuildXXX 함수를 추가하고 같은 형태의 info 테이블을 돌려주면 됨
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -3951,6 +3957,29 @@ local function titleText(gui, text, pos, size, c1, c2)
 	return t
 end
 
+-- 로고 이미지가 준비되면 벽 모니터 오른쪽 위에 작은 로고를 붙임 (제목 폭은 그만큼 줄임)
+function MapBuilder.ApplyMonitorLogo(folder, url)
+	for _, mon in ipairs(folder:GetDescendants()) do
+		if mon.Name == "WallMonitor" and mon:FindFirstChild("Screen") then
+			local bg = mon.Screen:FindFirstChild("BG")
+			if bg and not bg:FindFirstChild("Logo") then
+				local li = Instance.new("ImageLabel")
+				li.Name = "Logo"
+				li.BackgroundTransparency = 1
+				li.Image = url
+				li.ScaleType = Enum.ScaleType.Fit
+				li.Size = UDim2.fromScale(0.26, 0.24)
+				li.Position = UDim2.fromScale(0.72, 0.06)
+				li.Parent = bg
+				local h = bg:FindFirstChild("Head")
+				if h then
+					h.Size = UDim2.fromScale(0.64, 0.34)
+				end
+			end
+		end
+	end
+end
+
 function MapBuilder.BuildLobby()
 	local old = workspace:FindFirstChild("Lobby")
 	if old then
@@ -4072,7 +4101,7 @@ function MapBuilder.BuildLobby()
 		{ "PAINT TO WIN", "바닥을 더 많이 칠한 팀이 승리 · 페인트 80% + 처치·미션 20%" },
 		{ "ZONE TEAMS", "같은 ZONE 발판에 선 친구끼리 한 팀으로 출전" },
 		{ "DAILY MISSIONS", "일일·주간 미션을 깨고 코인으로 스킨을 사세요" },
-		{ "NEW MAP · 시가전", "도시 한복판에서 벌이는 페인트 시가전" },
+		{ "NEW MAP", "크로마 시티 · 도시 한복판에서 벌이는 페인트 시가전" },
 	}
 	for i, tip in ipairs(tips) do
 		local sx = (i <= 2) and -1 or 1
@@ -4088,7 +4117,9 @@ function MapBuilder.BuildLobby()
 		g.PixelsPerStud = 32
 		g.LightInfluence = 0
 		g.Parent = mon
+		g.Name = "Screen"
 		local bg = Instance.new("Frame")
+		bg.Name = "BG"
 		bg.Size = UDim2.fromScale(1, 1)
 		bg.BackgroundColor3 = Color3.new(1, 1, 1)
 		bg.Parent = g
@@ -4097,27 +4128,63 @@ function MapBuilder.BuildLobby()
 		grad.Color = ColorSequence.new(c1:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(10, 12, 28))
 		grad.Rotation = 35
 		grad.Parent = bg
+		-- 타이틀 로고와 같은 스타일: 몬세라트 굵은 이탤릭 + 네온 그라데이션 + 남색 외곽선
+		local TITLE_FONT = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		local pink = (i % 2 == 1)
+		-- 위·아래 네온 라인 (타이틀 보드 테두리 색)
+		for _, yy in ipairs({ 0, 0.975 }) do
+			local ln = Instance.new("Frame")
+			ln.BorderSizePixel = 0
+			ln.Size = UDim2.fromScale(1, 0.025)
+			ln.Position = UDim2.fromScale(0, yy)
+			ln.BackgroundColor3 = (yy == 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40)
+			ln.Parent = bg
+		end
 		local h = Instance.new("TextLabel")
 		h.BackgroundTransparency = 1
-		h.Size = UDim2.fromScale(0.9, 0.42)
-		h.Position = UDim2.fromScale(0.05, 0.12)
-		h.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		h.Name = "Head"
+		h.Size = UDim2.fromScale(0.9, 0.34)
+		h.Position = UDim2.fromScale(0.05, 0.1)
+		h.FontFace = TITLE_FONT
 		h.TextScaled = true
 		h.TextXAlignment = Enum.TextXAlignment.Left
-		h.TextColor3 = NEON_Y
+		h.TextColor3 = Color3.new(1, 1, 1)
 		h.Text = tip[1]
 		h.Parent = bg
+		local hg = Instance.new("UIGradient")
+		hg.Color = pink and ColorSequence.new(Color3.fromRGB(255, 150, 225), Color3.fromRGB(255, 30, 140))
+			or ColorSequence.new(Color3.fromRGB(150, 245, 255), Color3.fromRGB(0, 150, 255))
+		hg.Rotation = 90
+		hg.Parent = h
+		local hs = Instance.new("UIStroke")
+		hs.Thickness = 4
+		hs.Color = Color3.fromRGB(16, 12, 30)
+		hs.Parent = h
+		-- 제목 아래 노란 사선 띠 (타이틀의 FRONT 띠 느낌)
+		local bar = Instance.new("Frame")
+		bar.BorderSizePixel = 0
+		bar.BackgroundColor3 = NEON_Y
+		bar.Size = UDim2.fromScale(0.3, 0.035)
+		bar.Position = UDim2.fromScale(0.05, 0.48)
+		bar.Rotation = -2
+		bar.Parent = bg
 		local d2 = Instance.new("TextLabel")
 		d2.BackgroundTransparency = 1
-		d2.Size = UDim2.fromScale(0.9, 0.3)
-		d2.Position = UDim2.fromScale(0.05, 0.58)
-		d2.Font = Enum.Font.GothamBold
+		d2.Size = UDim2.fromScale(0.9, 0.34)
+		d2.Position = UDim2.fromScale(0.05, 0.56)
+		d2.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 		d2.TextScaled = true
 		d2.TextWrapped = true
 		d2.TextXAlignment = Enum.TextXAlignment.Left
-		d2.TextColor3 = Color3.fromRGB(225, 232, 255)
+		d2.TextYAlignment = Enum.TextYAlignment.Top
+		d2.TextColor3 = Color3.fromRGB(235, 240, 255)
 		d2.Text = tip[2]
 		d2.Parent = bg
+		local ds = Instance.new("UIStroke")
+		ds.Thickness = 2
+		ds.Color = Color3.fromRGB(10, 8, 24)
+		ds.Transparency = 0.3
+		ds.Parent = d2
 	end
 
 	-- 유리 천장 + 자홍/보라 네온 갈비대 (하늘과 구름이 비침)
@@ -5649,10 +5716,33 @@ end
 -- 시작·부활 위치: 맵의 칠할 수 있는 바닥 중 무작위 (살아 있는 적과 35스터드 이상 떨어지고 머리 위가 트인 곳)
 local spawnUp = RaycastParams.new()
 spawnUp.FilterType = Enum.RaycastFilterType.Exclude
+-- 솔로: 맵 전체에서 완전 랜덤 / 팀전(2:2·3:3·5:5): 우리 팀 진영(팀 스폰 주변) 안에서만 랜덤
 local function randomSpawn(e)
 	local cells = arena.Cells and arena.Cells:GetChildren() or {}
 	if #cells == 0 then
 		return nil
+	end
+	if S.Mode ~= "Solo" then
+		local bases = arena.Spawns and arena.Spawns[e.TeamId]
+		if not bases or #bases == 0 then
+			return nil
+		end
+		local R = Config.TeamSpawnRadius or 22
+		local mine = {}
+		for _, c in ipairs(cells) do
+			local p = c.Position
+			for _, b in ipairs(bases) do
+				local d = Vector3.new(p.X - b.Position.X, 0, p.Z - b.Position.Z).Magnitude
+				if d <= R and math.abs(p.Y - b.Position.Y) < 12 then
+					table.insert(mine, c)
+					break
+				end
+			end
+		end
+		if #mine == 0 then
+			return nil
+		end
+		cells = mine
 	end
 	local enemies = {}
 	for _, o in ipairs(Combatants.All()) do
@@ -5692,6 +5782,16 @@ local function randomSpawn(e)
 		return nil
 	end
 	local look = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5)
+	if S.Mode ~= "Solo" and arena.Spawns then
+		-- 팀전: 상대 진영 쪽을 바라보며 등장
+		for tid, list in pairs(arena.Spawns) do
+			if tid ~= e.TeamId and list[1] then
+				local c = list[1].Position
+				look = Vector3.new(c.X - best.X, 0, c.Z - best.Z)
+				break
+			end
+		end
+	end
 	if look.Magnitude < 0.1 then
 		look = Vector3.new(0, 0, -1)
 	end
@@ -6239,6 +6339,16 @@ local function endMatch()
 	end)
 	Telemetry.RecordMatch(statRows)
 
+	-- MVP(전체 최고 점수) 횟수 누적 · 랭킹 보드에 표시
+	local top = rows[1]
+	if top and top.Player and top.Player.Parent then
+		local tp = DataService.Get(top.Player)
+		if tp then
+			tp.MVPs = (tp.MVPs or 0) + 1
+			DataService.Publish(top.Player)
+			RankService.RecordMeta(top.Player)
+		end
+	end
 	local winnerInfo = winner and ownerInfo(winner)
 	pcall(function()
 		local mvp = rows[1]
@@ -6346,7 +6456,7 @@ local function setQueue(player, queueId, viaPad, side)
 		if c[side] >= q.TeamSize then
 			local other = 3 - side
 			if viaPad or c[other] >= q.TeamSize then
-				remotes.Notify:FireClient(player, (side == 1 and "블루" or "오렌지") .. " ZONE이 꽉 찼어요" .. (c[other] < q.TeamSize and " — 옆 ZONE에 서 주세요" or ""),
+				remotes.Notify:FireClient(player, (side == 1 and "블루" or "오렌지") .. " ZONE이 꽉 찼어요" .. (c[other] < q.TeamSize and " · 옆 ZONE에 서 주세요" or ""),
 					Color3.fromRGB(255, 180, 120))
 				return
 			end
@@ -6463,7 +6573,7 @@ local function quickJoin(player)
 	end
 	setQueue(player, pick and pick.Id or "3v3", false)
 	if player:GetAttribute("Queue") then
-		remotes.Notify:FireClient(player, "배틀 대기 중 — 정원이 차거나 카운트다운이 끝나면 시작해요 (취소: 배틀 취소 버튼)",
+		remotes.Notify:FireClient(player, "배틀 대기 중 · 정원이 차거나 카운트다운이 끝나면 시작해요 (취소: 배틀 취소 버튼)",
 			Color3.fromRGB(255, 255, 255))
 	end
 end
@@ -6577,7 +6687,7 @@ local function switchWeapon(player, weaponId)
 		return
 	end
 	if not p.Owned[w.Id] then
-		remotes.Notify:FireClient(player, "보유하지 않은 무기예요 — 로비 상점에서 구매", Color3.fromRGB(255, 140, 140))
+		remotes.Notify:FireClient(player, "보유하지 않은 무기예요 · 로비 상점에서 구매", Color3.fromRGB(255, 140, 140))
 		return
 	end
 	if not canSwitch(e) then
@@ -6676,7 +6786,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			setQueue(pl, id, true, want)
 			if pl:GetAttribute("Queue") == id then
 				local zone = side == 1 and " 블루 ZONE" or side == 2 and " 오렌지 ZONE" or ""
-				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
+				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " · 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
 			end
 		end)
 	end
@@ -7072,7 +7182,7 @@ local function finish(ctx)
 		api.Announce(string.format("%s 성공! %s +%d", ctx.Def.Name, api.OwnerName(winner), ctx.Def.Bonus), api.ColorOf(winner))
 	elseif running then
 		api.Cue("mission_fail")
-		api.Announce(ctx.Def.Name .. " — 아무도 달성하지 못했어요", Color3.fromRGB(200, 200, 200))
+		api.Announce(ctx.Def.Name .. " · 아무도 달성하지 못했어요", Color3.fromRGB(200, 200, 200))
 	end
 end
 
@@ -7488,7 +7598,7 @@ function RankService.RecordMeta(player)
 	end
 	task.spawn(function()
 		pcall(function()
-			meta:SetAsync("u" .. player.UserId, { n = player.DisplayName, w = p.Wins or 0, r = p.Rating })
+			meta:SetAsync("u" .. player.UserId, { n = player.DisplayName, w = p.Wins or 0, r = p.Rating, mv = p.MVPs or 0 })
 		end)
 	end)
 end
@@ -7497,7 +7607,8 @@ local function serverRows()
 	local list = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local r = pl:GetAttribute("Rating") or Config.Rating.Start
-		table.insert(list, { UserId = pl.UserId, Name = pl.DisplayName, Rating = r, Tier = Config.GetTier(r).Name, Wins = pl:GetAttribute("Wins") or 0 })
+		table.insert(list, { UserId = pl.UserId, Name = pl.DisplayName, Rating = r, Tier = Config.GetTier(r).Name, Wins = pl:GetAttribute("Wins") or 0,
+			MVPs = pl:GetAttribute("MVPs") or 0 })
 	end
 	table.sort(list, function(a, b)
 		return a.Rating > b.Rating
@@ -7530,6 +7641,7 @@ function RankService.GetTop(count)
 					if ok and type(m) == "table" then
 						out[i].Name = m.n or out[i].Name
 						out[i].Wins = m.w or 0
+						out[i].MVPs = m.mv or 0
 					else
 						pcall(function()
 							out[i].Name = Players:GetNameFromUserIdAsync(userId)
@@ -7597,12 +7709,18 @@ local function fetchGlobal()
 		local rows = {}
 		for _, entry in ipairs(entries) do
 			local userId = tonumber(string.sub(entry.key, 2)) or 0
-			if not nameCache[userId] then
+			local m = nil
+			pcall(function()
+				m = meta and meta:GetAsync(entry.key)
+			end)
+			if type(m) == "table" and m.n then
+				nameCache[userId] = m.n
+			elseif not nameCache[userId] then
 				pcall(function()
 					nameCache[userId] = Players:GetNameFromUserIdAsync(userId)
 				end)
 			end
-			table.insert(rows, { UserId = userId, Name = nameCache[userId] or "?", Rating = entry.value })
+			table.insert(rows, { UserId = userId, Name = nameCache[userId] or "?", Rating = entry.value, MVPs = (type(m) == "table" and m.mv) or 0 })
 		end
 		globalTop.Rows = rows
 	end)
@@ -7611,11 +7729,11 @@ end
 local function mergedTop(n)
 	local byId = {}
 	for _, r in ipairs(globalTop.Rows) do
-		byId[r.UserId] = { UserId = r.UserId, Name = r.Name, Rating = r.Rating, Online = false }
+		byId[r.UserId] = { UserId = r.UserId, Name = r.Name, Rating = r.Rating, Online = false, MVPs = r.MVPs or 0 }
 	end
 	for _, pl in ipairs(Players:GetPlayers()) do
 		byId[pl.UserId] = { UserId = pl.UserId, Name = pl.DisplayName, Rating = pl:GetAttribute("Rating") or Config.Rating.Start, Online = true,
-			Wins = pl:GetAttribute("Wins") or 0 }
+			Wins = pl:GetAttribute("Wins") or 0, MVPs = pl:GetAttribute("MVPs") or 0 }
 	end
 	local list = {}
 	for _, r in pairs(byId) do
@@ -7642,13 +7760,13 @@ function RankService.RefreshBoard()
 	local lines = { string.format('<font color="#F0FF28"><b>시즌 %s 랭킹 TOP 10</b></font>   <font color="#8FA0C8" size="20">실시간</font>', Config.Season) }
 	for i, r in ipairs(mergedTop(10)) do
 		local medal = (i == 1 and "#FFD84A") or (i == 2 and "#D8E0F0") or (i == 3 and "#E09A5A") or "#FFFFFF"
-		table.insert(lines, string.format('<font color="%s">%2d.</font> %s  <font color="#7FE8FF">%d</font> <font color="#A8B4D8" size="22">%s</font>%s',
-			medal, i, esc(r.Name), r.Rating, Config.GetTier(r.Rating).Name, r.Online and '  <font color="#3CFF8C" size="20">● 접속 중</font>' or ""))
+		table.insert(lines, string.format('<font color="%s">%2d.</font> %s  <font color="#7FE8FF">%d</font> <font color="#A8B4D8" size="22">%s</font>  <font color="#FFD84A" size="22">MVP %d회</font>%s',
+			medal, i, esc(r.Name), r.Rating, Config.GetTier(r.Rating).Name, r.MVPs or 0, r.Online and '  <font color="#3CFF8C" size="20">● 접속 중</font>' or ""))
 	end
 	table.insert(lines, "")
 	table.insert(lines, '<font color="#FF4FD0"><b>최근 경기</b></font>')
 	if #recent == 0 then
-		table.insert(lines, '<font color="#8FA0C8" size="22">아직 끝난 경기가 없어요 — 발판에 올라 첫 경기를 시작하세요</font>')
+		table.insert(lines, '<font color="#8FA0C8" size="22">아직 끝난 경기가 없어요 · 발판에 올라 첫 경기를 시작하세요</font>')
 	end
 	for i = 1, math.min(3, #recent) do
 		local m = recent[i]
@@ -8949,7 +9067,7 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 	LobbyUI.ShowCrate(res)
 end)
 
-print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
+print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -9801,7 +9919,7 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 		table.insert(parts, string.format('<font color="#90FF90"> %d배 줌 %d초</font>', player:GetAttribute("ZoomBuff") or 1, math.ceil(zu - now)))
 	end
 	if player:GetAttribute("Golden") then
-		table.insert(parts, '<font color="#FFD040"> 황금총 장전 — 다음 1발 즉사</font>')
+		table.insert(parts, '<font color="#FFD040"> 황금총 장전 · 다음 1발 즉사</font>')
 	end
 	buffLbl.Text = table.concat(parts, "   ")
 
@@ -10248,11 +10366,11 @@ end)
 
 -- 첫 경기 안내 (온보딩)
 local TIPS = {
-	"바닥을 우리 색으로 칠하세요 — 칠한 면적이 곧 점수!",
+	"바닥을 우리 색으로 칠하세요 · 칠한 면적이 곧 점수!",
 	"우리 색 위에서는 빨라지고 잉크가 빨리 차요. 적 색 위에서는 느려져요",
 	"상자 뒤에서 C로 앉으면 숨을 수 있어요 · 우클릭 조준",
 	"V 키로 1인칭 <-> 3인칭(어깨 시점) 전환",
-	"많이 칠하면 스페셜이 차요 — Q로 크로마 봄 투척!",
+	"많이 칠하면 스페셜이 차요 · Q로 크로마 봄 투척!",
 	"노란 미션이 뜨면 팀 보너스 기회! 마지막 30초는 페인트 1.5배",
 }
 function HUD.ShowTips()
@@ -10301,6 +10419,22 @@ local function sortRows(list)
 	return list
 end
 
+-- MVP 엠블럼 이미지 (업로드 전이면 왕관 아이콘, 둘 다 없으면 금색 글자 배지)
+local function mvpIcon(parent, size, pos, z)
+	local imgs = ReplicatedStorage:FindFirstChild("Images")
+	local url = imgs and (imgs:GetAttribute("icon_mvp") or imgs:GetAttribute("icon_crown"))
+	if url then
+		return make("ImageLabel", { Size = size, Position = pos, BackgroundTransparency = 1, Image = url, ScaleType = Enum.ScaleType.Fit, ZIndex = z }, parent)
+	end
+	local b = make("TextLabel", { Size = size, Position = pos, BackgroundColor3 = Color3.fromRGB(255, 200, 50), Text = "MVP", TextScaled = true,
+		FontFace = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic),
+		TextColor3 = Color3.fromRGB(30, 16, 50), ZIndex = z }, parent)
+	corner(b, 6)
+	return b
+end
+
+local mvpRow -- 이번 판 MVP(전체 최고 점수)
+
 local function teamTable(parent, x, width, title, color, scoreText, rows)
 	local box = make("Frame", { Size = UDim2.new(0, width, 1, -150), Position = UDim2.fromOffset(x, 112), BackgroundColor3 = Color3.fromRGB(28, 26, 42),
 		ZIndex = 11 }, parent)
@@ -10326,7 +10460,15 @@ local function teamTable(parent, x, width, title, color, scoreText, rows)
 			corner(hl, 6)
 		end
 		local rating = row.RatingDelta and string.format("%+d", row.RatingDelta) or "-"
-		local name = (i == 1 and "MVP " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
+		local isMvp = (row == mvpRow)
+		local name = (isMvp and "        " or "") .. row.Name .. (row.IsBot and " (봇)" or "")
+		if isMvp then
+			local glow = make("Frame", { Size = UDim2.new(1, -8, 0, 28), Position = UDim2.fromOffset(4, y - 2), BackgroundColor3 = Color3.fromRGB(255, 200, 50),
+				BackgroundTransparency = 0.78, ZIndex = 11 }, box)
+			corner(glow, 6)
+			make("UIStroke", { Color = Color3.fromRGB(255, 210, 80), Thickness = 1.5, Transparency = 0.2 }, glow)
+			mvpIcon(box, UDim2.fromOffset(30, 30), UDim2.fromOffset(RCOLS[1][2] * width / 482 + 2, y - 3), 13)
+		end
 		resultRow(box, y, { tostring(i), name, tostring(row.Kills), tostring(row.Deaths), tostring(row.Score or row.Cells), tostring(row.Coins), rating },
 			(row.Player == player) and Color3.new(1, 1, 1) or Color3.fromRGB(225, 225, 240), row.Player == player, width)
 	end
@@ -10348,10 +10490,33 @@ function HUD.ShowResults(r)
 			won = row.Won
 		end
 	end
-	text(results, { Size = UDim2.new(1, -40, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
+	text(results, { Size = UDim2.new(1, -360, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
 		TextColor3 = r.WinnerColor or Color3.new(1, 1, 1), ZIndex = 11 })
-	text(results, { Size = UDim2.new(1, -40, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
+	text(results, { Size = UDim2.new(1, -360, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
 		Font = Enum.Font.GothamBold, TextColor3 = won and Color3.fromRGB(255, 215, 60) or Color3.fromRGB(200, 200, 220), ZIndex = 11 })
+	mvpRow = nil
+	for _, row in ipairs(r.Rows) do
+		if not mvpRow or (row.Score or 0) > (mvpRow.Score or 0) then
+			mvpRow = row
+		end
+	end
+	if mvpRow then
+		-- 오른쪽 위 MVP 카드: 엠블럼 + 이름 + 기록
+		local card = make("Frame", { Size = UDim2.fromOffset(300, 84), Position = UDim2.new(1, -318, 0, 14), BackgroundColor3 = Color3.fromRGB(30, 20, 60), ZIndex = 11 }, results)
+		corner(card, 12)
+		make("UIStroke", { Color = Color3.fromRGB(255, 200, 60), Thickness = 2 }, card)
+		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 120, 200)), Rotation = 90 }, card)
+		mvpIcon(card, UDim2.fromOffset(92, 92), UDim2.fromOffset(-6, -6), 13)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 28), Position = UDim2.fromOffset(92, 8), BackgroundTransparency = 1, Text = "MATCH MVP",
+			FontFace = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic), TextScaled = true,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 214, 80), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 24), Position = UDim2.fromOffset(92, 36), BackgroundTransparency = 1,
+			Text = mvpRow.Name .. (mvpRow.IsBot and " (봇)" or ""), Font = Enum.Font.GothamBlack, TextScaled = true, TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(200, 18), Position = UDim2.fromOffset(92, 60), BackgroundTransparency = 1,
+			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(220, 215, 245), ZIndex = 12 }, card)
+	end
 	local unit = (r.Mode == "Flag") and "점" or "%"
 	if r.Mode == "Solo" then
 		local t = r.Teams[1]
@@ -10518,7 +10683,7 @@ local function useItem()
 	end
 	local list = items()
 	if #list == 0 then
-		HUD.Banner("아이템이 없어요 — 미션을 성공하면 받아요", Color3.fromRGB(200, 200, 220))
+		HUD.Banner("아이템이 없어요 · 미션을 성공하면 받아요", Color3.fromRGB(200, 200, 220))
 		return
 	end
 	remotes.UseItem:FireServer("use", aimPoint())
@@ -10721,7 +10886,7 @@ local function buildCrate(page)
 	label(top, { Text = "무기 스킨 · 페인트 패턴 · 처치 이펙트 중 1개 (외형 전용, 능력치 변화 없음)", TextSize = 17, Font = Enum.Font.GothamMedium,
 		TextColor3 = C.Sub, Position = UDim2.fromOffset(18, 54), Size = UDim2.new(0.64, 0, 0, 22), TextWrapped = true })
 	local pity = player:GetAttribute("CratePity") or 0
-	label(top, { Text = string.format("천장 %d / %d — %d회 안에 레전더리 확정", pity, Cosmetics.PityCount, Cosmetics.PityCount - pity), TextSize = 17,
+	label(top, { Text = string.format("천장 %d / %d · %d회 안에 레전더리 확정", pity, Cosmetics.PityCount, Cosmetics.PityCount - pity), TextSize = 17,
 		TextColor3 = C.Gold, Position = UDim2.fromOffset(18, 84), Size = UDim2.new(0.64, 0, 0, 22) })
 	if randomItemsRestricted then
 		label(top, { Text = "이 계정/지역에서는 유료 랜덤 상자를 이용할 수 없어요.", TextColor3 = Color3.fromRGB(255, 140, 140), TextSize = 17,
@@ -10859,7 +11024,7 @@ end
 local function buildSkins(page)
 	clear(page)
 	local coins = player:GetAttribute("Coins") or 0
-	label(page, { Text = string.format("보유 코인 %d  —  일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
+	label(page, { Text = string.format("보유 코인 %d · 일일·주간 미션으로 모아서 원하는 스킨을 바로 구매하세요", coins), TextSize = 18, TextColor3 = C.Gold,
 		Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 0, TextWrapped = true })
 	local order = 1
 	for _, r in ipairs(Cosmetics.Rarities) do
@@ -11078,7 +11243,7 @@ end
 ------------------------------------------------------------------------
 -- 랭킹 TOP 50
 ------------------------------------------------------------------------
-local COLS = { { "순위", 70 }, { "이름", 250 }, { "등급", 150 }, { "Rating", 110 }, { "승리", 90 } }
+local COLS = { { "순위", 70 }, { "이름", 200 }, { "등급", 130 }, { "Rating", 110 }, { "승리", 80 }, { "MVP", 80 } }
 local function rowCells(parent, values, color, font, size)
 	local x = 16
 	for i, col in ipairs(COLS) do
@@ -11121,14 +11286,10 @@ local function openBoard()
 			end
 			local medal = tostring(i)
 			local tierColor = TIER_COLOR[r.Tier] or C.Text
-			rowCells(row, { medal, r.Name, r.Tier, tostring(r.Rating), tostring(r.Wins or 0) }, { C.Gold, C.Text, tierColor, C.Cyan, C.Text })
+			rowCells(row, { medal, r.Name, r.Tier, tostring(r.Rating), tostring(r.Wins or 0), tostring(r.MVPs or 0) }, { C.Gold, C.Text, tierColor, C.Cyan, C.Text, C.Gold })
 		end
 		if #res.Rows == 0 then
-			label(boardList, { Text = "아직 랭크 기록이 없어요 — 랭크전에 참가해 보세요!", Size = UDim2.new(1, 0, 0, 40), TextXAlignment = Enum.TextXAlignment.Center })
-		end
-		if not res.Global then
-			label(boardList, { Text = "(현재 서버 기준 · 게임을 게시하면 전체 랭킹이 표시돼요)", Size = UDim2.new(1, 0, 0, 30), LayoutOrder = 999, TextSize = 15,
-				TextColor3 = C.Sub, TextXAlignment = Enum.TextXAlignment.Center })
+			label(boardList, { Text = "아직 랭크 기록이 없어요 · 랭크전에 참가해 보세요!", Size = UDim2.new(1, 0, 0, 40), TextXAlignment = Enum.TextXAlignment.Center })
 		end
 	end)
 end
@@ -11284,7 +11445,7 @@ local function rebuildMatch()
 		end
 	end
 	if not any then
-		label(matchBody, { Text = "지금 대기 중인 배틀이 없어요 — 아래에서 새로 시작하세요", TextSize = 16, TextColor3 = C.Sub, TextWrapped = true,
+		label(matchBody, { Text = "지금 대기 중인 배틀이 없어요 · 아래에서 새로 시작하세요", TextSize = 16, TextColor3 = C.Sub, TextWrapped = true,
 			Size = UDim2.new(1, 0, 0, 40), LayoutOrder = nextOrder() })
 	end
 
@@ -11292,7 +11453,7 @@ local function rebuildMatch()
 	if mine then
 		local qi = info[mine] or {}
 		if qi.HostId == player.UserId and s and s.Maps then
-			label(matchBody, { Text = "방장 — 맵을 고르세요", TextSize = 17, TextColor3 = C.Gold, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = nextOrder() })
+			label(matchBody, { Text = "방장 · 맵을 고르세요", TextSize = 17, TextColor3 = C.Gold, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = nextOrder() })
 			local row = make("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = nextOrder() }, matchBody)
 			make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, row)
 			local opts = { { nil, "순환" }, { "random", "랜덤" } }
@@ -11316,7 +11477,7 @@ local function rebuildMatch()
 					remotes.Queue:FireServer("startNow")
 				end)
 			else
-				label(matchBody, { Text = string.format("정원 %d / %d — 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
+				label(matchBody, { Text = string.format("정원 %d / %d · 모두 모이면 '바로 시작' 버튼이 생겨요 (빈자리는 봇)", n, qi.Capacity or 0), TextSize = 15,
 					TextColor3 = C.Sub, TextWrapped = true, Size = UDim2.new(1, 0, 0, 36), LayoutOrder = nextOrder() })
 			end
 		end
@@ -11343,7 +11504,7 @@ local function refreshStatus()
 		local qi = s.QueueInfo and s.QueueInfo[s.QueueId] or {}
 		statusLbl.Text = string.format("%s 시작까지 %d초 · 맵 %s", s.QueueId or "", math.max(0, math.ceil(s.EndsAt - workspace:GetServerTimeNow())), qi.Map or "")
 	elseif s.Phase == "Playing" or s.Phase == "Results" then
-		statusLbl.Text = "다른 경기 진행 중 — 대기하면 다음 판에 참가해요"
+		statusLbl.Text = "다른 경기 진행 중 · 대기하면 다음 판에 참가해요"
 	else
 		statusLbl.Text = mine and "참가자를 기다리는 중... 발판에서 내려오면 취소" or "발판을 밟거나 아래에서 배틀을 고르세요"
 	end
@@ -11586,7 +11747,7 @@ function Lobby.Init(remoteFolder, hud)
 	end, 44)
 	local header = make("Frame", { Size = UDim2.new(1, -32, 0, 36), Position = UDim2.fromOffset(16, 76), BackgroundColor3 = C.Panel2 }, board)
 	corner(header, 8)
-	rowCells(header, { "순위", "이름", "등급", "Rating", "승리" }, C.Sub, Enum.Font.GothamBlack, 17)
+	rowCells(header, { "순위", "이름", "등급", "Rating", "승리", "MVP" }, C.Sub, Enum.Font.GothamBlack, 17)
 	boardList = make("ScrollingFrame", { Size = UDim2.new(1, -32, 1, -136), Position = UDim2.fromOffset(16, 120), BackgroundTransparency = 1, BorderSizePixel = 0,
 		ScrollBarThickness = 8, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, board)
 	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, boardList)
@@ -12824,7 +12985,7 @@ end
 
 local function special()
 	if (player:GetAttribute("Special") or 0) < 1 then
-		HUD.Banner("스페셜 게이지가 부족해요 — 더 칠하세요!", Color3.fromRGB(255, 220, 80))
+		HUD.Banner("스페셜 게이지가 부족해요 · 더 칠하세요!", Color3.fromRGB(255, 220, 80))
 		return
 	end
 	local cam = camera()

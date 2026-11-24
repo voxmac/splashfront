@@ -37,7 +37,7 @@ local function useItem()
 	end
 	local list = items()
 	if #list == 0 then
-		HUD.Banner("아이템이 없어요 — 미션을 성공하면 받아요", Color3.fromRGB(200, 200, 220))
+		HUD.Banner("아이템이 없어요 · 미션을 성공하면 받아요", Color3.fromRGB(200, 200, 220))
 		return
 	end
 	remotes.UseItem:FireServer("use", aimPoint())

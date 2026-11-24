@@ -315,7 +315,7 @@ end
 
 local function special()
 	if (player:GetAttribute("Special") or 0) < 1 then
-		HUD.Banner("스페셜 게이지가 부족해요 — 더 칠하세요!", Color3.fromRGB(255, 220, 80))
+		HUD.Banner("스페셜 게이지가 부족해요 · 더 칠하세요!", Color3.fromRGB(255, 220, 80))
 		return
 	end
 	local cam = camera()

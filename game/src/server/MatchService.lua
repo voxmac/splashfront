@@ -372,10 +372,33 @@ end
 -- 시작·부활 위치: 맵의 칠할 수 있는 바닥 중 무작위 (살아 있는 적과 35스터드 이상 떨어지고 머리 위가 트인 곳)
 local spawnUp = RaycastParams.new()
 spawnUp.FilterType = Enum.RaycastFilterType.Exclude
+-- 솔로: 맵 전체에서 완전 랜덤 / 팀전(2:2·3:3·5:5): 우리 팀 진영(팀 스폰 주변) 안에서만 랜덤
 local function randomSpawn(e)
 	local cells = arena.Cells and arena.Cells:GetChildren() or {}
 	if #cells == 0 then
 		return nil
+	end
+	if S.Mode ~= "Solo" then
+		local bases = arena.Spawns and arena.Spawns[e.TeamId]
+		if not bases or #bases == 0 then
+			return nil
+		end
+		local R = Config.TeamSpawnRadius or 22
+		local mine = {}
+		for _, c in ipairs(cells) do
+			local p = c.Position
+			for _, b in ipairs(bases) do
+				local d = Vector3.new(p.X - b.Position.X, 0, p.Z - b.Position.Z).Magnitude
+				if d <= R and math.abs(p.Y - b.Position.Y) < 12 then
+					table.insert(mine, c)
+					break
+				end
+			end
+		end
+		if #mine == 0 then
+			return nil
+		end
+		cells = mine
 	end
 	local enemies = {}
 	for _, o in ipairs(Combatants.All()) do
@@ -415,6 +438,16 @@ local function randomSpawn(e)
 		return nil
 	end
 	local look = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5)
+	if S.Mode ~= "Solo" and arena.Spawns then
+		-- 팀전: 상대 진영 쪽을 바라보며 등장
+		for tid, list in pairs(arena.Spawns) do
+			if tid ~= e.TeamId and list[1] then
+				local c = list[1].Position
+				look = Vector3.new(c.X - best.X, 0, c.Z - best.Z)
+				break
+			end
+		end
+	end
 	if look.Magnitude < 0.1 then
 		look = Vector3.new(0, 0, -1)
 	end
@@ -962,6 +995,16 @@ local function endMatch()
 	end)
 	Telemetry.RecordMatch(statRows)
 
+	-- MVP(전체 최고 점수) 횟수 누적 · 랭킹 보드에 표시
+	local top = rows[1]
+	if top and top.Player and top.Player.Parent then
+		local tp = DataService.Get(top.Player)
+		if tp then
+			tp.MVPs = (tp.MVPs or 0) + 1
+			DataService.Publish(top.Player)
+			RankService.RecordMeta(top.Player)
+		end
+	end
 	local winnerInfo = winner and ownerInfo(winner)
 	pcall(function()
 		local mvp = rows[1]
@@ -1069,7 +1112,7 @@ local function setQueue(player, queueId, viaPad, side)
 		if c[side] >= q.TeamSize then
 			local other = 3 - side
 			if viaPad or c[other] >= q.TeamSize then
-				remotes.Notify:FireClient(player, (side == 1 and "블루" or "오렌지") .. " ZONE이 꽉 찼어요" .. (c[other] < q.TeamSize and " — 옆 ZONE에 서 주세요" or ""),
+				remotes.Notify:FireClient(player, (side == 1 and "블루" or "오렌지") .. " ZONE이 꽉 찼어요" .. (c[other] < q.TeamSize and " · 옆 ZONE에 서 주세요" or ""),
 					Color3.fromRGB(255, 180, 120))
 				return
 			end
@@ -1186,7 +1229,7 @@ local function quickJoin(player)
 	end
 	setQueue(player, pick and pick.Id or "3v3", false)
 	if player:GetAttribute("Queue") then
-		remotes.Notify:FireClient(player, "배틀 대기 중 — 정원이 차거나 카운트다운이 끝나면 시작해요 (취소: 배틀 취소 버튼)",
+		remotes.Notify:FireClient(player, "배틀 대기 중 · 정원이 차거나 카운트다운이 끝나면 시작해요 (취소: 배틀 취소 버튼)",
 			Color3.fromRGB(255, 255, 255))
 	end
 end
@@ -1300,7 +1343,7 @@ local function switchWeapon(player, weaponId)
 		return
 	end
 	if not p.Owned[w.Id] then
-		remotes.Notify:FireClient(player, "보유하지 않은 무기예요 — 로비 상점에서 구매", Color3.fromRGB(255, 140, 140))
+		remotes.Notify:FireClient(player, "보유하지 않은 무기예요 · 로비 상점에서 구매", Color3.fromRGB(255, 140, 140))
 		return
 	end
 	if not canSwitch(e) then
@@ -1399,7 +1442,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			setQueue(pl, id, true, want)
 			if pl:GetAttribute("Queue") == id then
 				local zone = side == 1 and " 블루 ZONE" or side == 2 and " 오렌지 ZONE" or ""
-				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " — 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
+				remotes.Notify:FireClient(pl, "대기열 참가: " .. id .. zone .. " · 발판에서 내려오면 취소돼요", Color3.fromRGB(255, 255, 255))
 			end
 		end)
 	end

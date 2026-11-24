@@ -82,7 +82,7 @@ do
 			table.insert(maps, city) -- MatchService가 같은 표를 쓰므로 바로 맵 목록에 나타남
 			return true
 		elseif not ok then
-			warn("[SplashFront] 시가전 맵 생성 실패: " .. tostring(city))
+			warn("[SplashFront] 크로마 시티 맵 생성 실패: " .. tostring(city))
 		end
 		return false
 	end
@@ -93,7 +93,7 @@ do
 				task.wait(2)
 				tryCity()
 			else
-				warn("[SplashFront] 시가전 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
+				warn("[SplashFront] 크로마 시티 맵: ServerStorage에 'BigCity' 모델이 없어 건너뜀")
 			end
 		end)
 	end
@@ -107,6 +107,9 @@ do
 	local url = ReplicatedStorage:FindFirstChild("Images") and ReplicatedStorage.Images:GetAttribute("icon_logo")
 	local board = lobby.Folder:FindFirstChild("TitleBoard")
 	local sg = board and board:FindFirstChild("Logo")
+	if url then
+		MapBuilder.ApplyMonitorLogo(lobby.Folder, url)
+	end
 	if url and sg then
 		for _, c in ipairs(sg:GetChildren()) do
 			if c:IsA("GuiObject") then
@@ -191,4 +194,4 @@ for _, p in ipairs(Players:GetPlayers()) do
 end
 
 MatchService.Run()
-print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") — 로비의 발판을 밟아 매치에 참가하세요")
+print("[SplashFront] 서버 준비 완료 (빌드 " .. Config.Build .. ") · 로비의 발판을 밟아 매치에 참가하세요")

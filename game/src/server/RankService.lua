@@ -25,7 +25,7 @@ function RankService.RecordMeta(player)
 	end
 	task.spawn(function()
 		pcall(function()
-			meta:SetAsync("u" .. player.UserId, { n = player.DisplayName, w = p.Wins or 0, r = p.Rating })
+			meta:SetAsync("u" .. player.UserId, { n = player.DisplayName, w = p.Wins or 0, r = p.Rating, mv = p.MVPs or 0 })
 		end)
 	end)
 end
@@ -34,7 +34,8 @@ local function serverRows()
 	local list = {}
 	for _, pl in ipairs(Players:GetPlayers()) do
 		local r = pl:GetAttribute("Rating") or Config.Rating.Start
-		table.insert(list, { UserId = pl.UserId, Name = pl.DisplayName, Rating = r, Tier = Config.GetTier(r).Name, Wins = pl:GetAttribute("Wins") or 0 })
+		table.insert(list, { UserId = pl.UserId, Name = pl.DisplayName, Rating = r, Tier = Config.GetTier(r).Name, Wins = pl:GetAttribute("Wins") or 0,
+			MVPs = pl:GetAttribute("MVPs") or 0 })
 	end
 	table.sort(list, function(a, b)
 		return a.Rating > b.Rating
@@ -67,6 +68,7 @@ function RankService.GetTop(count)
 					if ok and type(m) == "table" then
 						out[i].Name = m.n or out[i].Name
 						out[i].Wins = m.w or 0
+						out[i].MVPs = m.mv or 0
 					else
 						pcall(function()
 							out[i].Name = Players:GetNameFromUserIdAsync(userId)
@@ -134,12 +136,18 @@ local function fetchGlobal()
 		local rows = {}
 		for _, entry in ipairs(entries) do
 			local userId = tonumber(string.sub(entry.key, 2)) or 0
-			if not nameCache[userId] then
+			local m = nil
+			pcall(function()
+				m = meta and meta:GetAsync(entry.key)
+			end)
+			if type(m) == "table" and m.n then
+				nameCache[userId] = m.n
+			elseif not nameCache[userId] then
 				pcall(function()
 					nameCache[userId] = Players:GetNameFromUserIdAsync(userId)
 				end)
 			end
-			table.insert(rows, { UserId = userId, Name = nameCache[userId] or "?", Rating = entry.value })
+			table.insert(rows, { UserId = userId, Name = nameCache[userId] or "?", Rating = entry.value, MVPs = (type(m) == "table" and m.mv) or 0 })
 		end
 		globalTop.Rows = rows
 	end)
@@ -148,11 +156,11 @@ end
 local function mergedTop(n)
 	local byId = {}
 	for _, r in ipairs(globalTop.Rows) do
-		byId[r.UserId] = { UserId = r.UserId, Name = r.Name, Rating = r.Rating, Online = false }
+		byId[r.UserId] = { UserId = r.UserId, Name = r.Name, Rating = r.Rating, Online = false, MVPs = r.MVPs or 0 }
 	end
 	for _, pl in ipairs(Players:GetPlayers()) do
 		byId[pl.UserId] = { UserId = pl.UserId, Name = pl.DisplayName, Rating = pl:GetAttribute("Rating") or Config.Rating.Start, Online = true,
-			Wins = pl:GetAttribute("Wins") or 0 }
+			Wins = pl:GetAttribute("Wins") or 0, MVPs = pl:GetAttribute("MVPs") or 0 }
 	end
 	local list = {}
 	for _, r in pairs(byId) do
@@ -179,13 +187,13 @@ function RankService.RefreshBoard()
 	local lines = { string.format('<font color="#F0FF28"><b>시즌 %s 랭킹 TOP 10</b></font>   <font color="#8FA0C8" size="20">실시간</font>', Config.Season) }
 	for i, r in ipairs(mergedTop(10)) do
 		local medal = (i == 1 and "#FFD84A") or (i == 2 and "#D8E0F0") or (i == 3 and "#E09A5A") or "#FFFFFF"
-		table.insert(lines, string.format('<font color="%s">%2d.</font> %s  <font color="#7FE8FF">%d</font> <font color="#A8B4D8" size="22">%s</font>%s',
-			medal, i, esc(r.Name), r.Rating, Config.GetTier(r.Rating).Name, r.Online and '  <font color="#3CFF8C" size="20">● 접속 중</font>' or ""))
+		table.insert(lines, string.format('<font color="%s">%2d.</font> %s  <font color="#7FE8FF">%d</font> <font color="#A8B4D8" size="22">%s</font>  <font color="#FFD84A" size="22">MVP %d회</font>%s',
+			medal, i, esc(r.Name), r.Rating, Config.GetTier(r.Rating).Name, r.MVPs or 0, r.Online and '  <font color="#3CFF8C" size="20">● 접속 중</font>' or ""))
 	end
 	table.insert(lines, "")
 	table.insert(lines, '<font color="#FF4FD0"><b>최근 경기</b></font>')
 	if #recent == 0 then
-		table.insert(lines, '<font color="#8FA0C8" size="22">아직 끝난 경기가 없어요 — 발판에 올라 첫 경기를 시작하세요</font>')
+		table.insert(lines, '<font color="#8FA0C8" size="22">아직 끝난 경기가 없어요 · 발판에 올라 첫 경기를 시작하세요</font>')
 	end
 	for i = 1, math.min(3, #recent) do
 		local m = recent[i]

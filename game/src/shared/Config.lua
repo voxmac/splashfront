@@ -65,6 +65,7 @@ Config.MaxHealth = 100
 Config.RegenDelay = 3
 Config.RegenPerSecond = 25
 Config.RespawnTime = 10 -- 사망 후 부활까지(초) · 관리자 패널 설정에서 변경 가능
+Config.TeamSpawnRadius = 22 -- 팀전 리스폰: 우리 팀 스폰 지점 반경(스터드) 안에서 랜덤
 Config.SpawnProtection = 2
 
 Config.InkMax = 100

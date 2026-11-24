@@ -1,4 +1,4 @@
--- 맵 3: 시가전 (Big City)
+-- 맵 3: 크로마 시티 (Big City 시가전)
 -- Studio 인벤토리에서 넣은 "BigCity" 모델(ServerStorage 또는 ServerStorage.Maps 안)을 복제해 전장으로 씀.
 -- 모델 안의 스크립트는 안전을 위해 모두 지우고, 도로·광장처럼 평평한 바닥을 위에서 쏘아 찾아 페인트 셀을 깐다.
 -- 카툰 외곽선·흰색 팔레트·표면 텍스처는 적용하지 않음 (원본 질감 + 사실적인 흐린 오후 조명)
@@ -273,10 +273,10 @@ function CityMap.Build()
 		table.insert(missionSpots, nearestGround(axisPos(p[1] * along, p[2] * side)))
 	end
 
-	print(string.format("[SplashFront] 시가전 맵 준비: 바닥 셀 %d개, 도로 높이 %.1f, 전투 구역 %dx%d", #list, groundY, hx * 2, hz * 2))
+	print(string.format("[SplashFront] 크로마 시티 맵 준비: 바닥 셀 %d개, 도로 높이 %.1f, 전투 구역 %dx%d", #list, groundY, hx * 2, hz * 2))
 	return {
 		Id = "BigCity",
-		Name = "시가전",
+		Name = "크로마 시티",
 		Folder = root,
 		Geometry = model,
 		Cells = cells,

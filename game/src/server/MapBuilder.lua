@@ -374,6 +374,29 @@ local function titleText(gui, text, pos, size, c1, c2)
 	return t
 end
 
+-- 로고 이미지가 준비되면 벽 모니터 오른쪽 위에 작은 로고를 붙임 (제목 폭은 그만큼 줄임)
+function MapBuilder.ApplyMonitorLogo(folder, url)
+	for _, mon in ipairs(folder:GetDescendants()) do
+		if mon.Name == "WallMonitor" and mon:FindFirstChild("Screen") then
+			local bg = mon.Screen:FindFirstChild("BG")
+			if bg and not bg:FindFirstChild("Logo") then
+				local li = Instance.new("ImageLabel")
+				li.Name = "Logo"
+				li.BackgroundTransparency = 1
+				li.Image = url
+				li.ScaleType = Enum.ScaleType.Fit
+				li.Size = UDim2.fromScale(0.26, 0.24)
+				li.Position = UDim2.fromScale(0.72, 0.06)
+				li.Parent = bg
+				local h = bg:FindFirstChild("Head")
+				if h then
+					h.Size = UDim2.fromScale(0.64, 0.34)
+				end
+			end
+		end
+	end
+end
+
 function MapBuilder.BuildLobby()
 	local old = workspace:FindFirstChild("Lobby")
 	if old then
@@ -495,7 +518,7 @@ function MapBuilder.BuildLobby()
 		{ "PAINT TO WIN", "바닥을 더 많이 칠한 팀이 승리 · 페인트 80% + 처치·미션 20%" },
 		{ "ZONE TEAMS", "같은 ZONE 발판에 선 친구끼리 한 팀으로 출전" },
 		{ "DAILY MISSIONS", "일일·주간 미션을 깨고 코인으로 스킨을 사세요" },
-		{ "NEW MAP · 시가전", "도시 한복판에서 벌이는 페인트 시가전" },
+		{ "NEW MAP", "크로마 시티 · 도시 한복판에서 벌이는 페인트 시가전" },
 	}
 	for i, tip in ipairs(tips) do
 		local sx = (i <= 2) and -1 or 1
@@ -511,7 +534,9 @@ function MapBuilder.BuildLobby()
 		g.PixelsPerStud = 32
 		g.LightInfluence = 0
 		g.Parent = mon
+		g.Name = "Screen"
 		local bg = Instance.new("Frame")
+		bg.Name = "BG"
 		bg.Size = UDim2.fromScale(1, 1)
 		bg.BackgroundColor3 = Color3.new(1, 1, 1)
 		bg.Parent = g
@@ -520,27 +545,63 @@ function MapBuilder.BuildLobby()
 		grad.Color = ColorSequence.new(c1:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(10, 12, 28))
 		grad.Rotation = 35
 		grad.Parent = bg
+		-- 타이틀 로고와 같은 스타일: 몬세라트 굵은 이탤릭 + 네온 그라데이션 + 남색 외곽선
+		local TITLE_FONT = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		local pink = (i % 2 == 1)
+		-- 위·아래 네온 라인 (타이틀 보드 테두리 색)
+		for _, yy in ipairs({ 0, 0.975 }) do
+			local ln = Instance.new("Frame")
+			ln.BorderSizePixel = 0
+			ln.Size = UDim2.fromScale(1, 0.025)
+			ln.Position = UDim2.fromScale(0, yy)
+			ln.BackgroundColor3 = (yy == 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40)
+			ln.Parent = bg
+		end
 		local h = Instance.new("TextLabel")
 		h.BackgroundTransparency = 1
-		h.Size = UDim2.fromScale(0.9, 0.42)
-		h.Position = UDim2.fromScale(0.05, 0.12)
-		h.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+		h.Name = "Head"
+		h.Size = UDim2.fromScale(0.9, 0.34)
+		h.Position = UDim2.fromScale(0.05, 0.1)
+		h.FontFace = TITLE_FONT
 		h.TextScaled = true
 		h.TextXAlignment = Enum.TextXAlignment.Left
-		h.TextColor3 = NEON_Y
+		h.TextColor3 = Color3.new(1, 1, 1)
 		h.Text = tip[1]
 		h.Parent = bg
+		local hg = Instance.new("UIGradient")
+		hg.Color = pink and ColorSequence.new(Color3.fromRGB(255, 150, 225), Color3.fromRGB(255, 30, 140))
+			or ColorSequence.new(Color3.fromRGB(150, 245, 255), Color3.fromRGB(0, 150, 255))
+		hg.Rotation = 90
+		hg.Parent = h
+		local hs = Instance.new("UIStroke")
+		hs.Thickness = 4
+		hs.Color = Color3.fromRGB(16, 12, 30)
+		hs.Parent = h
+		-- 제목 아래 노란 사선 띠 (타이틀의 FRONT 띠 느낌)
+		local bar = Instance.new("Frame")
+		bar.BorderSizePixel = 0
+		bar.BackgroundColor3 = NEON_Y
+		bar.Size = UDim2.fromScale(0.3, 0.035)
+		bar.Position = UDim2.fromScale(0.05, 0.48)
+		bar.Rotation = -2
+		bar.Parent = bg
 		local d2 = Instance.new("TextLabel")
 		d2.BackgroundTransparency = 1
-		d2.Size = UDim2.fromScale(0.9, 0.3)
-		d2.Position = UDim2.fromScale(0.05, 0.58)
-		d2.Font = Enum.Font.GothamBold
+		d2.Size = UDim2.fromScale(0.9, 0.34)
+		d2.Position = UDim2.fromScale(0.05, 0.56)
+		d2.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 		d2.TextScaled = true
 		d2.TextWrapped = true
 		d2.TextXAlignment = Enum.TextXAlignment.Left
-		d2.TextColor3 = Color3.fromRGB(225, 232, 255)
+		d2.TextYAlignment = Enum.TextYAlignment.Top
+		d2.TextColor3 = Color3.fromRGB(235, 240, 255)
 		d2.Text = tip[2]
 		d2.Parent = bg
+		local ds = Instance.new("UIStroke")
+		ds.Thickness = 2
+		ds.Color = Color3.fromRGB(10, 8, 24)
+		ds.Transparency = 0.3
+		ds.Parent = d2
 	end
 
 	-- 유리 천장 + 자홍/보라 네온 갈비대 (하늘과 구름이 비침)

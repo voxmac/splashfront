@@ -209,4 +209,4 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 	LobbyUI.ShowCrate(res)
 end)
 
-print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
+print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
