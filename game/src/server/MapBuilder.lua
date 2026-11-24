@@ -1083,55 +1083,108 @@ local function decorate(geo)
 	local rng = Random.new(2026) -- 항상 같은 도시가 나오도록 고정 시드
 	local neon = { Config.Teams[1].Color, Config.Teams[2].Color, Color3.fromRGB(255, 196, 0), Color3.fromRGB(140, 90, 255) }
 
-	-- 1) 경기장 밖 빌딩 숲
-	local function building(x, z, w, d)
-		local h = rng:NextInteger(26, 70)
-		local b = part({ Name = "Building", Parent = deco, Size = Vector3.new(w, h, d), Position = Vector3.new(x, h / 2, z),
-			Color = Color3.fromRGB(rng:NextInteger(26, 44), rng:NextInteger(26, 40), rng:NextInteger(40, 60)), Material = Enum.Material.Concrete })
+	-- 1) 발아래 도시 (스카이 루프탑처럼 고층 옥상 위에서 내려다보는 네온 도시 + 먼 스카이라인)
+	local STREET_Y = -160
+	local function building(x, z, w, d, top)
+		local h = top - STREET_Y
+		local b = part({ Name = "Building", Parent = deco, Size = Vector3.new(w, h, d), Position = Vector3.new(x, STREET_Y + h / 2, z),
+			Color = Color3.fromRGB(rng:NextInteger(24, 40), rng:NextInteger(24, 36), rng:NextInteger(38, 58)), Material = Enum.Material.Concrete })
 		b.CanQuery = false
+		b.CastShadow = false
 		local c = neon[rng:NextInteger(1, #neon)]
 		-- 창문 띠
-		local y = 6
-		while y < h - 4 do
-			if rng:NextNumber() < 0.55 then
+		local y = STREET_Y + 8
+		while y < top - 4 do
+			if rng:NextNumber() < 0.5 then
 				part({ Name = "Window", Parent = deco, Size = Vector3.new(w + 0.2, 0.6, d + 0.2), Position = Vector3.new(x, y, z),
-					Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.35
+					Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.4
 			end
-			y = y + rng:NextInteger(4, 7)
+			y = y + rng:NextInteger(5, 9)
 		end
 		-- 옥상 네온 간판
 		if rng:NextNumber() < 0.35 then
-			part({ Name = "RoofSign", Parent = deco, Size = Vector3.new(w * 0.7, 3, 0.6), Position = Vector3.new(x, h + 2, z),
+			part({ Name = "RoofSign", Parent = deco, Size = Vector3.new(w * 0.7, 3, 0.6), Position = Vector3.new(x, top + 2, z),
 				Color = c, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
 		end
 	end
-	for x = -110 * MS, 110 * MS, 24 do
-		building(x + rng:NextInteger(-3, 3), -86 * MS - rng:NextInteger(0, 12), rng:NextInteger(14, 22), rng:NextInteger(14, 22))
-		building(x + rng:NextInteger(-3, 3), 86 * MS + rng:NextInteger(0, 12), rng:NextInteger(14, 22), rng:NextInteger(14, 22))
+	-- 우리가 서 있는 빌딩 몸통 (옥상 아래로 길게, 창문 띠)
+	local bw, bd = HALF_X * 2 + 60, HALF_Z * 2 + 60
+	local shell = part({ Name = "TowerShell", Parent = deco, Size = Vector3.new(bw, -2 - STREET_Y, bd), Position = Vector3.new(0, (STREET_Y - 2) / 2, 0),
+		Color = Color3.fromRGB(34, 34, 48), Material = Enum.Material.Concrete, CanQuery = false })
+	shell.CastShadow = false
+	for y = STREET_Y + 10, -8, 7 do
+		part({ Name = "Window", Parent = deco, Size = Vector3.new(bw + 0.3, 0.8, bd + 0.3), Position = Vector3.new(0, y, 0),
+			Color = Color3.fromRGB(255, 210, 140), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }).Transparency = 0.55
 	end
-	for z = -66 * MS, 66 * MS, 24 do
-		building(-118 * MS - rng:NextInteger(0, 10), z, rng:NextInteger(14, 22), rng:NextInteger(14, 22))
-		building(118 * MS + rng:NextInteger(0, 10), z, rng:NextInteger(14, 22), rng:NextInteger(14, 22))
+	-- 주변 빌딩: 가까운 건 옥상보다 낮게(내려다보임), 먼 건 높게(스카이라인)
+	for i = 1, 90 do
+		local ang = rng:NextNumber() * math.pi * 2
+		local dist = rng:NextNumber(130, 420) * MS
+		local far = dist > 260 * MS
+		local top = far and rng:NextInteger(20, 120) or rng:NextInteger(-110, -15)
+		local w = rng:NextInteger(18, 34) * MS
+		building(math.cos(ang) * dist, math.sin(ang) * dist, w, w, top)
 	end
-	part({ Name = "CityGround", Parent = deco, Size = Vector3.new(320 * MS, 1, 260 * MS), Position = Vector3.new(0, -2.5, 0),
-		Color = Color3.fromRGB(30, 30, 38), Material = Enum.Material.Asphalt, CanQuery = false })
+	part({ Name = "CityGround", Parent = deco, Size = Vector3.new(1000 * MS, 1, 1000 * MS), Position = Vector3.new(0, STREET_Y - 0.5, 0),
+		Color = Color3.fromRGB(24, 24, 32), Material = Enum.Material.Asphalt, CanQuery = false })
 
-	-- 2) 외벽 위 가로등 (조명)
-	for _, x0 in ipairs({ -70, -50, -30, -10, 10, 30, 50, 70 }) do
-		local x = x0 * MS
+	-- 2) 난간 위 투광등 + 옥상 가장자리 설비(실외기·물탱크·안테나 경고등)
+	for _, x0 in ipairs({ -70, -40, -10, 20, 50 }) do
+		local x = (x0 + 10) * MS
 		for _, s in ipairs({ -1, 1 }) do
-			local pole = part({ Name = "LampPole", Parent = deco, Size = Vector3.new(0.6, 8, 0.6), Position = Vector3.new(x, 20, s * (HALF_Z + 1)),
+			local pole = part({ Name = "LampPole", Parent = deco, Size = Vector3.new(0.6, 9, 0.6), Position = Vector3.new(x, 3.2 + 4.5, s * (HALF_Z + 2.4)),
 				Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal, CanQuery = false })
 			pole.CanCollide = false
-			local head = part({ Name = "Lamp", Parent = deco, Size = Vector3.new(3, 0.6, 1.4), Position = Vector3.new(x, 24.2, s * HALF_Z),
+			local head = part({ Name = "Lamp", Parent = deco, Size = Vector3.new(3, 0.6, 1.4), Position = Vector3.new(x, 12.4, s * (HALF_Z + 1.4)),
 				Color = Color3.fromRGB(255, 240, 220), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
 			local light = Instance.new("SpotLight")
 			light.Face = Enum.NormalId.Bottom
-			light.Range = 48
-			light.Angle = 80
-			light.Brightness = 2.2
+			light.Range = 40
+			light.Angle = 90
+			light.Brightness = 2
 			light.Color = Color3.fromRGB(255, 235, 215)
 			light.Parent = head
+		end
+	end
+	local ledgeX, ledgeZ = HALF_X + 14, HALF_Z + 14
+	for _, s in ipairs({ -1, 1 }) do
+		for _, t in ipairs({ -1, 1 }) do
+			-- 물탱크 (모서리)
+			local tank = part({ Name = "WaterTank", Parent = deco, Shape = Enum.PartType.Cylinder, Size = Vector3.new(10, 8, 8),
+				CFrame = CFrame.new(s * ledgeX, 9, t * ledgeZ) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(120, 96, 70),
+				Material = Enum.Material.WoodPlanks, CanQuery = false })
+			tank.CanCollide = false
+			for _, lx in ipairs({ -2.5, 2.5 }) do
+				for _, lz in ipairs({ -2.5, 2.5 }) do
+					part({ Name = "TankLeg", Parent = deco, Size = Vector3.new(0.5, 4, 0.5), Position = Vector3.new(s * ledgeX + lx, 2, t * ledgeZ + lz),
+						Color = Color3.fromRGB(50, 50, 60), Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+				end
+			end
+			-- 안테나 + 깜빡이는 빨간 경고등
+			local ax, az = s * (ledgeX - 10), t * (ledgeZ + 4)
+			part({ Name = "Antenna", Parent = deco, Size = Vector3.new(0.6, 26, 0.6), Position = Vector3.new(ax, 13, az), Color = Color3.fromRGB(180, 180, 190),
+				Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+			local beacon = part({ Name = "Beacon", Parent = deco, Shape = Enum.PartType.Ball, Size = Vector3.new(1.2, 1.2, 1.2), Position = Vector3.new(ax, 26.4, az),
+				Color = Color3.fromRGB(255, 40, 40), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+			local bl = Instance.new("PointLight")
+			bl.Color = Color3.fromRGB(255, 40, 40)
+			bl.Range = 10
+			bl.Parent = beacon
+			task.spawn(function()
+				while beacon.Parent do
+					beacon.Transparency = (beacon.Transparency == 0) and 0.8 or 0
+					bl.Enabled = beacon.Transparency == 0
+					task.wait(0.9)
+				end
+			end)
+		end
+		-- 실외기 줄 (긴 변 바깥 가장자리)
+		for k = -3, 3 do
+			local u = part({ Name = "ACUnit", Parent = deco, Size = Vector3.new(5, 3.4, 4), Position = Vector3.new(k * 22 * MS, 1.7, s * (HALF_Z + 8)),
+				Color = Color3.fromRGB(196, 198, 206), Material = Enum.Material.Metal, CanCollide = false, CanQuery = false })
+			part({ Name = "ACFan", Parent = deco, Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.3, 2.6, 2.6),
+				CFrame = u.CFrame * CFrame.new(0, 1.75, 0) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(60, 62, 72),
+				Material = Enum.Material.DiamondPlate, CanCollide = false, CanQuery = false })
 		end
 	end
 
@@ -1178,17 +1231,36 @@ function MapBuilder.BuildArena()
 	cells.Name = "Cells"
 	cells.Parent = arena
 
-	-- 바닥
-	part({ Name = "Floor", Parent = geo, Size = Vector3.new(HALF_X * 2 + 8, 2, HALF_Z * 2 + 8), Position = Vector3.new(0, -1, 0),
-		Color = Color3.fromRGB(70, 72, 82), Material = Enum.Material.Concrete })
-	-- 외벽 + 네온 라인
+	-- 바닥: 고층 빌딩 옥상 (경기장 밖으로 넓은 옥상 가장자리까지)
+	part({ Name = "Floor", Parent = geo, Size = Vector3.new(HALF_X * 2 + 60, 2, HALF_Z * 2 + 60), Position = Vector3.new(0, -1, 0),
+		Color = Color3.fromRGB(78, 80, 92), Material = Enum.Material.Concrete })
+	-- 외곽: 높은 철벽 대신 옥상 난간(낮은 콘크리트 + 노란 손잡이 + 네온 띠) + 보이지 않는 벽(밖으로 못 나감)
+	local PARAPET = 3.2
 	for _, s in ipairs({ -1, 1 }) do
-		part({ Name = "Boundary", Parent = geo, Size = Vector3.new(HALF_X * 2 + 8, 16, 2), Position = Vector3.new(0, 8, s * (HALF_Z + 1)),
-			Color = Color3.fromRGB(44, 46, 58), Material = Enum.Material.Metal })
-		part({ Name = "Boundary", Parent = geo, Size = Vector3.new(2, 16, HALF_Z * 2 + 8), Position = Vector3.new(s * (HALF_X + 1), 8, 0),
-			Color = Color3.fromRGB(44, 46, 58), Material = Enum.Material.Metal })
-		part({ Name = "NeonLine", Parent = geo, Size = Vector3.new(HALF_X * 2 + 8, 0.5, 0.3), Position = Vector3.new(0, 15.5, s * HALF_Z),
+		part({ Name = "Boundary", Parent = geo, Size = Vector3.new(HALF_X * 2 + 4, PARAPET, 2), Position = Vector3.new(0, PARAPET / 2, s * (HALF_Z + 1)),
+			Color = Color3.fromRGB(70, 72, 84), Material = Enum.Material.Concrete })
+		part({ Name = "Boundary", Parent = geo, Size = Vector3.new(2, PARAPET, HALF_Z * 2 + 4), Position = Vector3.new(s * (HALF_X + 1), PARAPET / 2, 0),
+			Color = Color3.fromRGB(70, 72, 84), Material = Enum.Material.Concrete })
+		part({ Name = "RailTop", Parent = geo, Size = Vector3.new(HALF_X * 2 + 4, 0.35, 0.5), Position = Vector3.new(0, PARAPET + 1.1, s * (HALF_Z + 1)),
+			Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal, CanQuery = false })
+		part({ Name = "RailTop", Parent = geo, Size = Vector3.new(0.5, 0.35, HALF_Z * 2 + 4), Position = Vector3.new(s * (HALF_X + 1), PARAPET + 1.1, 0),
+			Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal, CanQuery = false })
+		for k = -HALF_X, HALF_X, 8 do
+			part({ Name = "RailPost", Parent = geo, Size = Vector3.new(0.3, 1.1, 0.3), Position = Vector3.new(k, PARAPET + 0.55, s * (HALF_Z + 1)),
+				Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal, CanQuery = false })
+		end
+		for k = -HALF_Z, HALF_Z, 8 do
+			part({ Name = "RailPost", Parent = geo, Size = Vector3.new(0.3, 1.1, 0.3), Position = Vector3.new(s * (HALF_X + 1), PARAPET + 0.55, k),
+				Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal, CanQuery = false })
+		end
+		part({ Name = "NeonLine", Parent = geo, Size = Vector3.new(HALF_X * 2 + 4, 0.3, 0.3), Position = Vector3.new(0, PARAPET - 0.4, s * HALF_Z),
 			Color = Config.Teams[s == -1 and 1 or 2].Color, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+		local inv1 = part({ Name = "InvisibleWall", Parent = geo, Size = Vector3.new(HALF_X * 2 + 4, 40, 2), Position = Vector3.new(0, 20, s * (HALF_Z + 1)),
+			Transparency = 1, CanQuery = false })
+		inv1.CastShadow = false
+		local inv2 = part({ Name = "InvisibleWall", Parent = geo, Size = Vector3.new(2, 40, HALF_Z * 2 + 4), Position = Vector3.new(s * (HALF_X + 1), 20, 0),
+			Transparency = 1, CanQuery = false })
+		inv2.CastShadow = false
 	end
 	-- 투명 천장(지붕 위로 나가지 않게)
 	part({ Name = "Ceiling", Parent = geo, Size = Vector3.new(HALF_X * 2 + 8, 2, HALF_Z * 2 + 8), Position = Vector3.new(0, 40, 0),
@@ -1309,11 +1381,13 @@ function MapBuilder.BuildArena()
 		table.insert(missionSpots, Vector3.new(m[1] * MS, m[2], m[3] * MS))
 	end
 
-	addOutlines(geo)
+	addOutlines(geo, true) -- 루프탑처럼 원래의 어두운 콘크리트·금속 색 유지
 	return {
 		Id = "ChromaSquare",
 		Name = "크로마 스퀘어",
 		KillY = -40,
+		Lighting = "Sunset", -- 스카이 루프탑처럼 노을 + 네온 도시
+		NoTextures = true,
 		Folder = arena,
 		Geometry = geo,
 		Cells = cells,

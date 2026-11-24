@@ -37,47 +37,63 @@ Cosmetics.Items = {
 	{ Id = "FxRainbow", Kind = "Effect", Rarity = "Legendary", Name = "무지개 폭발", Effect = "Rainbow" },
 
 	------------------------------------------------------------------
-	-- 무기 스킨 컬렉션 세트: 같은 테마의 바닥 패턴 + 처치 이펙트 (외형 상점 전용, 크레이트에는 안 나옴)
+	-- 무기 스킨 컬렉션 세트: 같은 테마의 바닥 패턴 + 처치 이펙트 (외형 상점에서 바로 구매 + 크레이트에서도 나옴)
 	-- 패턴: Material(주 재질) + Material2(섞을 재질) + Mix(Checker 체크 / Stripe 사선 줄무늬 / Scatter 흩뿌림)
 	--       Tint(테마 색을 팀 색에 살짝 섞음, TintAmount 0.2 이하라 팀 색은 그대로 읽힘)
 	------------------------------------------------------------------
-	{ Id = "PatSteelWave", Kind = "Pattern", Rarity = "Rare", Collection = "SteelWave", ShopOnly = true, Name = "스틸 웨이브 플레이트",
+	{ Id = "PatSteelWave", Kind = "Pattern", Rarity = "Rare", Collection = "SteelWave", Name = "스틸 웨이브 플레이트",
 		Material = "Metal", Material2 = "DiamondPlate", Mix = "Stripe", Tint = Color3.fromRGB(190, 196, 210), TintAmount = 0.12 },
-	{ Id = "FxSteelWave", Kind = "Effect", Rarity = "Rare", Collection = "SteelWave", ShopOnly = true, Name = "스틸 스파크", Effect = "Sparks" },
-	{ Id = "PatDesertRanger", Kind = "Pattern", Rarity = "Rare", Collection = "DesertRanger", ShopOnly = true, Name = "데저트 샌드",
+	{ Id = "FxSteelWave", Kind = "Effect", Rarity = "Rare", Collection = "SteelWave", Name = "스틸 스파크", Effect = "Sparks" },
+	{ Id = "PatDesertRanger", Kind = "Pattern", Rarity = "Rare", Collection = "DesertRanger", Name = "데저트 샌드",
 		Material = "Sand", Material2 = "Fabric", Mix = "Scatter", Tint = Color3.fromRGB(210, 180, 130), TintAmount = 0.14 },
-	{ Id = "FxDesertRanger", Kind = "Effect", Rarity = "Rare", Collection = "DesertRanger", ShopOnly = true, Name = "모래 폭풍", Effect = "Dust" },
-	{ Id = "PatBlackOnyx", Kind = "Pattern", Rarity = "Epic", Collection = "BlackOnyx", ShopOnly = true, Name = "오닉스 골드 체커",
+	{ Id = "FxDesertRanger", Kind = "Effect", Rarity = "Rare", Collection = "DesertRanger", Name = "모래 폭풍", Effect = "Dust" },
+	{ Id = "PatBlackOnyx", Kind = "Pattern", Rarity = "Epic", Collection = "BlackOnyx", Name = "오닉스 골드 체커",
 		Material = "Slate", Material2 = "Foil", Mix = "Checker", Tint = Color3.fromRGB(230, 180, 70), TintAmount = 0.1 },
-	{ Id = "FxBlackOnyx", Kind = "Effect", Rarity = "Epic", Collection = "BlackOnyx", ShopOnly = true, Name = "골드 샤워", Effect = "GoldShower" },
-	{ Id = "PatSakuraBloom", Kind = "Pattern", Rarity = "Epic", Collection = "SakuraBloom", ShopOnly = true, Name = "벚꽃 대리석",
+	{ Id = "FxBlackOnyx", Kind = "Effect", Rarity = "Epic", Collection = "BlackOnyx", Name = "골드 샤워", Effect = "GoldShower" },
+	{ Id = "PatSakuraBloom", Kind = "Pattern", Rarity = "Epic", Collection = "SakuraBloom", Name = "벚꽃 대리석",
 		Material = "Marble", Material2 = "SmoothPlastic", Mix = "Scatter", Tint = Color3.fromRGB(255, 180, 210), TintAmount = 0.16 },
-	{ Id = "FxSakuraBloom", Kind = "Effect", Rarity = "Epic", Collection = "SakuraBloom", ShopOnly = true, Name = "벚꽃 흩날림", Effect = "Petals" },
-	{ Id = "PatNeonPulse", Kind = "Pattern", Rarity = "Epic", Collection = "NeonPulse", ShopOnly = true, Name = "네온 그리드",
+	{ Id = "FxSakuraBloom", Kind = "Effect", Rarity = "Epic", Collection = "SakuraBloom", Name = "벚꽃 흩날림", Effect = "Petals" },
+	{ Id = "PatNeonPulse", Kind = "Pattern", Rarity = "Epic", Collection = "NeonPulse", Name = "네온 그리드",
 		Material = "Glass", Material2 = "Neon", Mix = "Stripe" },
-	{ Id = "FxNeonPulse", Kind = "Effect", Rarity = "Epic", Collection = "NeonPulse", ShopOnly = true, Name = "네온 펄스 링", Effect = "NeonRings" },
-	{ Id = "PatFrostCrystal", Kind = "Pattern", Rarity = "Epic", Collection = "FrostCrystal", ShopOnly = true, Name = "서리 결정",
+	{ Id = "FxNeonPulse", Kind = "Effect", Rarity = "Epic", Collection = "NeonPulse", Name = "네온 펄스 링", Effect = "NeonRings" },
+	{ Id = "PatFrostCrystal", Kind = "Pattern", Rarity = "Epic", Collection = "FrostCrystal", Name = "서리 결정",
 		Material = "Ice", Material2 = "Glacier", Mix = "Checker", Tint = Color3.fromRGB(210, 240, 255), TintAmount = 0.18 },
-	{ Id = "FxFrostCrystal", Kind = "Effect", Rarity = "Epic", Collection = "FrostCrystal", ShopOnly = true, Name = "얼음 파편", Effect = "IceShatter" },
-	{ Id = "PatInfernoCore", Kind = "Pattern", Rarity = "Legendary", Collection = "InfernoCore", ShopOnly = true, Name = "용암 균열",
+	{ Id = "FxFrostCrystal", Kind = "Effect", Rarity = "Epic", Collection = "FrostCrystal", Name = "얼음 파편", Effect = "IceShatter" },
+	{ Id = "PatInfernoCore", Kind = "Pattern", Rarity = "Legendary", Collection = "InfernoCore", Name = "용암 균열",
 		Material = "CrackedLava", Material2 = "Basalt", Mix = "Scatter", Tint = Color3.fromRGB(255, 120, 30), TintAmount = 0.12 },
-	{ Id = "FxInfernoCore", Kind = "Effect", Rarity = "Legendary", Collection = "InfernoCore", ShopOnly = true, Name = "인페르노 기둥", Effect = "Inferno" },
-	{ Id = "PatChromaGalaxy", Kind = "Pattern", Rarity = "Legendary", Collection = "ChromaGalaxy", ShopOnly = true, Name = "은하수",
+	{ Id = "FxInfernoCore", Kind = "Effect", Rarity = "Legendary", Collection = "InfernoCore", Name = "인페르노 기둥", Effect = "Inferno" },
+	{ Id = "PatChromaGalaxy", Kind = "Pattern", Rarity = "Legendary", Collection = "ChromaGalaxy", Name = "은하수",
 		Material = "ForceField", Material2 = "Neon", Mix = "Scatter", Tint = Color3.fromRGB(150, 110, 255), TintAmount = 0.12 },
-	{ Id = "FxChromaGalaxy", Kind = "Effect", Rarity = "Legendary", Collection = "ChromaGalaxy", ShopOnly = true, Name = "갤럭시 폭발", Effect = "Galaxy" },
+	{ Id = "FxChromaGalaxy", Kind = "Effect", Rarity = "Legendary", Collection = "ChromaGalaxy", Name = "갤럭시 폭발", Effect = "Galaxy" },
 }
 
+-- 크레이트 전용 항목: 무기 스킨 컬렉션 (당첨되면 그 컬렉션 중 아직 없는 총 1종을 무작위로 지급)
+local WeaponSkins = require(script.Parent.WeaponSkins)
+local TIER_RARITY = { Standard = "Rare", Deluxe = "Rare", Premium = "Epic", Ultimate = "Legendary" }
+Cosmetics.CrateWeaponSkins = {}
+for _, line in ipairs(WeaponSkins.Lines) do
+	table.insert(Cosmetics.CrateWeaponSkins, { Id = "WS_" .. line.Id, Kind = "WSkin", Line = line.Id, Rarity = TIER_RARITY[line.Tier] or "Rare",
+		Name = line.Name, Tier = line.Tier })
+end
+
 Cosmetics.ById = {}
-Cosmetics.ByRarity = {}      -- 외형 상점(전부)
-Cosmetics.CrateByRarity = {} -- 크레이트에서 나오는 것만 (상점 전용 세트 제외 → 기존 확률 그대로)
+Cosmetics.ByRarity = {}      -- 외형 상점 목록 (패턴·이펙트·크레이트 스킨)
+Cosmetics.CrateByRarity = {} -- 크레이트에서 나오는 것 전부 (외형 + 컬렉션 세트 + 무기 스킨 컬렉션)
 for _, item in ipairs(Cosmetics.Items) do
 	Cosmetics.ById[item.Id] = item
 	Cosmetics.ByRarity[item.Rarity] = Cosmetics.ByRarity[item.Rarity] or {}
 	table.insert(Cosmetics.ByRarity[item.Rarity], item)
-	if not item.ShopOnly then
-		Cosmetics.CrateByRarity[item.Rarity] = Cosmetics.CrateByRarity[item.Rarity] or {}
-		table.insert(Cosmetics.CrateByRarity[item.Rarity], item)
-	end
+	Cosmetics.CrateByRarity[item.Rarity] = Cosmetics.CrateByRarity[item.Rarity] or {}
+	table.insert(Cosmetics.CrateByRarity[item.Rarity], item)
+end
+for _, item in ipairs(Cosmetics.CrateWeaponSkins) do
+	Cosmetics.ById[item.Id] = item
+	Cosmetics.CrateByRarity[item.Rarity] = Cosmetics.CrateByRarity[item.Rarity] or {}
+	table.insert(Cosmetics.CrateByRarity[item.Rarity], item)
+end
+
+function Cosmetics.KindName(kind)
+	return (kind == "Skin" and "무기 스킨") or (kind == "WSkin" and "무기 스킨 컬렉션") or (kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
 end
 
 function Cosmetics.Rarity(id)

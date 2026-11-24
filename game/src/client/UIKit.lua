@@ -209,6 +209,8 @@ end
 function UI.ItemImage(parent, item, size)
 	if item.Kind == "Skin" then
 		return UI.GunImage(parent, "Rifle", Color3.fromRGB(255, 255, 255), item, size)
+	elseif item.Kind == "WSkin" then
+		return UI.GunImage(parent, item.PreviewWeapon or "Rifle", C.Cyan, nil, size, WeaponSkins.Look(item.Line, 1))
 	end
 	local holder = make("Frame", { Size = size or UDim2.fromScale(1, 1), BackgroundTransparency = 1 }, parent)
 	if item.Kind == "Pattern" then

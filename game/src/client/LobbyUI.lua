@@ -118,7 +118,7 @@ local function buildCrate(page)
 	corner(top, 14)
 	UI.gradient(top, Color3.fromRGB(90, 50, 140), Color3.fromRGB(30, 28, 48), 0)
 	label(top, { Text = "크로마 크레이트", TextSize = 30, Font = Enum.Font.FredokaOne, Position = UDim2.fromOffset(18, 12), Size = UDim2.new(0.62, 0, 0, 36) })
-	label(top, { Text = "무기 스킨 · 페인트 패턴 · 처치 이펙트 중 1개 (외형 전용, 능력치 변화 없음)", TextSize = 17, Font = Enum.Font.GothamMedium,
+	label(top, { Text = "무기 스킨 컬렉션 · 컬렉션 세트 패턴·이펙트 · 기존 외형 중 1개 (외형 전용, 능력치 변화 없음)", TextSize = 17, Font = Enum.Font.GothamMedium,
 		TextColor3 = C.Sub, Position = UDim2.fromOffset(18, 54), Size = UDim2.new(0.64, 0, 0, 22), TextWrapped = true })
 	local pity = player:GetAttribute("CratePity") or 0
 	label(top, { Text = string.format("천장 %d / %d · %d회 안에 레전더리 확정", pity, Cosmetics.PityCount, Cosmetics.PityCount - pity), TextSize = 17,
@@ -169,7 +169,7 @@ local function buildCrate(page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
 		for _, item in ipairs(Cosmetics.CrateByRarity[r.Id]) do
-			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
+			local kindName = Cosmetics.KindName(item.Kind)
 			local have = owned("OwnedCosmetics", item.Id)
 			local card = make("Frame", { BackgroundColor3 = C.Panel }, grid)
 			corner(card, 12)
@@ -180,6 +180,10 @@ local function buildCrate(page)
 			UI.ItemImage(pic, item)
 			label(card, { Text = item.Name, TextSize = 18, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 108), Size = UDim2.new(1, -20, 0, 22),
 				TextTruncate = Enum.TextTruncate.AtEnd })
+			if item.Kind == "WSkin" then
+				have = false
+				kindName = "무기 스킨 · 총 랜덤 1종"
+			end
 			label(card, { Text = kindName .. (have and "  · 보유" or ""), TextSize = 15, TextColor3 = have and Color3.fromRGB(140, 255, 170) or C.Sub,
 				Position = UDim2.fromOffset(10, 130), Size = UDim2.new(1, -20, 0, 18) })
 			label(card, { Text = string.format("%.2f%%", Cosmetics.ItemChance(item)), TextSize = 15, Font = Enum.Font.Code, TextColor3 = r.Color,
@@ -309,7 +313,8 @@ local function buildSkins(page)
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
-		for _, item in ipairs(Cosmetics.CrateByRarity[r.Id]) do
+		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
+			if not item.Collection then
 			local have = owned("OwnedCosmetics", item.Id)
 			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
 			local cardF = make("Frame", { BackgroundColor3 = C.Panel }, grid)
@@ -333,6 +338,7 @@ local function buildSkins(page)
 				task.wait(0.25)
 				buildSkins(page)
 			end)
+			end
 		end
 	end
 	-- 무기 스킨 컬렉션 세트: 같은 테마의 바닥 패턴 + 처치 이펙트
@@ -833,8 +839,12 @@ function Lobby.ShowCrate(res)
 	local pic = make("Frame", { Size = UDim2.new(1, -32, 0, 200), Position = UDim2.fromOffset(16, 66), BackgroundColor3 = C.Panel2 }, card)
 	corner(pic, 14)
 	UI.gradient(pic, res.Color:Lerp(Color3.new(0, 0, 0), 0.4), Color3.fromRGB(20, 18, 32), 90)
-	UI.ItemImage(pic, item)
-	local kindName = (res.Kind == "Skin" and "무기 스킨") or (res.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
+	if res.Kind == "WSkin" then
+		UI.GunImage(pic, res.WeaponId or "Rifle", C.Cyan, nil, nil, WeaponSkins.Look(res.Line, 1))
+	else
+		UI.ItemImage(pic, item)
+	end
+	local kindName = Cosmetics.KindName(res.Kind)
 	label(card, { Text = res.Name, Font = Enum.Font.GothamBlack, TextSize = 28, Position = UDim2.fromOffset(16, 276), Size = UDim2.new(1, -32, 0, 34),
 		TextXAlignment = Enum.TextXAlignment.Center })
 	local sub = kindName
