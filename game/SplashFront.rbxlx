@@ -354,13 +354,13 @@ end
 Config.CrateCoinPrice = 5000
 
 Config.Monetization = {
-	VipGamePassId = 2096803140, -- VIP (코인 1.25배)
-	CrateProductId = 3735180315, -- 크로마 크레이트 79 R$
+	VipGamePassId = 2099866275, -- VIP (코인 1.25배)
+	CrateProductId = 3735438301, -- 크로마 크레이트 79 R$
 	CoinProducts = {
 		-- [개발자 상품 ID] = 지급 코인
-		[3735180593] = 500,
-		[3735180872] = 1200,
-		[3735181059] = 3000,
+		[3735438412] = 500,
+		[3735438631] = 1200,
+		[3735438815] = 3000,
 	},
 }
 
