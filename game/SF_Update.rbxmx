@@ -13382,8 +13382,12 @@ logoImg.Position = UDim2.fromScale(0.5, 0.44)
 logoImg.Size = UDim2.fromScale(0.62, 0.36)
 logoImg.BackgroundTransparency = 1
 logoImg.ScaleType = Enum.ScaleType.Fit
-logoImg.Visible = false
+-- 로고 이미지 ID를 바로 써서 접속 직후부터 이미지 로고 표시 (Images 속성이 오면 그 주소로 갱신)
+logoImg.Image = "rbxassetid://132379224854027"
+logoImg.Visible = true
 logoImg.Parent = bg
+t1.Visible = false
+t2.Visible = false
 task.spawn(function()
 	local RS = game:GetService("ReplicatedStorage")
 	local imgs = RS:WaitForChild("Images", 15)
