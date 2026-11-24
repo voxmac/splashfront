@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Folder" referent="RBX47"><Properties><string name="Name">SF_Update</string></Properties><Item class="Folder" referent="RBX7"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Folder" referent="RBX46"><Properties><string name="Name">SF_Update</string></Properties><Item class="Folder" referent="RBX7"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
@@ -8935,7 +8935,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX44"><Properties><string name="Name">Client</string></Properties><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX43"><Properties><string name="Name">Client</string></Properties><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9442,8 +9442,6 @@ local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
 local ItemClient = require(script.Parent:WaitForChild("ItemClient"))
-local ImeMove = require(script.Parent:WaitForChild("ImeMove"))
-ImeMove.Init() -- 한글 입력 상태에서도 WASD 이동
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
@@ -11398,71 +11396,7 @@ function HUD.ItemToast(id)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">ImeMove</string><ProtectedString name="Source"><![CDATA[-- 한글 입력기(IME) 상태에서도 WASD로 이동되게 보완
--- 원인: 채팅에서 한/영을 한글로 바꾼 뒤에는 Roblox 기본 이동(PlayerModule)이 W·A·S·D를 '이동 동작'으로 받지 못함.
---       (화살표 키는 글자가 아니라 그대로 됨) 하지만 W·A·S·D 키 자체는 게임에 들어옴(KeyCode 확인함).
--- 해결: W·A·S·D가 눌려 있는데 기본 이동이 0일 때만, 같은 방식(카메라 기준)으로 대신 움직여 줌.
---       기본 이동이 정상일 때(영문 상태)는 아무것도 하지 않으므로 이중 이동이 생기지 않음.
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-
-local ImeMove = {}
-
-local player = Players.LocalPlayer
-local controls = nil
-
-local function getControls()
-	if controls then
-		return controls
-	end
-	local ps = player:FindFirstChild("PlayerScripts")
-	local pm = ps and ps:FindFirstChild("PlayerModule")
-	if pm then
-		local ok, mod = pcall(require, pm)
-		if ok and mod and mod.GetControls then
-			controls = mod:GetControls()
-		end
-	end
-	return controls
-end
-
-local K = Enum.KeyCode
-
-function ImeMove.Init()
-	RunService:BindToRenderStep("SF_ImeMove", Enum.RenderPriority.Input.Value + 1, function()
-		-- 채팅 등 글 입력 중에는 움직이지 않음
-		if UserInputService:GetFocusedTextBox() then
-			return
-		end
-		local x = (UserInputService:IsKeyDown(K.D) and 1 or 0) - (UserInputService:IsKeyDown(K.A) and 1 or 0)
-		local z = (UserInputService:IsKeyDown(K.W) and 1 or 0) - (UserInputService:IsKeyDown(K.S) and 1 or 0)
-		if x == 0 and z == 0 then
-			return
-		end
-		local c = player.Character
-		local hum = c and c:FindFirstChildOfClass("Humanoid")
-		if not hum or hum.Health <= 0 or hum.PlatformStand then
-			return
-		end
-		local ctl = getControls()
-		if ctl then
-			local ok, mv = pcall(function()
-				return ctl:GetMoveVector()
-			end)
-			if ok and mv and mv.Magnitude > 0.01 then
-				return -- 기본 이동이 정상 동작 중 → 손대지 않음
-			end
-			if ctl.GetActiveController and ctl:GetActiveController() == nil then
-				return -- 이동 컨트롤이 꺼진 상태(게임이 일부러 막은 경우)는 존중
-			end
-		end
-		hum:Move(Vector3.new(x, 0, -z).Unit, true) -- 카메라 기준 (기본 이동과 같은 방식)
-	end)
-end
-
-return ImeMove
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -11582,7 +11516,7 @@ function ItemClient.Init(remoteFolder, hud)
 end
 
 return ItemClient
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -12916,7 +12850,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13092,7 +13026,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -13185,7 +13119,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -13408,7 +13342,7 @@ function PV.Init()
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -13492,7 +13426,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -13772,7 +13706,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -14599,7 +14533,7 @@ function WC.Init(remoteFolder, hud, effects)
 end
 
 return WC
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX46"><Properties><string name="Name">First</string></Properties><Item class="LocalScript" referent="RBX45"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX45"><Properties><string name="Name">First</string></Properties><Item class="LocalScript" referent="RBX44"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
 -- 격납고 유리 천장 위에서 카메라가 떨어지듯 내려와 캐릭터 뒤에 붙으며 화면이 열림 (하늘·빈 공간이 보이지 않게)
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")

@@ -17,8 +17,6 @@ local MusicPlayer = require(script.Parent:WaitForChild("MusicPlayer"))
 local CharacterPose = require(script.Parent:WaitForChild("CharacterPose"))
 local PaintVisual = require(script.Parent:WaitForChild("PaintVisual"))
 local ItemClient = require(script.Parent:WaitForChild("ItemClient"))
-local ImeMove = require(script.Parent:WaitForChild("ImeMove"))
-ImeMove.Init() -- 한글 입력 상태에서도 WASD 이동
 local StarterGui = game:GetService("StarterGui")
 local TextChatService = game:GetService("TextChatService")
 
