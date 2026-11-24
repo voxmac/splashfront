@@ -1,5 +1,8 @@
 -- SPLASH FRONT 서버 진입점
 local Players = game:GetService("Players")
+-- 맵을 만드는 동안 Roblox가 기본 캐릭터를 먼저 만들어 버리면, 곧 우리 캐릭터로 다시 생성되면서
+-- 입장 카메라가 사라진 캐릭터를 붙잡는 문제가 생김 → 가장 먼저 자동 생성을 끔
+Players.CharacterAutoLoads = false
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Services = script.Parent
@@ -166,7 +169,12 @@ task.spawn(function()
 	end
 end)
 
+local started = {} -- 같은 플레이어를 두 번 처리하지 않게 (PlayerAdded + 기존 플레이어 루프가 겹칠 때)
 local function onPlayer(player)
+	if started[player] then
+		return
+	end
+	started[player] = true
 	if not AdminService.Gate(player) then
 		return
 	end
@@ -186,9 +194,13 @@ local function onPlayer(player)
 		end)
 	end)
 	player:LoadCharacter()
+	player:SetAttribute("LobbyReady", true) -- 입장 화면은 이 캐릭터가 준비된 뒤에 열림
 end
 
 Players.PlayerAdded:Connect(onPlayer)
+Players.PlayerRemoving:Connect(function(player)
+	started[player] = nil
+end)
 for _, p in ipairs(Players:GetPlayers()) do
 	task.spawn(onPlayer, p)
 end

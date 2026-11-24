@@ -158,7 +158,8 @@ local function lobbyCharacter()
 	local root = c and c:FindFirstChild("HumanoidRootPart")
 	-- 캐릭터가 로비에 있고, 프로필(코인)과 로비 UI까지 준비됐을 때 화면을 엶
 	local pg = player:FindFirstChild("PlayerGui")
-	if root and root.Position.Y > 300 and player:GetAttribute("Coins") ~= nil and pg and pg:FindFirstChild("SplashLobby") then
+	-- LobbyReady: 서버가 로비 캐릭터를 만든 뒤 켬 (그 전의 임시 캐릭터로 연출을 시작하지 않게)
+	if root and root.Position.Y > 300 and player:GetAttribute("Coins") ~= nil and player:GetAttribute("LobbyReady") and pg and pg:FindFirstChild("SplashLobby") then
 		return c, root
 	end
 	return nil
@@ -223,7 +224,13 @@ if char and root and cam then
 	cam.CameraType = Enum.CameraType.Custom
 	cam:SetAttribute("SF_Intro", nil)
 	if nowChar ~= char then
-		endCf = cam.CFrame
+		-- 연출 중 캐릭터가 바뀌었으면 새 캐릭터 뒤쪽에서 이어받음 (위에서 내려다보는 각도로 남지 않게)
+		local nr = nowChar and nowChar:FindFirstChild("HumanoidRootPart")
+		if nr then
+			endCf = CFrame.lookAt(nr.Position - nr.CFrame.LookVector * 12 + Vector3.new(0, 5, 0), nr.Position + nr.CFrame.LookVector * 6 + Vector3.new(0, 1.5, 0))
+		else
+			endCf = cam.CFrame
+		end
 	end
 	-- 기본 카메라가 이 방향을 이어받도록 잠깐 같은 자리에 붙잡아 둠 (기본 카메라는 현재 카메라 방향을 기준으로 회전함)
 	local hold = os.clock()
