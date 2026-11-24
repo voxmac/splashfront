@@ -58,6 +58,9 @@ fx.Parent = workspace
 -- 업로드된 Blender 모델 불러오기 (없으면 내장 대체 모델)
 ModelService.Load()
 
+-- 운영 설정 (관리자 패널에서 바꾼 값 불러오기)
+require(script.Parent.SettingsService).Init()
+
 -- 맵
 MapBuilder.SetupLighting()
 local lobby = MapBuilder.BuildLobby()

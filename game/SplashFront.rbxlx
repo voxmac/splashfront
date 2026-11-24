@@ -110,10 +110,10 @@ Config.CBT = {
 -- 개발자 치트(코인 지급·무기 해금·무료 크레이트·레이팅 변경·데이터 초기화 등)
 -- 정식 서버에서는 false: 관리자라도 운영용 명령(경기 종료·맵 변경·봇·리포트)만 가능.
 -- Studio 테스트에서는 이 값과 관계없이 모두 사용 가능.
-Config.DevTools = false
+Config.DevTools = true -- 관리자(Admins 명단)만 쓸 수 있음. 치트를 막으려면 false
 
 -- 운영용(치트가 아닌) 관리자 명령
-Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true }
+Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true, settings = true, setSetting = true }
 
 -- 페인트 셀
 Config.CellSize = 4              -- 셀 한 칸 크기(스터드)
@@ -149,7 +149,7 @@ Config.SoloColors = {
 Config.MaxHealth = 100
 Config.RegenDelay = 3
 Config.RegenPerSecond = 25
-Config.RespawnTime = 4
+Config.RespawnTime = 10 -- 사망 후 부활까지(초) · 관리자 패널 설정에서 변경 가능
 Config.SpawnProtection = 2
 
 Config.InkMax = 100
@@ -286,6 +286,62 @@ Config.Tiers = {
 Config.Season = "S1"
 
 -- 수익화 (Creator Hub에서 만든 실제 ID로 교체. 0이면 비활성)
+-- 관리자 패널에서 바꿀 수 있는 운영 설정 (저장되어 모든 서버·재시작 후에도 유지)
+-- Key = 설정 이름, Path = Config 안 위치("RespawnTime" 또는 "Item:Jetpack"), Min/Max/Step = 허용 범위
+Config.Tunables = {
+	{ Key = "RespawnTime", Name = "부활 대기(초)", Min = 2, Max = 30, Step = 1 },
+	{ Key = "MatchLength", Name = "경기 시간(초)", Min = 60, Max = 900, Step = 30 },
+	{ Key = "LobbyCountdown", Name = "시작 대기(초)", Min = 5, Max = 60, Step = 5 },
+	{ Key = "MissionInterval", Name = "미션 간격(초)", Min = 15, Max = 120, Step = 5 },
+	{ Key = "Item:Jetpack", Name = "제트팩 유지(초)", Min = 3, Max = 60, Step = 1 },
+	{ Key = "Item:Shield", Name = "무적 유지(초)", Min = 2, Max = 30, Step = 1 },
+	{ Key = "Item:Smoke", Name = "연막 유지(초)", Min = 3, Max = 60, Step = 1 },
+	{ Key = "Item:Zoom3", Name = "3배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
+	{ Key = "Item:Zoom6", Name = "6배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
+	{ Key = "CrateCoinPrice", Name = "크레이트 코인가", Min = 500, Max = 50000, Step = 500 },
+	{ Key = "FillWithBots", Name = "빈자리 봇 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
+}
+
+function Config.GetTunable(key)
+	local id = string.match(key, "^Item:(.+)$")
+	if id then
+		for _, it in ipairs(Config.Items) do
+			if it.Id == id then
+				return it.Duration
+			end
+		end
+		return nil
+	end
+	local v = Config[key]
+	if type(v) == "boolean" then
+		return v and 1 or 0
+	end
+	return v
+end
+
+-- 설정 적용 (서버·클라이언트 공통). values = { [Key] = 숫자 }
+function Config.ApplySettings(values)
+	for _, t in ipairs(Config.Tunables) do
+		local v = tonumber(values and values[t.Key])
+		if v then
+			v = math.clamp(v, t.Min, t.Max)
+			local id = string.match(t.Key, "^Item:(.+)$")
+			if id then
+				for _, it in ipairs(Config.Items) do
+					if it.Id == id and it.Duration then
+						it.Desc = string.gsub(it.Desc, tostring(it.Duration) .. "초", tostring(v) .. "초", 1)
+						it.Duration = v
+					end
+				end
+			elseif type(Config[t.Key]) == "boolean" then
+				Config[t.Key] = v >= 1
+			else
+				Config[t.Key] = v
+			end
+		end
+	end
+end
+
 -- 크로마 크레이트를 포인트(코인)로도 개봉
 Config.CrateCoinPrice = 5000
 
@@ -1324,7 +1380,7 @@ end
 done = true
 task.wait(0.5)
 gui:Destroy()
-]]></ProtectedString></Properties></Item></Item><Item class="ServerScriptService" referent="RBX30"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX10"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
+]]></ProtectedString></Properties></Item></Item><Item class="ServerScriptService" referent="RBX31"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="ModuleScript" referent="RBX10"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1336,6 +1392,7 @@ local CrateService = require(script.Parent.CrateService)
 local MatchService = require(script.Parent.MatchService)
 local Combatants = require(script.Parent.Combatants)
 local Telemetry = require(script.Parent.TelemetryService)
+local SettingsService = require(script.Parent.SettingsService)
 
 local AdminService = {}
 
@@ -1482,6 +1539,20 @@ end
 
 ACTIONS.feedback = function()
 	return Telemetry.FeedbackList()
+end
+
+-- 운영 설정 (부활 시간·아이템 유지 시간 등)
+ACTIONS.settings = function()
+	return SettingsService.List()
+end
+
+ACTIONS.setSetting = function(player, arg)
+	local key, value = string.match(tostring(arg or ""), "^([%w:]+)=(%-?[%d%.]+)$")
+	local ok, msg = SettingsService.Set(key, value)
+	if not ok then
+		error(msg)
+	end
+	return msg
 end
 
 function AdminService.Init(remotes)
@@ -3554,6 +3625,9 @@ fx.Parent = workspace
 
 -- 업로드된 Blender 모델 불러오기 (없으면 내장 대체 모델)
 ModelService.Load()
+
+-- 운영 설정 (관리자 패널에서 바꾼 값 불러오기)
+require(script.Parent.SettingsService).Init()
 
 -- 맵
 MapBuilder.SetupLighting()
@@ -7782,7 +7856,103 @@ function RankService.StartBoard(textLabel)
 end
 
 return RankService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">SettingsService</string><ProtectedString name="Source"><![CDATA[-- 운영 설정 (관리자 패널): 부활 시간·경기 시간·아이템 유지 시간 등
+-- 바꾸면 DataStore에 저장(재시작해도 유지) + MessagingService로 다른 서버에도 즉시 반영 + 클라이언트에 공유
+local DataStoreService = game:GetService("DataStoreService")
+local MessagingService = game:GetService("MessagingService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local SettingsService = {}
+
+local store = nil
+pcall(function()
+	store = DataStoreService:GetDataStore("SplashFront_Settings_" .. Config.DataVersion)
+end)
+local TOPIC = "SF_Settings"
+local current = {}
+
+local function publishToClients()
+	local snapshot = {}
+	for _, t in ipairs(Config.Tunables) do
+		snapshot[t.Key] = Config.GetTunable(t.Key)
+	end
+	ReplicatedStorage:SetAttribute("SF_Settings", HttpService:JSONEncode(snapshot))
+end
+
+local function apply(values)
+	for k, v in pairs(values or {}) do
+		current[k] = v
+	end
+	Config.ApplySettings(values)
+	publishToClients()
+end
+
+function SettingsService.Init()
+	if store then
+		local ok, data = pcall(function()
+			return store:GetAsync("global")
+		end)
+		if ok and type(data) == "table" then
+			apply(data)
+		end
+	end
+	publishToClients()
+	pcall(function()
+		MessagingService:SubscribeAsync(TOPIC, function(msg)
+			local ok, data = pcall(function()
+				return HttpService:JSONDecode(msg.Data)
+			end)
+			if ok and type(data) == "table" then
+				apply(data)
+			end
+		end)
+	end)
+end
+
+-- 관리자: 설정 하나 바꾸기. 반환: 결과 문구
+function SettingsService.Set(key, value)
+	local def = nil
+	for _, t in ipairs(Config.Tunables) do
+		if t.Key == key then
+			def = t
+		end
+	end
+	value = tonumber(value)
+	if not def or not value then
+		return false, "알 수 없는 설정"
+	end
+	value = math.clamp(math.floor(value / def.Step + 0.5) * def.Step, def.Min, def.Max)
+	apply({ [key] = value })
+	task.spawn(function()
+		if store then
+			pcall(function()
+				store:UpdateAsync("global", function(old)
+					old = type(old) == "table" and old or {}
+					old[key] = value
+					return old
+				end)
+			end)
+		end
+		pcall(function()
+			MessagingService:PublishAsync(TOPIC, HttpService:JSONEncode({ [key] = value }))
+		end)
+	end)
+	return true, string.format("%s = %s (모든 서버에 저장·적용)", def.Name, tostring(value))
+end
+
+-- 관리자 패널 표시용 목록
+function SettingsService.List()
+	local rows = {}
+	for _, t in ipairs(Config.Tunables) do
+		table.insert(rows, { Key = t.Key, Name = t.Name, Value = Config.GetTunable(t.Key), Min = t.Min, Max = t.Max, Step = t.Step })
+	end
+	return rows
+end
+
+return SettingsService
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -7946,7 +8116,7 @@ function ShopService.Init(remotes)
 end
 
 return ShopService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
 local Signal = {}
 Signal.__index = Signal
 
@@ -7976,7 +8146,7 @@ function Signal:Fire(...)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
 -- 1) Roblox AnalyticsService: 온보딩 퍼널 / 경제 / 커스텀 이벤트 → Creator Hub > 분석 에서 확인
 -- 2) 무기별 밸런스 통계 (자체 DataStore) → 관리자 패널 "밸런스 리포트"
 -- 3) 게임 내 피드백 (자체 DataStore) → 관리자 패널 "피드백 보기"
@@ -8245,7 +8415,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX45"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX44"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX46"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX45"><Properties><string name="Name">StarterPlayerScripts</string></Properties><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8392,7 +8562,7 @@ local function buildAdmin()
 	if adminFrame then
 		adminFrame:Destroy()
 	end
-	adminFrame = make("Frame", { Size = UDim2.fromOffset(560, 470), Position = UDim2.new(0.5, -280, 0.5, -235), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
+	adminFrame = make("Frame", { Size = UDim2.fromOffset(900, 500), Position = UDim2.new(0.5, -450, 0.5, -250), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
 	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 196, 0) }, adminFrame)
@@ -8433,11 +8603,66 @@ local function buildAdmin()
 			admin(c[1], argBox.Text ~= "" and argBox.Text or nil)
 		end)
 	end
-	reportBox = make("TextLabel", { Size = UDim2.new(1, -28, 0, 220), Position = UDim2.fromOffset(14, 236), BackgroundColor3 = Color3.fromRGB(28, 28, 40),
+	reportBox = make("TextLabel", { Size = UDim2.fromOffset(532, 220), Position = UDim2.fromOffset(14, 266), BackgroundColor3 = Color3.fromRGB(28, 28, 40),
 		TextColor3 = Color3.fromRGB(220, 230, 240), Font = Enum.Font.Code, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "밸런스 리포트 / 피드백 결과가 여기 표시됩니다", ZIndex = 41 }, adminFrame)
 	corner(reportBox, 6)
 	make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingTop = UDim.new(0, 6) }, reportBox)
+
+	-- 오른쪽: 운영 설정 (부활 시간·경기 시간·아이템 유지 시간…) — 바꾸면 저장되어 모든 서버에 적용
+	local side = make("Frame", { Size = UDim2.fromOffset(326, 446), Position = UDim2.fromOffset(560, 40), BackgroundColor3 = Color3.fromRGB(24, 26, 40),
+		ZIndex = 41 }, adminFrame)
+	corner(side, 8)
+	label(side, { Text = "운영 설정 (저장 · 모든 서버 적용)", TextSize = 15, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 6),
+		Size = UDim2.new(1, -20, 0, 24), ZIndex = 42, TextColor3 = Color3.fromRGB(255, 220, 90) })
+	local list = make("ScrollingFrame", { Size = UDim2.new(1, -12, 1, -40), Position = UDim2.fromOffset(6, 34), BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 5, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 42 }, side)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, list)
+	local function refreshSettings()
+		for _, c in ipairs(list:GetChildren()) do
+			if c:IsA("GuiObject") then
+				c:Destroy()
+			end
+		end
+		local ok, res = pcall(function()
+			return remotes.Admin:InvokeServer("settings")
+		end)
+		if not ok or not res or not res.ok or type(res.msg) ~= "table" then
+			label(list, { Text = "설정을 불러오지 못했어요", TextSize = 14, Size = UDim2.new(1, 0, 0, 24), ZIndex = 43 })
+			return
+		end
+		for i, r in ipairs(res.msg) do
+			local row = make("Frame", { Size = UDim2.new(1, -6, 0, 32), BackgroundColor3 = Color3.fromRGB(34, 38, 58), LayoutOrder = i, ZIndex = 43 }, list)
+			corner(row, 6)
+			label(row, { Text = r.Name, TextSize = 13, Font = Enum.Font.GothamBold, Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -150, 1, 0), ZIndex = 44 })
+			local val = label(row, { Text = tostring(r.Value), TextSize = 15, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -104, 0, 0),
+				Size = UDim2.fromOffset(60, 32), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 44, TextColor3 = Color3.fromRGB(120, 230, 255) })
+			local function change(dir)
+				local nv = math.clamp((tonumber(r.Value) or 0) + dir * r.Step, r.Min, r.Max)
+				if nv == r.Value then
+					return
+				end
+				admin("setSetting", r.Key .. "=" .. nv)
+				r.Value = nv
+				val.Text = tostring(nv)
+			end
+			local minus = button(row, "-", Color3.fromRGB(150, 50, 70), { Size = UDim2.fromOffset(34, 26), Position = UDim2.new(1, -142, 0, 3), ZIndex = 44,
+				TextSize = 18 })
+			minus.MouseButton1Click:Connect(function()
+				change(-1)
+			end)
+			local plus = button(row, "+", Color3.fromRGB(0, 150, 100), { Size = UDim2.fromOffset(34, 26), Position = UDim2.new(1, -40, 0, 3), ZIndex = 44,
+				TextSize = 18 })
+			plus.MouseButton1Click:Connect(function()
+				change(1)
+			end)
+		end
+	end
+	adminFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if adminFrame.Visible then
+			task.spawn(refreshSettings)
+		end
+	end)
 end
 
 function CBT.ToggleAdmin()
@@ -8502,7 +8727,7 @@ function CBT.OnResults()
 end
 
 return CBT
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
 --  · 조준: 총을 앞으로 겨누고 상체·머리·팔이 조준 각도(AimPitch)를 나눠서 따라감
 --  · 달리기: 상체를 숙이고 총을 비스듬히 내려 듦 · 걷기: 몸을 낮추고 조심스럽게 · 앉기: 무릎을 굽힌 자세 (움직이면 종종걸음)
 --  · 사격 반동: 팔이 위로 튀었다가 돌아옴
@@ -8678,7 +8903,7 @@ function Pose.Init()
 end
 
 return Pose
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX33"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX34"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -8717,6 +8942,24 @@ task.spawn(function()
 	end
 end)
 
+-- 관리자가 바꾼 운영 설정(부활 시간·아이템 유지 시간 등)을 이 클라이언트의 Config에도 반영
+do
+	local HttpService = game:GetService("HttpService")
+	local Cfg = require(ReplicatedStorage.Shared.Config)
+	local function sync()
+		local raw = ReplicatedStorage:GetAttribute("SF_Settings")
+		if raw then
+			local ok, t = pcall(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if ok then
+				Cfg.ApplySettings(t)
+			end
+		end
+	end
+	sync()
+	ReplicatedStorage:GetAttributeChangedSignal("SF_Settings"):Connect(sync)
+end
 HUD.Build()
 -- 전체 UI 글꼴을 SF 이탤릭으로 (이후 만들어지는 창·킬피드·결과 화면 포함)
 require(script.Parent:WaitForChild("UIKit")).AutoStyle(player:WaitForChild("PlayerGui"))
@@ -8864,7 +9107,7 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 end)
 
 print("[SplashFront] 클라이언트 준비 — B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -9247,7 +9490,7 @@ function Effects.OnFX(kind, d)
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10393,7 +10636,7 @@ function HUD.ItemToast(id)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -10513,7 +10756,7 @@ function ItemClient.Init(remoteFolder, hud)
 end
 
 return ItemClient
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -10680,7 +10923,7 @@ local function buildCrate(page)
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		order = order + 1
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.fromOffset(176, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
 		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
 			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
@@ -10712,7 +10955,7 @@ local function buildCollection(page)
 	label(page, { Text = "보유 무기", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
 	order = order + 1
 	local wgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, wgrid)
+	make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, wgrid)
 	order = order + 1
 	local equippedW = player:GetAttribute("Weapon")
 	for i, w in ipairs(Weapons.List) do
@@ -10784,7 +11027,7 @@ local function buildSkins(page)
 			Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		order = order + 1
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
 		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
 			local have = owned("OwnedCosmetics", item.Id)
@@ -10834,7 +11077,7 @@ local function buildRobux(page)
 	label(page, { Text = "로벅스로 VIP와 코인을 충전할 수 있어요 · 코인은 스킨 상점·무기 구매에 사용", TextSize = 18, TextColor3 = C.Sub,
 		Size = UDim2.new(1, -10, 0, 28), LayoutOrder = 0 })
 	local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1 }, page)
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 250), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+	make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 250), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 	local M = Config.Monetization
 	local items = {
 		{ Kind = "Pass", Id = M.VipGamePassId, Title = "VIP", Sub = "코인 획득 1.25배 (영구)", Icon = "crown", Color = Color3.fromRGB(255, 180, 40) },
@@ -11585,7 +11828,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11757,7 +12000,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -11850,7 +12093,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -12073,7 +12316,7 @@ function PV.Init()
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -12150,7 +12393,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -12412,7 +12655,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX44"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")

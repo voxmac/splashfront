@@ -25,10 +25,10 @@ Config.CBT = {
 -- 개발자 치트(코인 지급·무기 해금·무료 크레이트·레이팅 변경·데이터 초기화 등)
 -- 정식 서버에서는 false: 관리자라도 운영용 명령(경기 종료·맵 변경·봇·리포트)만 가능.
 -- Studio 테스트에서는 이 값과 관계없이 모두 사용 가능.
-Config.DevTools = false
+Config.DevTools = true -- 관리자(Admins 명단)만 쓸 수 있음. 치트를 막으려면 false
 
 -- 운영용(치트가 아닌) 관리자 명령
-Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true }
+Config.OpsCommands = { endMatch = true, nextMap = true, bots = true, balance = true, feedback = true, settings = true, setSetting = true }
 
 -- 페인트 셀
 Config.CellSize = 4              -- 셀 한 칸 크기(스터드)
@@ -64,7 +64,7 @@ Config.SoloColors = {
 Config.MaxHealth = 100
 Config.RegenDelay = 3
 Config.RegenPerSecond = 25
-Config.RespawnTime = 4
+Config.RespawnTime = 10 -- 사망 후 부활까지(초) · 관리자 패널 설정에서 변경 가능
 Config.SpawnProtection = 2
 
 Config.InkMax = 100
@@ -201,6 +201,62 @@ Config.Tiers = {
 Config.Season = "S1"
 
 -- 수익화 (Creator Hub에서 만든 실제 ID로 교체. 0이면 비활성)
+-- 관리자 패널에서 바꿀 수 있는 운영 설정 (저장되어 모든 서버·재시작 후에도 유지)
+-- Key = 설정 이름, Path = Config 안 위치("RespawnTime" 또는 "Item:Jetpack"), Min/Max/Step = 허용 범위
+Config.Tunables = {
+	{ Key = "RespawnTime", Name = "부활 대기(초)", Min = 2, Max = 30, Step = 1 },
+	{ Key = "MatchLength", Name = "경기 시간(초)", Min = 60, Max = 900, Step = 30 },
+	{ Key = "LobbyCountdown", Name = "시작 대기(초)", Min = 5, Max = 60, Step = 5 },
+	{ Key = "MissionInterval", Name = "미션 간격(초)", Min = 15, Max = 120, Step = 5 },
+	{ Key = "Item:Jetpack", Name = "제트팩 유지(초)", Min = 3, Max = 60, Step = 1 },
+	{ Key = "Item:Shield", Name = "무적 유지(초)", Min = 2, Max = 30, Step = 1 },
+	{ Key = "Item:Smoke", Name = "연막 유지(초)", Min = 3, Max = 60, Step = 1 },
+	{ Key = "Item:Zoom3", Name = "3배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
+	{ Key = "Item:Zoom6", Name = "6배줌 유지(초)", Min = 10, Max = 300, Step = 10 },
+	{ Key = "CrateCoinPrice", Name = "크레이트 코인가", Min = 500, Max = 50000, Step = 500 },
+	{ Key = "FillWithBots", Name = "빈자리 봇 (1켬/0끔)", Min = 0, Max = 1, Step = 1 },
+}
+
+function Config.GetTunable(key)
+	local id = string.match(key, "^Item:(.+)$")
+	if id then
+		for _, it in ipairs(Config.Items) do
+			if it.Id == id then
+				return it.Duration
+			end
+		end
+		return nil
+	end
+	local v = Config[key]
+	if type(v) == "boolean" then
+		return v and 1 or 0
+	end
+	return v
+end
+
+-- 설정 적용 (서버·클라이언트 공통). values = { [Key] = 숫자 }
+function Config.ApplySettings(values)
+	for _, t in ipairs(Config.Tunables) do
+		local v = tonumber(values and values[t.Key])
+		if v then
+			v = math.clamp(v, t.Min, t.Max)
+			local id = string.match(t.Key, "^Item:(.+)$")
+			if id then
+				for _, it in ipairs(Config.Items) do
+					if it.Id == id and it.Duration then
+						it.Desc = string.gsub(it.Desc, tostring(it.Duration) .. "초", tostring(v) .. "초", 1)
+						it.Duration = v
+					end
+				end
+			elseif type(Config[t.Key]) == "boolean" then
+				Config[t.Key] = v >= 1
+			else
+				Config[t.Key] = v
+			end
+		end
+	end
+end
+
 -- 크로마 크레이트를 포인트(코인)로도 개봉
 Config.CrateCoinPrice = 5000
 

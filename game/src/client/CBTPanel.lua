@@ -145,7 +145,7 @@ local function buildAdmin()
 	if adminFrame then
 		adminFrame:Destroy()
 	end
-	adminFrame = make("Frame", { Size = UDim2.fromOffset(560, 470), Position = UDim2.new(0.5, -280, 0.5, -235), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
+	adminFrame = make("Frame", { Size = UDim2.fromOffset(900, 500), Position = UDim2.new(0.5, -450, 0.5, -250), BackgroundColor3 = Color3.fromRGB(16, 16, 24),
 		BackgroundTransparency = 0.05, Visible = false, ZIndex = 40 }, gui)
 	corner(adminFrame, 12)
 	make("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 196, 0) }, adminFrame)
@@ -186,11 +186,66 @@ local function buildAdmin()
 			admin(c[1], argBox.Text ~= "" and argBox.Text or nil)
 		end)
 	end
-	reportBox = make("TextLabel", { Size = UDim2.new(1, -28, 0, 220), Position = UDim2.fromOffset(14, 236), BackgroundColor3 = Color3.fromRGB(28, 28, 40),
+	reportBox = make("TextLabel", { Size = UDim2.fromOffset(532, 220), Position = UDim2.fromOffset(14, 266), BackgroundColor3 = Color3.fromRGB(28, 28, 40),
 		TextColor3 = Color3.fromRGB(220, 230, 240), Font = Enum.Font.Code, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left,
 		TextYAlignment = Enum.TextYAlignment.Top, TextWrapped = true, Text = "밸런스 리포트 / 피드백 결과가 여기 표시됩니다", ZIndex = 41 }, adminFrame)
 	corner(reportBox, 6)
 	make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingTop = UDim.new(0, 6) }, reportBox)
+
+	-- 오른쪽: 운영 설정 (부활 시간·경기 시간·아이템 유지 시간…) — 바꾸면 저장되어 모든 서버에 적용
+	local side = make("Frame", { Size = UDim2.fromOffset(326, 446), Position = UDim2.fromOffset(560, 40), BackgroundColor3 = Color3.fromRGB(24, 26, 40),
+		ZIndex = 41 }, adminFrame)
+	corner(side, 8)
+	label(side, { Text = "운영 설정 (저장 · 모든 서버 적용)", TextSize = 15, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 6),
+		Size = UDim2.new(1, -20, 0, 24), ZIndex = 42, TextColor3 = Color3.fromRGB(255, 220, 90) })
+	local list = make("ScrollingFrame", { Size = UDim2.new(1, -12, 1, -40), Position = UDim2.fromOffset(6, 34), BackgroundTransparency = 1, BorderSizePixel = 0,
+		ScrollBarThickness = 5, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 42 }, side)
+	make("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4) }, list)
+	local function refreshSettings()
+		for _, c in ipairs(list:GetChildren()) do
+			if c:IsA("GuiObject") then
+				c:Destroy()
+			end
+		end
+		local ok, res = pcall(function()
+			return remotes.Admin:InvokeServer("settings")
+		end)
+		if not ok or not res or not res.ok or type(res.msg) ~= "table" then
+			label(list, { Text = "설정을 불러오지 못했어요", TextSize = 14, Size = UDim2.new(1, 0, 0, 24), ZIndex = 43 })
+			return
+		end
+		for i, r in ipairs(res.msg) do
+			local row = make("Frame", { Size = UDim2.new(1, -6, 0, 32), BackgroundColor3 = Color3.fromRGB(34, 38, 58), LayoutOrder = i, ZIndex = 43 }, list)
+			corner(row, 6)
+			label(row, { Text = r.Name, TextSize = 13, Font = Enum.Font.GothamBold, Position = UDim2.fromOffset(8, 0), Size = UDim2.new(1, -150, 1, 0), ZIndex = 44 })
+			local val = label(row, { Text = tostring(r.Value), TextSize = 15, Font = Enum.Font.GothamBlack, Position = UDim2.new(1, -104, 0, 0),
+				Size = UDim2.fromOffset(60, 32), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 44, TextColor3 = Color3.fromRGB(120, 230, 255) })
+			local function change(dir)
+				local nv = math.clamp((tonumber(r.Value) or 0) + dir * r.Step, r.Min, r.Max)
+				if nv == r.Value then
+					return
+				end
+				admin("setSetting", r.Key .. "=" .. nv)
+				r.Value = nv
+				val.Text = tostring(nv)
+			end
+			local minus = button(row, "-", Color3.fromRGB(150, 50, 70), { Size = UDim2.fromOffset(34, 26), Position = UDim2.new(1, -142, 0, 3), ZIndex = 44,
+				TextSize = 18 })
+			minus.MouseButton1Click:Connect(function()
+				change(-1)
+			end)
+			local plus = button(row, "+", Color3.fromRGB(0, 150, 100), { Size = UDim2.fromOffset(34, 26), Position = UDim2.new(1, -40, 0, 3), ZIndex = 44,
+				TextSize = 18 })
+			plus.MouseButton1Click:Connect(function()
+				change(1)
+			end)
+		end
+	end
+	adminFrame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if adminFrame.Visible then
+			task.spawn(refreshSettings)
+		end
+	end)
 end
 
 function CBT.ToggleAdmin()

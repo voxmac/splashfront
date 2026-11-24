@@ -165,7 +165,7 @@ local function buildCrate(page)
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		order = order + 1
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.fromOffset(176, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
 		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
 			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
@@ -197,7 +197,7 @@ local function buildCollection(page)
 	label(page, { Text = "보유 무기", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
 	order = order + 1
 	local wgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, wgrid)
+	make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, wgrid)
 	order = order + 1
 	local equippedW = player:GetAttribute("Weapon")
 	for i, w in ipairs(Weapons.List) do
@@ -269,7 +269,7 @@ local function buildSkins(page)
 			Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		order = order + 1
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
 		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
 			local have = owned("OwnedCosmetics", item.Id)
@@ -319,7 +319,7 @@ local function buildRobux(page)
 	label(page, { Text = "로벅스로 VIP와 코인을 충전할 수 있어요 · 코인은 스킨 상점·무기 구매에 사용", TextSize = 18, TextColor3 = C.Sub,
 		Size = UDim2.new(1, -10, 0, 28), LayoutOrder = 0 })
 	local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1 }, page)
-	make("UIGridLayout", { CellSize = UDim2.fromOffset(190, 250), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+	make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 250), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 	local M = Config.Monetization
 	local items = {
 		{ Kind = "Pass", Id = M.VipGamePassId, Title = "VIP", Sub = "코인 획득 1.25배 (영구)", Icon = "crown", Color = Color3.fromRGB(255, 180, 40) },

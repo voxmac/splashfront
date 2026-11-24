@@ -10,6 +10,7 @@ local CrateService = require(script.Parent.CrateService)
 local MatchService = require(script.Parent.MatchService)
 local Combatants = require(script.Parent.Combatants)
 local Telemetry = require(script.Parent.TelemetryService)
+local SettingsService = require(script.Parent.SettingsService)
 
 local AdminService = {}
 
@@ -156,6 +157,20 @@ end
 
 ACTIONS.feedback = function()
 	return Telemetry.FeedbackList()
+end
+
+-- 운영 설정 (부활 시간·아이템 유지 시간 등)
+ACTIONS.settings = function()
+	return SettingsService.List()
+end
+
+ACTIONS.setSetting = function(player, arg)
+	local key, value = string.match(tostring(arg or ""), "^([%w:]+)=(%-?[%d%.]+)$")
+	local ok, msg = SettingsService.Set(key, value)
+	if not ok then
+		error(msg)
+	end
+	return msg
 end
 
 function AdminService.Init(remotes)

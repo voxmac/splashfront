@@ -37,6 +37,24 @@ task.spawn(function()
 	end
 end)
 
+-- 관리자가 바꾼 운영 설정(부활 시간·아이템 유지 시간 등)을 이 클라이언트의 Config에도 반영
+do
+	local HttpService = game:GetService("HttpService")
+	local Cfg = require(ReplicatedStorage.Shared.Config)
+	local function sync()
+		local raw = ReplicatedStorage:GetAttribute("SF_Settings")
+		if raw then
+			local ok, t = pcall(function()
+				return HttpService:JSONDecode(raw)
+			end)
+			if ok then
+				Cfg.ApplySettings(t)
+			end
+		end
+	end
+	sync()
+	ReplicatedStorage:GetAttributeChangedSignal("SF_Settings"):Connect(sync)
+end
 HUD.Build()
 -- 전체 UI 글꼴을 SF 이탤릭으로 (이후 만들어지는 창·킬피드·결과 화면 포함)
 require(script.Parent:WaitForChild("UIKit")).AutoStyle(player:WaitForChild("PlayerGui"))
