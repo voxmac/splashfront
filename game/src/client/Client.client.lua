@@ -209,4 +209,37 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 	LobbyUI.ShowCrate(res)
 end)
 
+-- 카메라 감시: 로비 입장·재스폰 직후 카메라가 캐릭터를 놓치는 경우(고정 카메라로 남거나 사라진 캐릭터를 따라가는 경우)를 바로잡음
+do
+	local function fixCamera()
+		local cam = workspace.CurrentCamera
+		local c = player.Character
+		local hum = c and c:FindFirstChildOfClass("Humanoid")
+		if not cam or not hum or cam:GetAttribute("SF_Intro") then
+			return
+		end
+		if cam.CameraType == Enum.CameraType.Scriptable or cam.CameraType == Enum.CameraType.Fixed then
+			cam.CameraType = Enum.CameraType.Custom
+		end
+		local subj = cam.CameraSubject
+		if subj ~= hum and (subj == nil or not subj:IsDescendantOf(workspace) or (subj:IsA("Humanoid") and subj.Parent ~= c)) then
+			cam.CameraSubject = hum
+		end
+	end
+	player.CharacterAdded:Connect(function(c)
+		c:WaitForChild("Humanoid", 10)
+		task.wait(0.2)
+		fixCamera()
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			pcall(fixCamera)
+		end
+	end)
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		task.defer(fixCamera)
+	end)
+end
+
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")

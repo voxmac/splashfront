@@ -180,6 +180,7 @@ if char and root and cam then
 	local endCf = CFrame.lookAt(target.Position - target.LookVector * 12 + Vector3.new(0, 5, 0), target.Position + target.LookVector * 6 + Vector3.new(0, 1.5, 0))
 	local startPos = target.Position + Vector3.new(0, 95, 18)
 	local startCf = CFrame.lookAt(startPos, target.Position)
+	cam:SetAttribute("SF_Intro", true) -- 연출 중에는 카메라 감시(Client)가 건드리지 않음
 	cam.CameraType = Enum.CameraType.Scriptable
 	cam.CFrame = startCf
 	local fov0 = cam.FieldOfView
@@ -206,14 +207,24 @@ if char and root and cam then
 		local e = 1 - (1 - a) ^ 3 -- 처음 빠르게 떨어지고 끝에서 부드럽게 멈춤
 		cam.CFrame = startCf:Lerp(endCf, e)
 		cam.FieldOfView = fov0 + (95 - fov0) * (1 - e)
-		if a >= 1 then
+		-- 연출 도중 캐릭터가 다시 생성되면(재스폰) 바로 끝내고 새 캐릭터를 따라가게
+		if a >= 1 or player.Character ~= char or not char.Parent then
 			break
 		end
 		RunService.RenderStepped:Wait()
 	end
 	cam.FieldOfView = fov0
-	cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+	-- 연출 시작 때의 캐릭터가 아니라 '지금' 캐릭터를 따라가게 (원인: 연출 중 재스폰되면 사라진 캐릭터를 붙잡고 멈춰 있었음)
+	local nowChar = player.Character
+	local hum = nowChar and nowChar:FindFirstChildOfClass("Humanoid")
+	if hum then
+		cam.CameraSubject = hum
+	end
 	cam.CameraType = Enum.CameraType.Custom
+	cam:SetAttribute("SF_Intro", nil)
+	if nowChar ~= char then
+		endCf = cam.CFrame
+	end
 	-- 기본 카메라가 이 방향을 이어받도록 잠깐 같은 자리에 붙잡아 둠 (기본 카메라는 현재 카메라 방향을 기준으로 회전함)
 	local hold = os.clock()
 	RunService:BindToRenderStep("SF_IntroHold", Enum.RenderPriority.Camera.Value + 1, function()

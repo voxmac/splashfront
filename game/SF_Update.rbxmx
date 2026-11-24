@@ -9605,6 +9605,39 @@ remotes.CrateResult.OnClientEvent:Connect(function(res)
 	LobbyUI.ShowCrate(res)
 end)
 
+-- 카메라 감시: 로비 입장·재스폰 직후 카메라가 캐릭터를 놓치는 경우(고정 카메라로 남거나 사라진 캐릭터를 따라가는 경우)를 바로잡음
+do
+	local function fixCamera()
+		local cam = workspace.CurrentCamera
+		local c = player.Character
+		local hum = c and c:FindFirstChildOfClass("Humanoid")
+		if not cam or not hum or cam:GetAttribute("SF_Intro") then
+			return
+		end
+		if cam.CameraType == Enum.CameraType.Scriptable or cam.CameraType == Enum.CameraType.Fixed then
+			cam.CameraType = Enum.CameraType.Custom
+		end
+		local subj = cam.CameraSubject
+		if subj ~= hum and (subj == nil or not subj:IsDescendantOf(workspace) or (subj:IsA("Humanoid") and subj.Parent ~= c)) then
+			cam.CameraSubject = hum
+		end
+	end
+	player.CharacterAdded:Connect(function(c)
+		c:WaitForChild("Humanoid", 10)
+		task.wait(0.2)
+		fixCamera()
+	end)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			pcall(fixCamera)
+		end
+	end)
+	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		task.defer(fixCamera)
+	end)
+end
+
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
@@ -14637,6 +14670,7 @@ if char and root and cam then
 	local endCf = CFrame.lookAt(target.Position - target.LookVector * 12 + Vector3.new(0, 5, 0), target.Position + target.LookVector * 6 + Vector3.new(0, 1.5, 0))
 	local startPos = target.Position + Vector3.new(0, 95, 18)
 	local startCf = CFrame.lookAt(startPos, target.Position)
+	cam:SetAttribute("SF_Intro", true) -- 연출 중에는 카메라 감시(Client)가 건드리지 않음
 	cam.CameraType = Enum.CameraType.Scriptable
 	cam.CFrame = startCf
 	local fov0 = cam.FieldOfView
@@ -14663,14 +14697,24 @@ if char and root and cam then
 		local e = 1 - (1 - a) ^ 3 -- 처음 빠르게 떨어지고 끝에서 부드럽게 멈춤
 		cam.CFrame = startCf:Lerp(endCf, e)
 		cam.FieldOfView = fov0 + (95 - fov0) * (1 - e)
-		if a >= 1 then
+		-- 연출 도중 캐릭터가 다시 생성되면(재스폰) 바로 끝내고 새 캐릭터를 따라가게
+		if a >= 1 or player.Character ~= char or not char.Parent then
 			break
 		end
 		RunService.RenderStepped:Wait()
 	end
 	cam.FieldOfView = fov0
-	cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+	-- 연출 시작 때의 캐릭터가 아니라 '지금' 캐릭터를 따라가게 (원인: 연출 중 재스폰되면 사라진 캐릭터를 붙잡고 멈춰 있었음)
+	local nowChar = player.Character
+	local hum = nowChar and nowChar:FindFirstChildOfClass("Humanoid")
+	if hum then
+		cam.CameraSubject = hum
+	end
 	cam.CameraType = Enum.CameraType.Custom
+	cam:SetAttribute("SF_Intro", nil)
+	if nowChar ~= char then
+		endCf = cam.CFrame
+	end
 	-- 기본 카메라가 이 방향을 이어받도록 잠깐 같은 자리에 붙잡아 둠 (기본 카메라는 현재 카메라 방향을 기준으로 회전함)
 	local hold = os.clock()
 	RunService:BindToRenderStep("SF_IntroHold", Enum.RenderPriority.Camera.Value + 1, function()
