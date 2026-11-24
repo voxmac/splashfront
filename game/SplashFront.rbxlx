@@ -11306,25 +11306,52 @@ end
 
 local mvpRow -- 이번 판 MVP(전체 최고 점수)
 
-local function teamTable(parent, x, width, title, color, scoreText, rows)
-	local box = make("Frame", { Size = UDim2.new(0, width, 1, -150), Position = UDim2.fromOffset(x, 112), BackgroundColor3 = Color3.fromRGB(28, 26, 42),
+local TITLE_FONT = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+local LATIN_FONT = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+
+-- 판정보드 제목 글씨: 굵은 이탤릭 + 위→아래 그라데이션 + 짙은 외곽선
+local function fancyText(parent, props, c1, c2, strokeT)
+	local t = make("TextLabel", { BackgroundTransparency = 1, TextColor3 = Color3.new(1, 1, 1), FontFace = TITLE_FONT, TextScaled = true, Text = "",
+		ZIndex = 12 }, parent)
+	for k, v in pairs(props) do
+		t[k] = v
+	end
+	make("UIGradient", { Color = ColorSequence.new(c1, c2), Rotation = 90 }, t)
+	make("UIStroke", { Color = Color3.fromRGB(14, 10, 28), Thickness = strokeT or 3 }, t)
+	return t
+end
+
+-- title: "우리 팀 · 핑크 펑크", scoreText: "56.7점", detail: "페인트 37.6% · 처치 6"
+local function teamTable(parent, x, width, title, color, scoreText, rows, detail)
+	local box = make("Frame", { Size = UDim2.new(0, width, 1, -168), Position = UDim2.fromOffset(x, 128), BackgroundColor3 = Color3.fromRGB(24, 22, 38),
 		ZIndex = 11 }, parent)
 	corner(box, 12)
 	make("UIStroke", { Color = color, Thickness = 2 }, box)
-	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = color, ZIndex = 11 }, box)
+	local head = make("Frame", { Size = UDim2.new(1, 0, 0, 70), BackgroundColor3 = color, ZIndex = 11 }, box)
 	corner(head, 12)
-	text(head, { Size = UDim2.new(0.68, -12, 1, -8), Position = UDim2.fromOffset(12, 4), Text = title, TextXAlignment = Enum.TextXAlignment.Left,
-		TextColor3 = Color3.fromRGB(16, 14, 24), TextStrokeTransparency = 1, ZIndex = 12 })
-	text(head, { Size = UDim2.new(0.32, -12, 1, -8), Position = UDim2.new(0.68, 0, 0, 4), Text = scoreText, TextXAlignment = Enum.TextXAlignment.Right,
-		TextColor3 = Color3.fromRGB(16, 14, 24), TextStrokeTransparency = 1, ZIndex = 12 })
-	resultRow(box, 48, { "#", "플레이어", "처치", "데스", "점수", "코인", "레이팅" }, Color3.fromRGB(170, 170, 195), false, width)
-	make("Frame", { Size = UDim2.new(1, -16, 0, 1), Position = UDim2.fromOffset(8, 75), BackgroundColor3 = Color3.fromRGB(80, 78, 110), BorderSizePixel = 0,
+	make("UIGradient", { Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 200)), Rotation = 90 }, head)
+	-- 1줄: 팀 이름(가운데) + 바로 옆 점수
+	local row1 = make("Frame", { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.fromOffset(8, 6), BackgroundTransparency = 1, ZIndex = 12 }, head)
+	make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder }, row1)
+	local tl = make("TextLabel", { BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 34), Text = title,
+		FontFace = TITLE_FONT, TextSize = 28, TextColor3 = Color3.new(1, 1, 1), LayoutOrder = 1, ZIndex = 12 }, row1)
+	make("UIStroke", { Color = Color3.fromRGB(14, 10, 28), Thickness = 2.5 }, tl)
+	local sc = make("TextLabel", { BackgroundColor3 = Color3.fromRGB(14, 10, 28), BackgroundTransparency = 0.15, AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 32), Text = "  " .. scoreText .. "  ", FontFace = LATIN_FONT, TextSize = 24, TextColor3 = Color3.fromRGB(255, 226, 90),
+		LayoutOrder = 2, ZIndex = 12 }, row1)
+	corner(sc, 8)
+	-- 2줄: 상세 정보 (가운데, 잘리지 않게)
+	make("TextLabel", { BackgroundTransparency = 1, Size = UDim2.new(1, -16, 0, 22), Position = UDim2.fromOffset(8, 44), Text = detail or "",
+		Font = Enum.Font.GothamBold, TextSize = 17, TextColor3 = Color3.fromRGB(20, 16, 34), TextWrapped = true, ZIndex = 12 }, head)
+	resultRow(box, 78, { "#", "플레이어", "처치", "데스", "점수", "코인", "레이팅" }, Color3.fromRGB(170, 170, 195), false, width)
+	make("Frame", { Size = UDim2.new(1, -16, 0, 1), Position = UDim2.fromOffset(8, 105), BackgroundColor3 = Color3.fromRGB(80, 78, 110), BorderSizePixel = 0,
 		ZIndex = 12 }, box)
 	for i, row in ipairs(rows) do
 		if i > 10 then
 			break
 		end
-		local y = 52 + i * 30
+		local y = 80 + i * 30
 		if row.Player == player then
 			local hl = make("Frame", { Size = UDim2.new(1, -8, 0, 28), Position = UDim2.fromOffset(4, y - 2), BackgroundColor3 = color, BackgroundTransparency = 0.6,
 				ZIndex = 11 }, box)
@@ -11361,10 +11388,19 @@ function HUD.ShowResults(r)
 			won = row.Won
 		end
 	end
-	text(results, { Size = UDim2.new(1, -360, 0, 50), Position = UDim2.new(0, 20, 0, 14), Text = head,
-		TextColor3 = r.WinnerColor or Color3.new(1, 1, 1), ZIndex = 11 })
-	text(results, { Size = UDim2.new(1, -360, 0, 26), Position = UDim2.new(0, 20, 0, 66), Text = won and "VICTORY" or "다음 판엔 이길 수 있어요!",
-		Font = Enum.Font.GothamBold, TextColor3 = won and Color3.fromRGB(255, 215, 60) or Color3.fromRGB(200, 200, 220), ZIndex = 11 })
+	-- 제목: 가운데 상단 (승리 팀 색 그라데이션 + 외곽선), 아래 VICTORY / DEFEAT
+	local wc = r.WinnerColor or Color3.new(1, 1, 1)
+	fancyText(results, { Size = UDim2.new(0, 520, 0, 58), Position = UDim2.new(0.5, -260, 0, 14), Text = head },
+		wc:Lerp(Color3.new(1, 1, 1), 0.45), wc, 4)
+	local sub = fancyText(results, { Size = UDim2.new(0, 320, 0, 30), Position = UDim2.new(0.5, -160, 0, 74), FontFace = LATIN_FONT,
+		Text = won and "VICTORY" or (r.WinnerName and "DEFEAT" or "DRAW") },
+		won and Color3.fromRGB(255, 240, 150) or Color3.fromRGB(220, 225, 240), won and Color3.fromRGB(255, 170, 30) or Color3.fromRGB(140, 150, 180), 2.5)
+	sub.ZIndex = 12
+	-- 제목 양옆 장식 줄
+	for _, sx in ipairs({ -1, 1 }) do
+		make("Frame", { Size = UDim2.fromOffset(110, 3), Position = UDim2.new(0.5, sx == -1 and -390 or 280, 0, 42), BackgroundColor3 = wc,
+			BorderSizePixel = 0, ZIndex = 11 }, results)
+	end
 	mvpRow = nil
 	for _, row in ipairs(r.Rows) do
 		if not mvpRow or (row.Score or 0) > (mvpRow.Score or 0) then
@@ -11372,26 +11408,25 @@ function HUD.ShowResults(r)
 		end
 	end
 	if mvpRow then
-		-- 오른쪽 위 MVP 카드: 엠블럼 + 이름 + 기록
-		local card = make("Frame", { Size = UDim2.fromOffset(300, 84), Position = UDim2.new(1, -318, 0, 14), BackgroundColor3 = Color3.fromRGB(30, 20, 60), ZIndex = 11 }, results)
-		corner(card, 12)
+		-- 오른쪽 상단 작은 MVP 카드
+		local card = make("Frame", { Size = UDim2.fromOffset(224, 62), Position = UDim2.new(1, -240, 0, 16), BackgroundColor3 = Color3.fromRGB(30, 20, 60), ZIndex = 11 }, results)
+		corner(card, 10)
 		make("UIStroke", { Color = Color3.fromRGB(255, 200, 60), Thickness = 2 }, card)
-		make("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 120, 200)), Rotation = 90 }, card)
-		mvpIcon(card, UDim2.fromOffset(92, 92), UDim2.fromOffset(-6, -6), 13)
-		make("TextLabel", { Size = UDim2.fromOffset(200, 28), Position = UDim2.fromOffset(92, 8), BackgroundTransparency = 1, Text = "MATCH MVP",
-			FontFace = Font.new("rbxasset://fonts/families/Montserrat.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic), TextScaled = true,
-			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 214, 80), ZIndex = 12 }, card)
-		make("TextLabel", { Size = UDim2.fromOffset(200, 24), Position = UDim2.fromOffset(92, 36), BackgroundTransparency = 1,
-			Text = mvpRow.Name .. (mvpRow.IsBot and " (봇)" or ""), Font = Enum.Font.GothamBlack, TextScaled = true, TextTruncate = Enum.TextTruncate.AtEnd,
+		mvpIcon(card, UDim2.fromOffset(64, 64), UDim2.fromOffset(-4, -2), 13)
+		make("TextLabel", { Size = UDim2.fromOffset(150, 18), Position = UDim2.fromOffset(64, 5), BackgroundTransparency = 1, Text = "MATCH MVP",
+			FontFace = LATIN_FONT, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(255, 214, 80), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(150, 20), Position = UDim2.fromOffset(64, 23), BackgroundTransparency = 1,
+			Text = mvpRow.Name .. (mvpRow.IsBot and " (봇)" or ""), Font = Enum.Font.GothamBlack, TextSize = 16, TextTruncate = Enum.TextTruncate.AtEnd,
 			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.new(1, 1, 1), ZIndex = 12 }, card)
-		make("TextLabel", { Size = UDim2.fromOffset(200, 18), Position = UDim2.fromOffset(92, 60), BackgroundTransparency = 1,
-			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 15,
-			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(220, 215, 245), ZIndex = 12 }, card)
+		make("TextLabel", { Size = UDim2.fromOffset(150, 16), Position = UDim2.fromOffset(64, 43), BackgroundTransparency = 1,
+			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 13,
+			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(210, 205, 240), ZIndex = 12 }, card)
 	end
 	local unit = (r.Mode == "Flag") and "점" or "%"
 	if r.Mode == "Solo" then
 		local t = r.Teams[1]
-		teamTable(results, 20, 960, "솔로 순위", Color3.fromRGB(255, 200, 60), t and string.format("1위 %.1f%s", t.Score, unit) or "", sortRows(r.Rows))
+		teamTable(results, 20, 960, "솔로 순위", Color3.fromRGB(255, 200, 60), t and string.format("1위 %.1f%s", t.Score, unit) or "-", sortRows(r.Rows),
+			t and ("1위 · " .. (t.Name or "")) or "")
 	else
 		-- 왼쪽 = 우리 팀, 오른쪽 = 상대 팀
 		local teams = {}
@@ -11412,11 +11447,13 @@ function HUD.ShowResults(r)
 				end
 			end
 			local title = (i == 1 and mine == t.OwnerId) and ("우리 팀 · " .. t.Name) or ((mine and i == 2) and ("상대 팀 · " .. t.Name) or t.Name)
-			local st = (r.Mode == "Flag") and string.format("%.0f점", t.Score)
-				or string.format("%.1f점 (페인트 %.1f%% · 처치 %d)", t.Score, t.Coverage or 0, t.Kills or 0)
-			teamTable(results, 20 + (i - 1) * 490, 470, title, t.Color, st, sortRows(rows))
+			local st = (r.Mode == "Flag") and string.format("%.0f점", t.Score) or string.format("%.1f점", t.Score)
+			local detail = (r.Mode == "Flag") and string.format("깃발 점수 · 처치 %d", t.Kills or 0)
+				or string.format("페인트 %.1f%%  ·  처치 %d", t.Coverage or 0, t.Kills or 0)
+			teamTable(results, 20 + (i - 1) * 490, 470, title, t.Color, st, sortRows(rows), detail)
 		end
-		text(results, { Size = UDim2.fromOffset(40, 40), Position = UDim2.new(0.5, -20, 0, 112), Text = "VS", ZIndex = 13, TextColor3 = Color3.fromRGB(255, 255, 255) })
+		fancyText(results, { Size = UDim2.fromOffset(56, 44), Position = UDim2.new(0.5, -28, 0, 141), Text = "VS", FontFace = LATIN_FONT, ZIndex = 14 },
+			Color3.fromRGB(255, 250, 220), Color3.fromRGB(255, 190, 40), 3).ZIndex = 14
 	end
 	text(results, { Size = UDim2.new(1, -40, 0, 20), Position = UDim2.new(0, 20, 1, -32), Font = Enum.Font.Gotham, ZIndex = 11, TextScaled = false, TextSize = 15,
 		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패" or "승패 = 페인트 면적 80% + 처치·미션 20%") .. " · 개인 점수 = 칠한 셀 + 처치×30" })
