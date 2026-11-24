@@ -1532,11 +1532,12 @@ function MapBuilder.BuildSkyRooftop()
 	end
 
 	-- 집라인: 시작 기둥의 E 프롬프트로 탑승, from → to 로 미끄러져 내려감
-	local function zipline(from, to, fromBase, toBase)
+	-- twoWay: 아래쪽 기둥에서도 타고 위로 올라갈 수 있음 (깃발 탑 오르기용)
+	local function zipline(from, to, fromBase, toBase, twoWay)
 		local h1, h2 = from.Y - (SKY_Y + fromBase), to.Y - (SKY_Y + toBase)
 		local startPole = part({ Name = "ZipStart", Parent = geo, Size = Vector3.new(0.8, h1, 0.8), Position = from - Vector3.new(0, h1 / 2, 0),
 			Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal })
-		part({ Name = "ZipEnd", Parent = geo, Size = Vector3.new(0.8, h2, 0.8), Position = to - Vector3.new(0, h2 / 2, 0),
+		local endPole = part({ Name = "ZipEnd", Parent = geo, Size = Vector3.new(0.8, h2, 0.8), Position = to - Vector3.new(0, h2 / 2, 0),
 			Color = Color3.fromRGB(255, 196, 0), Material = Enum.Material.Metal })
 		local len = (to - from).Magnitude
 		part({ Name = "ZipCable", Parent = deco, Size = Vector3.new(0.25, 0.25, len), CFrame = CFrame.lookAt((from + to) / 2, to),
@@ -1552,6 +1553,22 @@ function MapBuilder.BuildSkyRooftop()
 		prompt.MaxActivationDistance = 10
 		prompt.RequiresLineOfSight = false
 		prompt.Parent = startPole
+		if twoWay then
+			endPole:SetAttribute("ZipFrom", to)
+			endPole:SetAttribute("ZipTo", from)
+			CollectionService:AddTag(endPole, "SF_Zipline")
+			local up = prompt:Clone()
+			up.ActionText = "집라인 타고 오르기"
+			up.ObjectText = "깃발 탑 집라인"
+			up.Parent = endPole
+			-- 아래 기둥 표시등 (멀리서도 탈 곳이 보이게)
+			local mark = part({ Name = "ZipMark", Parent = deco, Shape = Enum.PartType.Ball, Size = Vector3.new(1.4, 1.4, 1.4), Position = to + Vector3.new(0, 0.6, 0),
+				Color = Color3.fromRGB(0, 255, 220), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false })
+			local ml = Instance.new("PointLight")
+			ml.Color = mark.Color
+			ml.Range = 10
+			ml.Parent = mark
+		end
 	end
 
 	--------------------------------------------------------------------
@@ -1724,7 +1741,7 @@ function MapBuilder.BuildSkyRooftop()
 		for _, t in ipairs({ -1, 1 }) do
 			-- 시뮬레이션으로 난간·경사로 난간·컨테이너와 안 부딪히는 높이/경로 확인
 			zipline(skyPos(72 * s, 19, 20 * t), skyPos(26 * s, 7, 46 * t), 8, 0)    -- 스폰 옥상(경사로 입구 위) → 사이드 레인
-			zipline(skyPos(6 * s, 20, 42 * t), skyPos(44 * s, 7, 16 * t), 12, 0)   -- 컨테이너 탑 → 옥상 가장자리
+			zipline(skyPos(6 * s, 20, 42 * t), skyPos(44 * s, 7, 16 * t), 12, 0, true) -- 컨테이너 탑(깃발) ↔ 옥상 가장자리 (아래에서 타면 탑으로 올라감)
 		end
 	end
 

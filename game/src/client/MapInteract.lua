@@ -54,6 +54,7 @@ local function stopRide(jumpOff)
 	end
 	local root, hum = rootAndHum()
 	local dir = (riding.To - riding.From).Unit
+	local uphill = riding.To.Y > riding.From.Y + 1
 	riding = nil
 	if rideSound then
 		rideSound:Destroy()
@@ -61,7 +62,9 @@ local function stopRide(jumpOff)
 	end
 	SoundBank.Play("land", nil, 0.5)
 	if root then
-		root.AssemblyLinearVelocity = dir * ZIP_SPEED * 0.6 + Vector3.new(0, jumpOff and 30 or 0, 0)
+		-- 위로 타고 올라간 경우: 좁은 탑 위에 사뿐히 내려앉게 앞으로 밀지 않음
+		local push = (uphill and not jumpOff) and 0.08 or 0.6
+		root.AssemblyLinearVelocity = Vector3.new(dir.X, 0, dir.Z) * ZIP_SPEED * push + Vector3.new(0, jumpOff and 30 or 0, 0)
 	end
 	if hum then
 		hum.PlatformStand = false
@@ -75,7 +78,8 @@ local function startRide(pole)
 	if not from or not to or not root or not hum or hum.Health <= 0 or riding then
 		return
 	end
-	riding = { From = from, To = to, T = 0, Len = (to - from).Magnitude }
+	-- 위로 오를 때는 꼭대기 기둥과 겹치지 않게 조금 앞에서 내림
+	riding = { From = from, To = to, T = 0, Len = (to - from).Magnitude, EndT = (to.Y > from.Y + 1) and 0.94 or 1 }
 	hum.PlatformStand = true
 	SoundBank.Play("zipline_start", nil, 0.7)
 	rideSound = SoundBank.Play("zipline_ride", nil, 0.45, 1, true)
@@ -95,7 +99,7 @@ local function updateRide(dt)
 		return
 	end
 	riding.T = riding.T + (ZIP_SPEED * dt) / riding.Len
-	if riding.T >= 1 then
+	if riding.T >= riding.EndT then
 		stopRide(false)
 		return
 	end
