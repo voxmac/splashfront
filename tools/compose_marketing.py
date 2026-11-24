@@ -167,40 +167,69 @@ def load(name, size):
     return im.resize(size, Image.LANCZOS) if im.size != size else im
 
 
+CAP = os.path.join(M, "captures")
+
+
+def capture(name, size=(1920, 1080), zoom=1.0, focus=(0.5, 0.5)):
+    """인게임 스크린샷을 썸네일 크기로 채워 자르기 (zoom>1이면 focus 지점을 확대)"""
+    im = Image.open(os.path.join(CAP, name)).convert("RGBA")
+    sc = max(size[0] / im.width, size[1] / im.height) * zoom
+    im = im.resize((int(im.width * sc), int(im.height * sc)), Image.LANCZOS)
+    cx, cy = int(im.width * focus[0]), int(im.height * focus[1])
+    x0 = min(max(0, cx - size[0] // 2), im.width - size[0])
+    y0 = min(max(0, cy - size[1] // 2), im.height - size[1])
+    return im.crop((x0, y0, x0 + size[0], y0 + size[1]))
+
+
+def hud_bands(img, top=330, bottom=170, color=(8, 8, 24)):
+    """스크린샷 위·아래의 HUD(미션·점수판·체력바)를 흐리게 + 짙은 그라데이션으로 덮어 로고·문구 자리로"""
+    w, h = img.size
+    m = Image.new("L", (w, h), 0)
+    d = ImageDraw.Draw(m)
+    for y in range(top):
+        k = 1.0 if y < top * 0.55 else 1 - (y - top * 0.55) / (top * 0.45)
+        d.line([(0, y), (w, y)], fill=int(255 * k))
+    for y in range(h - bottom, h):
+        k = min(1.0, (y - (h - bottom)) / (bottom * 0.5))
+        d.line([(0, y), (w, y)], fill=int(255 * k))
+    blurred = img.filter(ImageFilter.GaussianBlur(26))
+    img.paste(blurred, (0, 0), m)
+    img.paste(color + (255,), (0, 0), m.point(lambda v: int(v * 0.82)))
+
+
 def thumbs():
-    # 1) 대표: 큰 로고 + SF 띠
-    im = load("key", (1920, 1080)); grade(im, (40, 20, 90), 0.14); vignette(im, 0.22)
-    lg = logo(1000); im.alpha_composite(lg, ((1920 - lg.width) // 2, 10))
-    sf_plate(im, "팀 페인트 FPS  ·  2:2  3:3  5:5  솔로  ·  랭크전", 920, kr(50))
+    # 1) 대표: 실제 시가전 교전 장면 + 큰 로고
+    im = capture("city_kill.png"); hud_bands(im, 420, 210)
+    lg = logo(900); im.alpha_composite(lg, ((1920 - lg.width) // 2, -10))
+    sf_plate(im, "팀 페인트 FPS  ·  2:2  3:3  5:5  솔로  ·  랭크전", 945, kr(48))
     im.convert("RGB").save(os.path.join(M, "thumb_1_key.png"), quality=95)
-    # 2) 무기·저격
-    im = load("sniper", (1920, 1080)); grade(im, (30, 20, 80), 0.16); vignette(im, 0.25)
-    lg = logo(620); im.alpha_composite(lg, (30, 10))
-    neon_caption(im, "실총 라인업 + 페인트총", (80, 600), kr(104), (255, 236, 90), (255, 140, 0))
-    sf_plate(im, "K2 · K14 저격 · 산탄 · 런처 · 제트팩", 790, kr(50), cx=640)
+    # 2) 실총 시가전
+    im = capture("city_rifle.png"); hud_bands(im, 420, 230)
+    lg = logo(560); im.alpha_composite(lg, (30, 0))
+    neon_caption(im, "실총으로 즐기는 시가전", (640, 70), kr(96), (255, 236, 90), (255, 120, 0))
+    sf_plate(im, "K2 · K2C1 · K3 기관총 · K14 저격 · K5", 925, kr(50))
     im.convert("RGB").save(os.path.join(M, "thumb_2_weapons.png"), quality=95)
-    # 3) 맵·페인트 승패
-    im = load("map", (1920, 1080)); grade(im, (30, 20, 80), 0.14); vignette(im, 0.22)
-    lg = logo(560); im.alpha_composite(lg, (1920 - lg.width - 20, 10))
-    neon_caption(im, "많이 칠한 팀이 이긴다!", (70, 70), kr(100), (255, 255, 255), (0, 200, 255))
+    # 3) 페인트 승패: 칠해진 바닥을 확대
+    im = capture("city_kill.png", zoom=1.35, focus=(0.42, 0.72)); hud_bands(im, 300, 210)
+    lg = logo(520); im.alpha_composite(lg, (1920 - lg.width - 20, 0))
+    neon_caption(im, "많이 칠한 팀이 이긴다!", (60, 60), kr(100), (255, 255, 255), (0, 200, 255))
     sf_plate(im, "승패 = 페인트 80% + 처치·미션 20%", 930, kr(52), edge=(255, 40, 200))
     im.convert("RGB").save(os.path.join(M, "thumb_3_paint.png"), quality=95)
 
 
 def game_icon():
-    im = load("icon", (1024, 1024)); grade(im, (40, 20, 90), 0.12); vignette(im, 0.2)
-    # 아래쪽을 남색으로 깔아 로고가 또렷하게
-    fade = Image.new("L", (1024, 1024), 0)
-    fd = ImageDraw.Draw(fade)
-    for y in range(560, 1024):
-        fd.line([(0, y), (1024, y)], fill=int(235 * ((y - 560) / 464) ** 1.3))
-    im.paste((10, 12, 30, 255), (0, 0), fade)
-    lg = logo(980)
-    im.alpha_composite(lg, ((1024 - lg.width) // 2, 1024 - lg.height - 6))
-    # 네온 테두리
-    d = ImageDraw.Draw(im)
-    d.rectangle([6, 6, 1017, 1017], outline=(0, 230, 255, 255), width=10)
-    d.rectangle([22, 22, 1001, 1001], outline=(255, 40, 200, 180), width=4)
+    """아이콘 = 입장 화면 타이틀 그대로 (남색 그라데이션 + 네온 사선 + 로고)"""
+    S = 1024
+    im = gradient((S, S), (26, 34, 70), (6, 8, 18)).convert("RGBA")
+    stripes = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(stripes)
+    for i in range(7):
+        x = -300 + i * 230
+        col = (255, 40, 200, 34) if i % 2 == 0 else (240, 255, 40, 30)
+        sd.polygon([(x, S), (x + 18, S), (x + 18 + S * 0.45, 0), (x + S * 0.45, 0)], fill=col)
+    im.alpha_composite(stripes)
+    lg = logo(960)
+    im.alpha_composite(lg, ((S - lg.width) // 2, (S - lg.height) // 2 - 10))
     im.resize((512, 512), Image.LANCZOS).convert("RGB").save(os.path.join(M, "game_icon.png"))
 
 
@@ -250,9 +279,7 @@ def products():
 
 if __name__ == "__main__":
     products()
-    have = [n for n in ("key", "sniper", "map", "icon") if os.path.exists(os.path.join(M, f"raw_{n}.png"))]
-    if "icon" in have:
-        game_icon()
-    if all(n in have for n in ("key", "sniper", "map")):
+    game_icon()
+    if all(os.path.exists(os.path.join(CAP, n)) for n in ("city_kill.png", "city_rifle.png")):
         thumbs()
     print("done", sorted(f for f in os.listdir(M) if not f.startswith(("raw_", "_"))))
