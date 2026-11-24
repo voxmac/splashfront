@@ -168,7 +168,7 @@ local function buildCrate(page)
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
-		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
+		for _, item in ipairs(Cosmetics.CrateByRarity[r.Id]) do
 			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
 			local have = owned("OwnedCosmetics", item.Id)
 			local card = make("Frame", { BackgroundColor3 = C.Panel }, grid)
@@ -309,7 +309,7 @@ local function buildSkins(page)
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		order = order + 1
-		for _, item in ipairs(Cosmetics.ByRarity[r.Id]) do
+		for _, item in ipairs(Cosmetics.CrateByRarity[r.Id]) do
 			local have = owned("OwnedCosmetics", item.Id)
 			local kindName = (item.Kind == "Skin" and "무기 스킨") or (item.Kind == "Pattern" and "페인트 패턴") or "처치 이펙트"
 			local cardF = make("Frame", { BackgroundColor3 = C.Panel }, grid)
@@ -333,6 +333,50 @@ local function buildSkins(page)
 				task.wait(0.25)
 				buildSkins(page)
 			end)
+		end
+	end
+	-- 무기 스킨 컬렉션 세트: 같은 테마의 바닥 패턴 + 처치 이펙트
+	label(page, { Text = "무기 스킨 컬렉션 세트 · 바닥 패턴 + 처치 이펙트", TextSize = 22, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34),
+		LayoutOrder = order })
+	order = order + 1
+	for _, line in ipairs(WeaponSkins.Lines) do
+		local tier = WeaponSkins.TierById[line.Tier]
+		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 38), BackgroundColor3 = tier.Color, LayoutOrder = order }, page)
+		corner(head, 10)
+		label(head, { Text = string.format("%s  ·  %s", line.Name, tier.Name), Font = Enum.Font.GothamBlack, TextSize = 19, Position = UDim2.fromOffset(14, 0),
+			Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
+		order = order + 1
+		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
+		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 200), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		order = order + 1
+		for _, item in ipairs(Cosmetics.Items) do
+			if item.Collection == line.Id then
+				local r = Cosmetics.Rarity(item.Rarity)
+				local price = Config.SkinPrices[r.Id]
+				local have = owned("OwnedCosmetics", item.Id)
+				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = (item.Kind == "Pattern") and 1 or 2 }, grid)
+				corner(cardF, 12)
+				UI.stroke(cardF, tier.Color, 2, have and 0 or 0.4)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 100), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				corner(pic, 10)
+				UI.gradient(pic, tier.Color:Lerp(Color3.new(0, 0, 0), 0.5), Color3.fromRGB(26, 24, 40), 90)
+				UI.ItemImage(pic, item)
+				label(cardF, { Text = item.Name, TextSize = 18, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 112), Size = UDim2.new(1, -20, 0, 22),
+					TextTruncate = Enum.TextTruncate.AtEnd })
+				label(cardF, { Text = (item.Kind == "Pattern") and "바닥 페인트 패턴" or "처치 이펙트", TextSize = 15, TextColor3 = C.Sub,
+					Position = UDim2.fromOffset(10, 136), Size = UDim2.new(0.5, -10, 0, 18) })
+				local can = coins >= price
+				local b = button(cardF, have and "보유" or (price .. " 코인"), have and C.Dim or (can and C.Green or Color3.fromRGB(90, 60, 80)),
+					{ Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -48), TextSize = 18 })
+				b.MouseButton1Click:Connect(function()
+					if have then
+						return
+					end
+					shopCall("buyCosmetic", item.Id)
+					task.wait(0.25)
+					buildSkins(page)
+				end)
+			end
 		end
 	end
 end

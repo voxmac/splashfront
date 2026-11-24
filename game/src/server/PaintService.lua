@@ -43,6 +43,27 @@ function PaintService.Reset()
 	end
 end
 
+-- 페인트 패턴: 셀 위치(격자 좌표)로 주 재질/보조 재질을 나눠 체크·줄무늬·흩뿌림 무늬를 만들고 테마 색을 살짝 섞음
+local function patternLook(cell, pat)
+	local mat = pat.Mat
+	if pat.Mat2 then
+		local gx = math.floor(cell.Position.X / Config.CellSize + 0.5)
+		local gz = math.floor(cell.Position.Z / Config.CellSize + 0.5)
+		local alt
+		if pat.Mix == "Checker" then
+			alt = (gx + gz) % 2 == 0
+		elseif pat.Mix == "Stripe" then
+			alt = (gx + gz) % 4 == 0
+		else
+			alt = (gx * 7 + gz * 13 + gx * gz) % 5 == 0
+		end
+		if alt then
+			mat = pat.Mat2
+		end
+	end
+	return mat
+end
+
 local function setOwner(cell, ownerId, material)
 	local prev = cell:GetAttribute("Owner") or 0
 	if prev == ownerId then
@@ -53,8 +74,18 @@ local function setOwner(cell, ownerId, material)
 	end
 	counts[ownerId] = (counts[ownerId] or 0) + 1
 	cell:SetAttribute("Owner", ownerId)
-	cell.Color = palette[ownerId] or Config.NeutralColor
-	cell.Material = material or Enum.Material.Glass -- 기본: 젖은 페인트 느낌 / 페인트 패턴 장착 시 해당 재질
+	local color = palette[ownerId] or Config.NeutralColor
+	if type(material) == "table" then
+		-- 패턴 장착: 재질 무늬 + 테마 색 살짝
+		if material.Tint then
+			color = color:Lerp(material.Tint, material.TintAmount or 0.1)
+		end
+		cell.Color = color
+		cell.Material = patternLook(cell, material)
+	else
+		cell.Color = color
+		cell.Material = material or Enum.Material.Glass -- 기본: 젖은 페인트 느낌 / 페인트 패턴 장착 시 해당 재질
+	end
 	return true
 end
 

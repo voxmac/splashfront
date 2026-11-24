@@ -3,6 +3,7 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
+local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local SoundBank = require(script.Parent:WaitForChild("SoundBank"))
 
 local UI = {}
@@ -214,14 +215,20 @@ function UI.ItemImage(parent, item, size)
 		-- 재질 견본: 작은 바닥 셀 3×3을 3D로
 		local m = Instance.new("Model")
 		local cols = { C.Pink, C.Cyan, C.Gold }
+		local m2 = item.Material2 and Cosmetics.MaterialOf(item.Material2)
 		for x = -1, 1 do
 			for z = -1, 1 do
 				local p = Instance.new("Part")
 				p.Anchored = true
 				p.Size = Vector3.new(0.95, 0.2, 0.95)
 				p.Position = Vector3.new(x, 0, z)
-				p.Color = cols[((x + z) % 3) + 1]
-				p.Material = Cosmetics.MaterialOf(item.Material) or Enum.Material.SmoothPlastic
+				local col = cols[((x + z) % 3) + 1]
+				if item.Tint then
+					col = col:Lerp(item.Tint, (item.TintAmount or 0.1) * 1.5)
+				end
+				p.Color = col
+				local alt = m2 and ((item.Mix == "Checker" and (x + z) % 2 == 0) or (item.Mix == "Stripe" and x == z) or (item.Mix ~= "Checker" and item.Mix ~= "Stripe" and (x * z) ~= 0 and x == -z))
+				p.Material = alt and m2 or (Cosmetics.MaterialOf(item.Material) or Enum.Material.SmoothPlastic)
 				p.Parent = m
 			end
 		end
@@ -234,6 +241,15 @@ function UI.ItemImage(parent, item, size)
 			Color3.fromRGB(80, 220, 90), Color3.fromRGB(60, 140, 255), Color3.fromRGB(170, 80, 255) }
 			or (item.Effect == "Smoke") and { Color3.fromRGB(220, 222, 230), Color3.fromRGB(180, 184, 196) }
 			or { C.Pink, C.Cyan, C.Gold }
+		-- 무기 스킨 세트 이펙트: 그 컬렉션의 색으로
+		local line = item.Collection and WeaponSkins.LineById[item.Collection]
+		if line then
+			palette = {}
+			for _, v in ipairs(line.Variants) do
+				table.insert(palette, v.Accent or v.Body)
+				table.insert(palette, v.Particle or v.Metal)
+			end
+		end
 		local core = Instance.new("Part")
 		core.Shape = Enum.PartType.Ball
 		core.Anchored = true

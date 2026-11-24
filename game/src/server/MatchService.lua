@@ -842,10 +842,10 @@ local function startMatch(q)
 			OwnerId = slots[i].OwnerId, TeamId = slots[i].TeamId,
 			WeaponId = profile and profile.Equipped or Weapons.Default,
 		})
-		if profile and profile.EquippedPattern and Cosmetics.ById[profile.EquippedPattern] then
-			e.PatternMaterial = Cosmetics.MaterialOf(Cosmetics.ById[profile.EquippedPattern].Material)
-		end
-		e.KillEffect = profile and profile.EquippedEffect or nil
+		e.PatternMaterial = Cosmetics.PaintStyle(profile and profile.EquippedPattern)
+		-- 처치 이펙트: 아이템 Id가 아니라 연출 종류(Effect)를 넘겨야 클라이언트가 재생함
+		local fx = profile and Cosmetics.ById[profile.EquippedEffect or ""]
+		e.KillEffect = fx and fx.Effect or nil
 		local played = pl:GetAttribute("SessionMatches") or 0
 		Telemetry.Funnel(pl, played == 0 and "MatchStarted" or "SecondMatch")
 		pl:SetAttribute("SessionMatches", played + 1)
@@ -1184,10 +1184,9 @@ function MatchService.JoinInProgress(player)
 		OwnerId = bot.OwnerId, TeamId = bot.TeamId,
 		WeaponId = profile and profile.Equipped or Weapons.Default,
 	})
-	if profile and profile.EquippedPattern and Cosmetics.ById[profile.EquippedPattern] then
-		e.PatternMaterial = Cosmetics.MaterialOf(Cosmetics.ById[profile.EquippedPattern].Material)
-	end
-	e.KillEffect = profile and profile.EquippedEffect or nil
+	e.PatternMaterial = Cosmetics.PaintStyle(profile and profile.EquippedPattern)
+	local fx = profile and Cosmetics.ById[profile.EquippedEffect or ""]
+	e.KillEffect = fx and fx.Effect or nil
 	if S.Mode == "Solo" then
 		for _, o in ipairs(S.Owners) do
 			if o.OwnerId == e.OwnerId then

@@ -198,6 +198,77 @@ function Effects.KillEffect(kind, pos, color)
 				{ Size = Vector3.new(0.3, 10 + i * 2, 10 + i * 2), Transparency = 1 }):Play()
 			Debris:AddItem(ring, 1)
 		end
+	elseif kind == "Sparks" then
+		-- 스틸 스파크: 금속 불꽃이 사방으로 튀고 떨어짐
+		for _ = 1, 22 do
+			local dir = Vector3.new(math.random() - 0.5, math.random() * 0.8 + 0.2, math.random() - 0.5).Unit
+			local p = fxPart({ Size = Vector3.new(0.08, 0.08, 0.9), Color = Color3.fromRGB(255, 230, 170), CFrame = CFrame.lookAt(pos, pos + dir) })
+			TweenService:Create(p, TweenInfo.new(0.45, Enum.EasingStyle.Quad), { CFrame = CFrame.lookAt(pos + dir * 6 - Vector3.new(0, 1.5, 0), pos + dir * 7),
+				Transparency = 1 }):Play()
+			Debris:AddItem(p, 0.5)
+		end
+		local flash = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.5, Color = Color3.fromRGB(220, 230, 255), Position = pos })
+		TweenService:Create(flash, TweenInfo.new(0.2), { Size = Vector3.one * 4, Transparency = 1 }):Play()
+		Debris:AddItem(flash, 0.25)
+	elseif kind == "Dust" then
+		-- 모래 폭풍: 바닥에서 소용돌이치며 퍼지는 모래 먼지
+		for i = 1, 10 do
+			local a = i / 10 * math.pi * 2
+			local p = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 1.4, Color = Color3.fromRGB(214, 186, 140), Material = Enum.Material.Sand,
+				Transparency = 0.25, Position = pos + Vector3.new(0, 0.3, 0) })
+			TweenService:Create(p, TweenInfo.new(1.1, Enum.EasingStyle.Quad), { Position = pos + Vector3.new(math.cos(a) * 5, 1.5 + (i % 3), math.sin(a) * 5),
+				Size = Vector3.one * 4, Transparency = 1 }):Play()
+			Debris:AddItem(p, 1.2)
+		end
+	elseif kind == "GoldShower" then
+		-- 골드 샤워: 금빛 조각이 솟았다가 쏟아짐
+		for _ = 1, 20 do
+			local p = fxPart({ Size = Vector3.new(0.35, 0.06, 0.35), Color = Color3.fromRGB(255, 200, 60), Material = Enum.Material.Foil, Position = pos })
+			local up = pos + Vector3.new((math.random() - 0.5) * 4, 3 + math.random() * 2, (math.random() - 0.5) * 4)
+			local t1 = TweenService:Create(p, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Position = up,
+				Orientation = Vector3.new(math.random(0, 360), math.random(0, 360), 0) })
+			t1:Play()
+			t1.Completed:Connect(function()
+				TweenService:Create(p, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Position = up + Vector3.new(0, -4, 0),
+					Transparency = 1 }):Play()
+			end)
+			Debris:AddItem(p, 1.1)
+		end
+	elseif kind == "Petals" then
+		-- 벚꽃 흩날림: 분홍 꽃잎이 회전하며 천천히 떨어짐
+		for _ = 1, 26 do
+			local c = (math.random() < 0.5) and Color3.fromRGB(255, 180, 210) or Color3.fromRGB(255, 225, 238)
+			local p = fxPart({ Size = Vector3.new(0.35, 0.04, 0.22), Color = c, Material = Enum.Material.SmoothPlastic,
+				Position = pos + Vector3.new((math.random() - 0.5) * 2, 2 + math.random() * 2, (math.random() - 0.5) * 2) })
+			TweenService:Create(p, TweenInfo.new(1.4 + math.random() * 0.5, Enum.EasingStyle.Sine), {
+				Position = p.Position + Vector3.new((math.random() - 0.5) * 7, -2.5, (math.random() - 0.5) * 7),
+				Orientation = Vector3.new(math.random(0, 720), math.random(0, 720), math.random(0, 360)), Transparency = 1 }):Play()
+			Debris:AddItem(p, 2)
+		end
+	elseif kind == "NeonRings" then
+		-- 네온 펄스 링: 바닥을 따라 퍼지는 네온 고리 3겹
+		for i = 1, 3 do
+			local ring = fxPart({ Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.15, 1, 1), Color = (i == 2) and Color3.fromRGB(40, 230, 255)
+				or Color3.fromRGB(255, 40, 200), Transparency = 0.1, CFrame = CFrame.new(pos + Vector3.new(0, 0.2 + i * 0.3, 0)) * CFrame.Angles(0, 0, math.rad(90)) })
+			task.delay((i - 1) * 0.1, function()
+				TweenService:Create(ring, TweenInfo.new(0.55, Enum.EasingStyle.Quad), { Size = Vector3.new(0.15, 12, 12), Transparency = 1 }):Play()
+			end)
+			Debris:AddItem(ring, 0.9)
+		end
+	elseif kind == "IceShatter" then
+		-- 얼음 파편: 얼음 결정이 솟았다 깨지며 흩어짐
+		for i = 1, 8 do
+			local a = i / 8 * math.pi * 2
+			local shard = fxPart({ Size = Vector3.new(0.5, 2.2, 0.5), Color = Color3.fromRGB(180, 230, 255), Material = Enum.Material.Ice, Transparency = 0.1,
+				CFrame = CFrame.new(pos) * CFrame.Angles(math.cos(a) * 0.5, 0, math.sin(a) * 0.5) })
+			TweenService:Create(shard, TweenInfo.new(0.6, Enum.EasingStyle.Back), { CFrame = shard.CFrame * CFrame.new(math.cos(a) * 3, 1.5, math.sin(a) * 3)
+				* CFrame.Angles(math.random(), math.random(), 0), Transparency = 1 }):Play()
+			Debris:AddItem(shard, 0.65)
+		end
+		local frost = fxPart({ Shape = Enum.PartType.Ball, Size = Vector3.one * 2, Color = Color3.fromRGB(230, 248, 255), Material = Enum.Material.Ice,
+			Transparency = 0.3, Position = pos })
+		TweenService:Create(frost, TweenInfo.new(0.5), { Size = Vector3.one * 6, Transparency = 1 }):Play()
+		Debris:AddItem(frost, 0.55)
 	elseif kind == "Inferno" then
 		-- 얼티밋 스킨 피니셔: 솟구치는 화염 기둥 + 불씨
 		for i = 1, 10 do
