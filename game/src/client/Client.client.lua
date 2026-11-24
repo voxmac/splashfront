@@ -29,6 +29,13 @@ task.spawn(function()
 		cfg.HorizontalAlignment = Enum.HorizontalAlignment.Left
 		cfg.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	end
+	-- 채팅 열기: 엔터 (기본은 '/' 키). 채팅 중 엔터는 그대로 '보내기'
+	local bar = TextChatService:FindFirstChildOfClass("ChatInputBarConfiguration") or TextChatService:WaitForChild("ChatInputBarConfiguration", 10)
+	if bar then
+		pcall(function()
+			bar.KeyboardKeyCode = Enum.KeyCode.Return
+		end)
+	end
 	for _ = 1, 10 do
 		if pcall(function()
 			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
@@ -243,5 +250,17 @@ do
 		task.defer(fixCamera)
 	end)
 end
+
+-- 채팅 입력 중 ESC: 입력창 닫기 (Roblox 메뉴 대신 채팅만 닫힘)
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Escape then
+		local tb = game:GetService("UserInputService"):GetFocusedTextBox()
+		if tb then
+			pcall(function()
+				tb:ReleaseFocus(false)
+			end)
+		end
+	end
+end)
 
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
