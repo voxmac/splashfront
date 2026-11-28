@@ -137,7 +137,7 @@ local function spawnSmoke(pos, duration)
 	cloud.Name = "SmokeCloud"
 	local R = Config.SmokeRadius
 	local rng = Random.new()
-	for i = 1, 9 do
+	for i = 1, 13 do
 		local a = rng:NextNumber() * math.pi * 2
 		local d = rng:NextNumber(0, R * 0.55)
 		local size = rng:NextNumber(R * 0.75, R * 1.1)
@@ -145,7 +145,7 @@ local function spawnSmoke(pos, duration)
 		p.Name = "Puff"
 		p.Shape = Enum.PartType.Ball
 		p.Size = Vector3.one * 2
-		p.Position = pos + Vector3.new(math.cos(a) * d, rng:NextNumber(2, 6), math.sin(a) * d)
+		p.Position = pos + Vector3.new(math.cos(a) * d, rng:NextNumber(2, 8), math.sin(a) * d)
 		p.Color = Color3.fromRGB(rng:NextInteger(205, 230), rng:NextInteger(208, 232), rng:NextInteger(215, 238))
 		p.Material = Enum.Material.SmoothPlastic
 		p.Transparency = 0.6

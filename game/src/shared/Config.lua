@@ -137,7 +137,7 @@ Config.Items = {
 Config.ItemSlots = 3
 Config.JetpackThrust = 85   -- 초당 위로 가속 (중력 196을 상쇄하는 양만큼 추가로 줌)
 Config.JetpackMaxRise = 26  -- 최대 상승 속도
-Config.SmokeRadius = 14
+Config.SmokeRadius = 20 -- 연막 반경 (기존 14)
 Config.GoldenRange = 320
 
 -- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐

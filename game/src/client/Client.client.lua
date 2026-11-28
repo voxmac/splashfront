@@ -275,10 +275,24 @@ do
 		end
 		return out
 	end
+	-- 캐릭터가 연막 안에 있거나, 내 카메라 → 캐릭터 시선이 연막을 지나가면 숨김
 	local function inSmoke(pos, list)
+		local cam = workspace.CurrentCamera
+		local from = cam and cam.CFrame.Position
 		for _, p in ipairs(list) do
-			if (pos - p.Position).Magnitude < p.Size.X * 0.48 then
+			local c, r = p.Position, p.Size.X * 0.48
+			if (pos - c).Magnitude < r then
 				return true
+			end
+			if from then
+				local seg = pos - from
+				local len2 = seg:Dot(seg)
+				if len2 > 0.01 then
+					local t = math.clamp((c - from):Dot(seg) / len2, 0, 1)
+					if (from + seg * t - c).Magnitude < r * 0.85 then
+						return true
+					end
+				end
 			end
 		end
 		return false
@@ -290,17 +304,25 @@ do
 			return
 		end
 		local hide = #list > 0 and inSmoke(head.Position, list)
-		if hide and hum.DisplayDistanceType ~= HIDE then
-			hiddenByUs[hum] = hum.DisplayDistanceType
+		if hide then
+			if hiddenByUs[hum] == nil then
+				hiddenByUs[hum] = (hum.DisplayDistanceType ~= HIDE) and hum.DisplayDistanceType or SHOW
+			end
 			hum.DisplayDistanceType = HIDE
+			hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+			hum.NameDisplayDistance = 0
+			hum.HealthDisplayDistance = 0
 		elseif not hide and hiddenByUs[hum] then
 			hum.DisplayDistanceType = hiddenByUs[hum] or SHOW
+			hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.DisplayWhenDamaged
+			hum.NameDisplayDistance = 100
+			hum.HealthDisplayDistance = 100
 			hiddenByUs[hum] = nil
 		end
 	end
 	task.spawn(function()
 		while true do
-			task.wait(0.15)
+			task.wait(0.1)
 			local list = puffs()
 			for _, pl in ipairs(Players:GetPlayers()) do
 				if pl ~= player and pl.Character then

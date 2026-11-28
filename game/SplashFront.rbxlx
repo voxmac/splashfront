@@ -235,7 +235,7 @@ Config.Items = {
 Config.ItemSlots = 3
 Config.JetpackThrust = 85   -- 초당 위로 가속 (중력 196을 상쇄하는 양만큼 추가로 줌)
 Config.JetpackMaxRise = 26  -- 최대 상승 속도
-Config.SmokeRadius = 14
+Config.SmokeRadius = 20 -- 연막 반경 (기존 14)
 Config.GoldenRange = 320
 
 -- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐
@@ -4044,7 +4044,7 @@ local function spawnSmoke(pos, duration)
 	cloud.Name = "SmokeCloud"
 	local R = Config.SmokeRadius
 	local rng = Random.new()
-	for i = 1, 9 do
+	for i = 1, 13 do
 		local a = rng:NextNumber() * math.pi * 2
 		local d = rng:NextNumber(0, R * 0.55)
 		local size = rng:NextNumber(R * 0.75, R * 1.1)
@@ -4052,7 +4052,7 @@ local function spawnSmoke(pos, duration)
 		p.Name = "Puff"
 		p.Shape = Enum.PartType.Ball
 		p.Size = Vector3.one * 2
-		p.Position = pos + Vector3.new(math.cos(a) * d, rng:NextNumber(2, 6), math.sin(a) * d)
+		p.Position = pos + Vector3.new(math.cos(a) * d, rng:NextNumber(2, 8), math.sin(a) * d)
 		p.Color = Color3.fromRGB(rng:NextInteger(205, 230), rng:NextInteger(208, 232), rng:NextInteger(215, 238))
 		p.Material = Enum.Material.SmoothPlastic
 		p.Transparency = 0.6
@@ -10548,10 +10548,24 @@ do
 		end
 		return out
 	end
+	-- 캐릭터가 연막 안에 있거나, 내 카메라 → 캐릭터 시선이 연막을 지나가면 숨김
 	local function inSmoke(pos, list)
+		local cam = workspace.CurrentCamera
+		local from = cam and cam.CFrame.Position
 		for _, p in ipairs(list) do
-			if (pos - p.Position).Magnitude < p.Size.X * 0.48 then
+			local c, r = p.Position, p.Size.X * 0.48
+			if (pos - c).Magnitude < r then
 				return true
+			end
+			if from then
+				local seg = pos - from
+				local len2 = seg:Dot(seg)
+				if len2 > 0.01 then
+					local t = math.clamp((c - from):Dot(seg) / len2, 0, 1)
+					if (from + seg * t - c).Magnitude < r * 0.85 then
+						return true
+					end
+				end
 			end
 		end
 		return false
@@ -10563,17 +10577,25 @@ do
 			return
 		end
 		local hide = #list > 0 and inSmoke(head.Position, list)
-		if hide and hum.DisplayDistanceType ~= HIDE then
-			hiddenByUs[hum] = hum.DisplayDistanceType
+		if hide then
+			if hiddenByUs[hum] == nil then
+				hiddenByUs[hum] = (hum.DisplayDistanceType ~= HIDE) and hum.DisplayDistanceType or SHOW
+			end
 			hum.DisplayDistanceType = HIDE
+			hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+			hum.NameDisplayDistance = 0
+			hum.HealthDisplayDistance = 0
 		elseif not hide and hiddenByUs[hum] then
 			hum.DisplayDistanceType = hiddenByUs[hum] or SHOW
+			hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.DisplayWhenDamaged
+			hum.NameDisplayDistance = 100
+			hum.HealthDisplayDistance = 100
 			hiddenByUs[hum] = nil
 		end
 	end
 	task.spawn(function()
 		while true do
-			task.wait(0.15)
+			task.wait(0.1)
 			local list = puffs()
 			for _, pl in ipairs(Players:GetPlayers()) do
 				if pl ~= player and pl.Character then
