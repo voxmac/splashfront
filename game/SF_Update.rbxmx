@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Folder" referent="RBX46"><Properties><string name="Name">SF_Update</string></Properties><Item class="Folder" referent="RBX7"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Folder" referent="RBX47"><Properties><string name="Name">SF_Update</string></Properties><Item class="Folder" referent="RBX7"><Properties><string name="Name">Shared</string></Properties><Item class="ModuleScript" referent="RBX1"><Properties><string name="Name">AssetIds</string><ProtectedString name="Source"><![CDATA[-- 자동 생성 파일: tools/write_asset_ids.py (tools/roblox_upload.py가 업로드 후 다시 만듦). 직접 고치지 마세요.
 -- 0 = 아직 업로드 안 됨 → 게임이 내장 대체음·대체 모델을 씀
 return {
 	Music = {
@@ -1705,7 +1705,7 @@ for _, k in ipairs(Weapons.KnifeModels) do
 end
 
 return Weapons
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX29"><Properties><string name="Name">Server</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX30"><Properties><string name="Name">Server</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -3335,10 +3335,29 @@ function DataService.Load(player)
 	if store then
 		-- 일시적 오류는 몇 번 다시 시도. 끝내 실패하면 이번 접속은 저장하지 않음 (빈 데이터로 덮어써 구매품을 잃지 않게)
 		failed = true
-		for attempt = 1, 4 do
-			local ok, result = pcall(function()
-				return store:GetAsync("u" .. player.UserId)
+		-- 다른 서버(로비↔경기)에서 막 넘어왔으면 그 서버가 저장한 최신본이 보일 때까지 잠깐 기다림
+		local minSaved = nil
+		pcall(function()
+			local td = player:GetJoinData().TeleportData
+			if type(td) == "table" and type(td.SF) == "table" and type(td.SF.SavedAt) == "number" then
+				minSaved = td.SF.SavedAt - 1
+			end
+		end)
+		local function fetch()
+			return pcall(function()
+				local o = Instance.new("DataStoreGetOptions")
+				o.UseCache = false
+				return store:GetAsync("u" .. player.UserId, o)
 			end)
+		end
+		for attempt = 1, 4 do
+			local ok, result = fetch()
+			local waited = 0
+			while ok and minSaved and waited < 6 and type(result) == "table" and (result.SavedAt or 0) < minSaved do
+				waited = waited + 1
+				task.wait(1.5)
+				ok, result = fetch()
+			end
 			if ok then
 				data = result
 				failed = false
@@ -6029,7 +6048,205 @@ function MapBuilder.BuildSkyRooftop()
 end
 
 return MapBuilder
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX19"><Properties><string name="Name">MatchRouter</string><ProtectedString name="Source"><![CDATA[-- 여러 경기 동시 진행: 로비 서버 ↔ 경기 전용 서버(같은 플레이스의 예약 서버)
+-- · 로비에서 대기열이 차면 예약 서버를 만들고 그 인원을 함께 이동 → 그 서버에서 한 판 진행 → 끝나면 다시 로비로
+-- · 진행 중인 경기 서버는 MemoryStore에 (모드, 남은 시간, 빈자리)를 5초마다 알림
+-- · [배틀 시작] = 빈자리 있는 진행 중 경기 중 남은 시간이 가장 긴 곳으로 바로 입장
+-- · Studio에서는 이동이 안 되므로 지금처럼 한 서버 안에서 진행
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local MemoryStoreService = game:GetService("MemoryStoreService")
+
+local Router = {}
+
+Router.IsMatchServer = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
+Router.Enabled = not RunService:IsStudio()
+
+local active = nil
+if Router.Enabled then
+	pcall(function()
+		active = MemoryStoreService:GetSortedMap("SF_ActiveMatches_v1")
+	end)
+end
+
+local saveFn = nil -- DataService.Save (순환 require 방지용 주입)
+local myCode = nil -- 이 경기 서버의 접속 코드 (처음 도착한 사람이 알려 줌)
+
+function Router.SetSaver(fn)
+	saveFn = fn
+end
+
+function Router.JoinData(player)
+	local ok, jd = pcall(function()
+		return player:GetJoinData()
+	end)
+	local td = ok and jd and jd.TeleportData
+	if type(td) == "table" and type(td.SF) == "table" then
+		return td.SF
+	end
+	return nil
+end
+
+function Router.Code()
+	return myCode
+end
+
+function Router.NoteArrival(player)
+	local sf = Router.JoinData(player)
+	if sf and type(sf.Code) == "string" and not myCode then
+		myCode = sf.Code
+	end
+	return sf
+end
+
+-- 이동 전에 모두 저장 (다음 서버가 최신 데이터를 읽도록)
+local function saveAll(list)
+	local stamp = os.time()
+	if not saveFn then
+		return stamp
+	end
+	local pending = #list
+	for _, pl in ipairs(list) do
+		task.spawn(function()
+			pcall(saveFn, pl)
+			pending = pending - 1
+		end)
+	end
+	local t0 = os.clock()
+	while pending > 0 and os.clock() - t0 < 8 do
+		task.wait(0.1)
+	end
+	return stamp
+end
+
+local function teleport(list, code, data)
+	local opts = Instance.new("TeleportOptions")
+	if code then
+		opts.ReservedServerAccessCode = code
+	end
+	opts:SetTeleportData({ SF = data })
+	local ok, err = pcall(function()
+		TeleportService:TeleportAsync(game.PlaceId, list, opts)
+	end)
+	if not ok then
+		warn("[SplashFront] 서버 이동 실패:", err)
+	end
+	return ok
+end
+
+-- 로비 → 새 경기 서버
+function Router.Launch(q, list, mapId)
+	if not Router.Enabled or Router.IsMatchServer or #list == 0 then
+		return false
+	end
+	local ok, code = pcall(function()
+		return TeleportService:ReserveServer(game.PlaceId)
+	end)
+	if not ok or type(code) ~= "string" then
+		warn("[SplashFront] 경기 서버 예약 실패:", code)
+		return false
+	end
+	local sides = {}
+	for _, pl in ipairs(list) do
+		sides[tostring(pl.UserId)] = pl:GetAttribute("QueueSide")
+	end
+	local stamp = saveAll(list)
+	return teleport(list, code, {
+		Kind = "Match", Queue = q.Id, Map = mapId, Sides = sides, Count = #list, Code = code, SavedAt = stamp,
+	})
+end
+
+-- 진행 중인 경기 목록에서 빈자리가 있고 남은 시간이 가장 긴 곳
+function Router.FindRunning(minLeft)
+	if not Router.Enabled or Router.IsMatchServer or not active then
+		return nil
+	end
+	local ok, items = pcall(function()
+		return active:GetRangeAsync(Enum.SortDirection.Descending, 100)
+	end)
+	if not ok or type(items) ~= "table" then
+		return nil
+	end
+	local nowT = workspace:GetServerTimeNow()
+	local best = nil
+	for _, it in ipairs(items) do
+		local v = it.value
+		if type(v) == "table" and (v.Open or 0) > 0 and type(v.Code) == "string"
+			and (v.EndsAt or 0) - nowT > (minLeft or 45) then
+			if not best or v.EndsAt > best.EndsAt then
+				best = v
+			end
+		end
+	end
+	return best
+end
+
+-- 로비 → 진행 중인 경기 서버
+function Router.JoinRunning(player, entry)
+	local stamp = saveAll({ player })
+	return teleport({ player }, entry.Code, { Kind = "Join", Code = entry.Code, SavedAt = stamp })
+end
+
+-- 경기 서버 → 로비 (공개 서버)
+function Router.ToLobby(list)
+	if not Router.Enabled or not Router.IsMatchServer then
+		return false
+	end
+	local alive = {}
+	for _, pl in ipairs(list) do
+		if pl.Parent then
+			table.insert(alive, pl)
+		end
+	end
+	if #alive == 0 then
+		return true
+	end
+	local stamp = saveAll(alive)
+	local opts = Instance.new("TeleportOptions")
+	opts:SetTeleportData({ SF = { Kind = "Lobby", SavedAt = stamp } })
+	local ok, err = pcall(function()
+		TeleportService:TeleportAsync(game.PlaceId, alive, opts)
+	end)
+	if not ok then
+		warn("[SplashFront] 로비 이동 실패:", err)
+	end
+	return ok
+end
+
+-- 경기 서버 상태 알림 (60초 뒤 자동 만료 → 서버가 죽어도 목록에 남지 않음)
+function Router.Publish(info)
+	if not Router.IsMatchServer or not active or not myCode then
+		return
+	end
+	info.Code = myCode
+	pcall(function()
+		active:SetAsync(myCode, info, 60, info.EndsAt or 0)
+	end)
+end
+
+function Router.Unpublish()
+	if not Router.IsMatchServer or not active or not myCode then
+		return
+	end
+	pcall(function()
+		active:RemoveAsync(myCode)
+	end)
+end
+
+function Router.Init()
+	TeleportService.TeleportInitFailed:Connect(function(player, result, msg)
+		warn("[SplashFront] 이동 실패:", player.Name, result, msg)
+		player:SetAttribute("Teleporting", nil)
+	end)
+	if Router.IsMatchServer then
+		game:BindToClose(function()
+			Router.Unpublish()
+		end)
+	end
+end
+
+return Router
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">MatchService</string><ProtectedString name="Source"><![CDATA[-- 매치 흐름: 로비 대기 → 카운트다운 → 경기(터프/플래그/솔로) → 결과·보상·랭크 → 로비
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -6048,6 +6265,7 @@ local Telemetry = require(script.Parent.TelemetryService)
 local ItemService = require(script.Parent.ItemService)
 local QuestService = require(script.Parent.QuestService)
 local MapBuilder = require(script.Parent.MapBuilder)
+local Router = require(script.Parent.MatchRouter)
 
 local MatchService = {}
 
@@ -7290,7 +7508,7 @@ local function padOf(queueId, side)
 end
 
 local function setQueue(player, queueId, viaPad, side)
-	if player:GetAttribute("InMatch") then
+	if player:GetAttribute("InMatch") or player:GetAttribute("Teleporting") then
 		return
 	end
 	local q = queueId ~= nil and queueDef(queueId)
@@ -7368,6 +7586,25 @@ function MatchService.JoinInProgress(player)
 			slotOwner = o.OwnerId
 		end
 	end
+	if not slotOwner and S.Mode == "Solo" and #S.Owners < 8 then
+		-- 솔로: 쓰지 않은 색 자리를 새로 열어 줌
+		local usedId = {}
+		for _, o in ipairs(S.Owners) do
+			usedId[o.OwnerId] = true
+		end
+		for i = 1, 8 do
+			if not usedId[i] then
+				table.insert(S.Owners, { OwnerId = i, Name = player.DisplayName, Color = Config.SoloColors[i] })
+				local palette = {}
+				for _, o in ipairs(S.Owners) do
+					palette[o.OwnerId] = o.Color
+				end
+				PaintService.SetPalette(palette)
+				slotOwner = i
+				break
+			end
+		end
+	end
 	if slotOwner then
 		slotTeam = slotOwner
 		slotName = "빈자리"
@@ -7424,13 +7661,53 @@ function MatchService.JoinInProgress(player)
 	return true
 end
 
+-- 진행 중인 경기에서 더 들어올 수 있는 자리 수 (빈자리 + 봇 자리)
+local function openSlots()
+	if S.Phase ~= "Playing" then
+		return 0
+	end
+	local q = queueDef(S.QueueId)
+	local cap = (S.Mode == "Solo") and 1 or ((q and q.TeamSize) or 3)
+	local total, bots = {}, 0
+	for _, o in ipairs(Combatants.All()) do
+		total[o.OwnerId] = (total[o.OwnerId] or 0) + 1
+		if o.IsBot then
+			bots = bots + 1
+		end
+	end
+	local empty = 0
+	for _, o in ipairs(S.Owners) do
+		empty = empty + math.max(0, cap - (total[o.OwnerId] or 0))
+	end
+	if S.Mode == "Solo" then
+		empty = empty + math.max(0, 8 - #S.Owners)
+	end
+	return empty + bots
+end
+
 -- [배틀 시작] 빠른 참가: 진행 중인 배틀의 빈자리 → 없으면 사람이 기다리는 대기열(자리 남은 팀전) → 없으면 3vs3 대기
 local function quickJoin(player)
-	if player:GetAttribute("InMatch") then
+	if player:GetAttribute("InMatch") or player:GetAttribute("Teleporting") then
 		return
 	end
 	if MatchService.JoinInProgress(player) then
 		return
+	end
+	if Router.IsMatchServer then
+		return -- 경기 서버에서는 이 경기에만 합류
+	end
+	-- 다른 서버에서 진행 중인 경기: 빈자리 있고 남은 시간이 가장 긴 곳으로 바로 입장
+	local entry = Router.FindRunning(45)
+	if entry then
+		local left = math.max(0, math.floor(entry.EndsAt - now()))
+		local q = queueDef(entry.Queue)
+		remotes.Notify:FireClient(player, "진행 중인 배틀에 입장합니다 · " .. ((q and q.Id) or "") .. " · 남은 시간 "
+			.. string.format("%d:%02d", left // 60, left % 60), Color3.fromRGB(140, 255, 200))
+		player:SetAttribute("Teleporting", true)
+		if Router.JoinRunning(player, entry) then
+			return
+		end
+		player:SetAttribute("Teleporting", nil)
 	end
 	local counts = queueCounts()
 	local pick, best = nil, 0
@@ -7525,6 +7802,9 @@ function MatchService.LeaveMatch(player)
 	end
 	Telemetry.Custom(player, "LeftMatch", 1, S.Mode or "", tostring(S.QueueId), "")
 	remotes.Notify:FireClient(player, "경기에서 나와 로비로 돌아왔어요", Color3.fromRGB(200, 220, 255))
+	if Router.IsMatchServer then
+		task.spawn(Router.ToLobby, { player })
+	end
 end
 
 -- 경기 중 무기 교체: 부활 직후이거나 우리 스폰 근처일 때만
@@ -7658,6 +7938,8 @@ function MatchService.SetNextMap(query)
 end
 
 function MatchService.Init(remoteFolder, mapList, lobbyInfo)
+	Router.SetSaver(DataService.Save)
+	Router.Init()
 	remotes = remoteFolder
 	maps = mapList
 	arena = maps[1]
@@ -7723,7 +8005,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			task.wait(0.3)
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local qid = pl:GetAttribute("Queue")
-				if qid and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
+				if qid and not Router.IsMatchServer and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
 					local pad = padOf(qid, pl:GetAttribute("QueueSide"))
 					local char = pl.Character
 					local r = char and char:FindFirstChild("HumanoidRootPart")
@@ -7800,6 +8082,194 @@ function MatchService.Run()
 		end
 	end)
 
+	-- 경기 진행 (끝나면 endMatch → 결과 → 로비 상태)
+	local function runPlaying()
+		-- 3) 경기
+		local last = os.clock()
+		while S.Phase == "Playing" do
+			task.wait(0.25)
+			local dt = os.clock() - last
+			last = os.clock()
+			local left = S.EndsAt - now()
+			if not S.FinalSplash and left <= Config.FinalSplashTime then
+				S.FinalSplash = true
+				PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
+				announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
+				remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
+			end
+			if S.Mode == "Flag" then
+				flagTick(dt)
+				for _, f in ipairs(S.Flags) do
+					if f.Owner ~= 0 then
+						S.FlagScore[f.Owner] = (S.FlagScore[f.Owner] or 0) + Config.Flag.PointsPerSecond * dt
+					end
+				end
+				for _, v in pairs(S.FlagScore) do
+					if v >= Config.Flag.WinScore then
+						left = 0
+					end
+				end
+			end
+			-- 낙사 판정 (스카이 루프탑 등 낭떠러지 맵)
+			if arena.KillY then
+				for _, e in ipairs(Combatants.All()) do
+					if e.Alive and e.Model then
+						local r = e.Model:FindFirstChild("HumanoidRootPart")
+						local h = e.Model:FindFirstChildOfClass("Humanoid")
+						if r and h and h.Health > 0 and r.Position.Y < arena.KillY then
+							if os.clock() - e.LastDamaged > 6 then
+								e.LastAttacker = nil
+							end
+							h.Health = 0
+						end
+					end
+				end
+			end
+			local anyHuman = false
+			for _, e in ipairs(Combatants.All()) do
+				if not e.IsBot then
+					anyHuman = true
+				end
+			end
+			if left <= 0 or not anyHuman then
+				endMatch()
+			end
+		end
+	end
+
+	-- 로비 서버: 대기열이 차면 경기 전용 서버로 함께 이동 (실패하거나 Studio면 이 서버에서 진행)
+	local function launchRemote(q)
+		if not Router.Enabled or Router.IsMatchServer then
+			return false
+		end
+		local capacity = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		local humans = {}
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl:GetAttribute("Queue") == q.Id and not pl:GetAttribute("InMatch") and #humans < capacity then
+				table.insert(humans, pl)
+			end
+		end
+		if #humans == 0 then
+			return false
+		end
+		local mi = mapIndexFor(q)
+		local mapId = maps[mi] and maps[mi].Id
+		for _, pl in ipairs(humans) do
+			pl:SetAttribute("Teleporting", true)
+			remotes.Notify:FireClient(pl, "배틀 서버로 이동 중이에요…", Color3.fromRGB(140, 255, 200))
+		end
+		if Router.Launch(q, humans, mapId) then
+			for _, pl in ipairs(humans) do
+				pl:SetAttribute("Queue", nil)
+				pl:SetAttribute("QueueSide", nil)
+				pl:SetAttribute("QueueTime", nil)
+				joinAt[pl] = nil
+			end
+			task.delay(30, function()
+				for _, pl in ipairs(humans) do
+					if pl.Parent then
+						pl:SetAttribute("Teleporting", nil) -- 이동이 안 됐으면 다시 참가할 수 있게
+					end
+				end
+			end)
+			return true
+		end
+		for _, pl in ipairs(humans) do
+			pl:SetAttribute("Teleporting", nil)
+		end
+		queueMap[q.Id] = mapId
+		return false
+	end
+
+	-- 경기 서버: 함께 이동해 온 인원이 모이면 바로 한 판 → 결과 후 모두 로비 서버로
+	local function runMatchServer()
+		S.Phase = "Countdown"
+		local qid, expected, firstT = nil, 1, nil
+		while true do
+			task.wait(0.5)
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local sf = Router.NoteArrival(pl)
+				if sf and not pl:GetAttribute("Queue") and not pl:GetAttribute("InMatch")
+					and DataService.Get(pl) and pl.Character then
+					if sf.Kind == "Match" and type(sf.Queue) == "string" and queueDef(sf.Queue) then
+						qid = qid or sf.Queue
+						expected = math.max(expected, tonumber(sf.Count) or 1)
+						if sf.Map and queueMap[qid] == nil then
+							queueMap[qid] = sf.Map
+						end
+					end
+					if qid then
+						local side = type(sf.Sides) == "table" and sf.Sides[tostring(pl.UserId)] or nil
+						pl:SetAttribute("Queue", qid)
+						pl:SetAttribute("QueueSide", side)
+						pl:SetAttribute("QueueTime", os.clock())
+						firstT = firstT or os.clock()
+					end
+				end
+			end
+			if qid then
+				S.QueueId = qid
+				S.EndsAt = now() + math.max(1, 20 - (os.clock() - (firstT or os.clock())))
+				if (queueCounts()[qid] or 0) >= expected or os.clock() - (firstT or os.clock()) > 20 then
+					break
+				end
+			end
+		end
+		for sec = 3, 1, -1 do
+			S.EndsAt = now() + sec
+			for _, pl in ipairs(Players:GetPlayers()) do
+				remotes.FX:FireClient(pl, "Cue", { Name = "countdown_tick" })
+			end
+			task.wait(1)
+		end
+		local q = queueDef(qid)
+		if q and startMatch(q) then
+			runPlaying()
+		end
+		Router.Unpublish()
+		S.Phase = "Lobby"
+		Router.ToLobby(Players:GetPlayers())
+		-- 늦게 온 사람·이동 실패한 사람도 로비로
+		while true do
+			task.wait(5)
+			if #Players:GetPlayers() > 0 then
+				Router.ToLobby(Players:GetPlayers())
+			end
+		end
+	end
+
+	if Router.IsMatchServer then
+		-- 상태 알림: 로비의 [배틀 시작]이 이 경기를 찾을 수 있게
+		task.spawn(function()
+			while true do
+				task.wait(5)
+				if S.Phase == "Playing" then
+					Router.Publish({ Queue = S.QueueId, Mode = S.Mode, EndsAt = S.EndsAt, Open = openSlots() })
+				end
+			end
+		end)
+		-- 진행 중에 들어온 사람(빈자리 입장 · 늦게 도착)은 바로 합류, 안 되면 로비로
+		Players.PlayerAdded:Connect(function(pl)
+			Router.NoteArrival(pl)
+			task.spawn(function()
+				local t0 = os.clock()
+				while pl.Parent and not (DataService.Get(pl) and pl.Character) and os.clock() - t0 < 20 do
+					task.wait(0.3)
+				end
+				if not pl.Parent or S.Phase == "Countdown" then
+					return -- 시작 전이면 대기 루프가 받아 줌
+				end
+				task.wait(0.5)
+				if S.Phase ~= "Playing" or not MatchService.JoinInProgress(pl) then
+					remotes.Notify:FireClient(pl, "들어갈 자리가 없어 로비로 돌아가요", Color3.fromRGB(255, 200, 90))
+					Router.ToLobby({ pl })
+				end
+			end)
+		end)
+		task.spawn(runMatchServer)
+		return
+	end
+
 	task.spawn(function()
 		while true do
 			-- 1) 로비 대기
@@ -7831,58 +8301,12 @@ function MatchService.Run()
 					break
 				end
 			end
-			if not aborted and startMatch(q) then
-				-- 3) 경기
-				local last = os.clock()
-				while S.Phase == "Playing" do
-					task.wait(0.25)
-					local dt = os.clock() - last
-					last = os.clock()
-					local left = S.EndsAt - now()
-					if not S.FinalSplash and left <= Config.FinalSplashTime then
-						S.FinalSplash = true
-						PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
-						announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
-						remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
-					end
-					if S.Mode == "Flag" then
-						flagTick(dt)
-						for _, f in ipairs(S.Flags) do
-							if f.Owner ~= 0 then
-								S.FlagScore[f.Owner] = (S.FlagScore[f.Owner] or 0) + Config.Flag.PointsPerSecond * dt
-							end
-						end
-						for _, v in pairs(S.FlagScore) do
-							if v >= Config.Flag.WinScore then
-								left = 0
-							end
-						end
-					end
-					-- 낙사 판정 (스카이 루프탑 등 낭떠러지 맵)
-					if arena.KillY then
-						for _, e in ipairs(Combatants.All()) do
-							if e.Alive and e.Model then
-								local r = e.Model:FindFirstChild("HumanoidRootPart")
-								local h = e.Model:FindFirstChildOfClass("Humanoid")
-								if r and h and h.Health > 0 and r.Position.Y < arena.KillY then
-									if os.clock() - e.LastDamaged > 6 then
-										e.LastAttacker = nil
-									end
-									h.Health = 0
-								end
-							end
-						end
-					end
-					local anyHuman = false
-					for _, e in ipairs(Combatants.All()) do
-						if not e.IsBot then
-							anyHuman = true
-						end
-					end
-					if left <= 0 or not anyHuman then
-						endMatch()
-					end
-				end
+			if aborted then
+				S.QueueId = nil
+			elseif launchRemote(q) then
+				S.QueueId = nil -- 다른 서버에서 진행 → 이 로비는 바로 다음 대기열을 받음
+			elseif startMatch(q) then
+				runPlaying()
 			else
 				S.QueueId = nil
 			end
@@ -7919,7 +8343,7 @@ Combatants.Killed:Connect(function(killer)
 end)
 
 return MatchService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX20"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">MissionService</string><ProtectedString name="Source"><![CDATA[-- 경기 중 제한시간 랜덤 미션
 -- 새 미션 추가: MISSIONS 테이블에 { Id, Name, Desc, Duration, Bonus, Begin, Finish } 하나 추가
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -8170,7 +8594,7 @@ function MissionService.Stop()
 end
 
 return MissionService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX21"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">ModelService</string><ProtectedString name="Source"><![CDATA[-- 업로드된 Blender 모델(AssetIds.Models)을 서버 시작 때 불러와 ReplicatedStorage.SplashModels에 둠
 -- Studio 3D 가져오기로 직접 넣은 모델이 이미 SplashModels에 있으면 그대로 씀
 local InsertService = game:GetService("InsertService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8220,7 +8644,7 @@ function ModelService.Load()
 end
 
 return ModelService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX22"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">PaintService</string><ProtectedString name="Source"><![CDATA[-- 페인트 셀 관리: 칠하기, 면적 집계, 발밑 색 조회
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Combatants = require(script.Parent.Combatants)
@@ -8387,7 +8811,7 @@ function PaintService.GetCoverage()
 end
 
 return PaintService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX23"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">QuestService</string><ProtectedString name="Source"><![CDATA[-- 일일·주간 퀘스트: 한국 시간 자정(일일)·월요일 0시(주간)에 바뀜. 같은 날엔 모든 플레이어가 같은 퀘스트
 -- 진행도는 프로필(p.Quests)에 저장, 달성하면 자동으로 코인·경험치 지급
 -- 클라이언트에는 속성 "Quests"(JSON)로 보냄
 local HttpService = game:GetService("HttpService")
@@ -8529,7 +8953,7 @@ function QuestService.Init(remoteFolder)
 end
 
 return QuestService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX24"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">RankService</string><ProtectedString name="Source"><![CDATA[-- 시즌 레이팅 + 글로벌 리더보드(OrderedDataStore)
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8767,7 +9191,7 @@ function RankService.StartBoard(textLabel)
 end
 
 return RankService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX25"><Properties><string name="Name">SettingsService</string><ProtectedString name="Source"><![CDATA[-- 운영 설정 (관리자 패널): 부활 시간·경기 시간·아이템 유지 시간 등
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">SettingsService</string><ProtectedString name="Source"><![CDATA[-- 운영 설정 (관리자 패널): 부활 시간·경기 시간·아이템 유지 시간 등
 -- 바꾸면 DataStore에 저장(재시작해도 유지) + MessagingService로 다른 서버에도 즉시 반영 + 클라이언트에 공유
 local DataStoreService = game:GetService("DataStoreService")
 local MessagingService = game:GetService("MessagingService")
@@ -8863,7 +9287,7 @@ function SettingsService.List()
 end
 
 return SettingsService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX26"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">ShopService</string><ProtectedString name="Source"><![CDATA[-- 무기 상점(게임 코인) + 로벅스 결제 처리
 local MarketplaceService = game:GetService("MarketplaceService")
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -9157,7 +9581,7 @@ function ShopService.Init(remotes)
 end
 
 return ShopService
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX27"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">Signal</string><ProtectedString name="Source"><![CDATA[-- 아주 작은 이벤트 시그널 (서버 모듈 간 통신용)
 local Signal = {}
 Signal.__index = Signal
 
@@ -9187,7 +9611,7 @@ function Signal:Fire(...)
 end
 
 return Signal
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX28"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX29"><Properties><string name="Name">TelemetryService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 지표 수집
 -- 1) Roblox AnalyticsService: 온보딩 퍼널 / 경제 / 커스텀 이벤트 → Creator Hub > 분석 에서 확인
 -- 2) 무기별 밸런스 통계 (자체 DataStore) → 관리자 패널 "밸런스 리포트"
 -- 3) 게임 내 피드백 (자체 DataStore) → 관리자 패널 "피드백 보기"
@@ -9456,7 +9880,7 @@ function Telemetry.Init(remotes)
 end
 
 return Telemetry
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX43"><Properties><string name="Name">Client</string></Properties><Item class="ModuleScript" referent="RBX30"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX44"><Properties><string name="Name">Client</string></Properties><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">CBTPanel</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 UI: 피드백 창(모든 테스터) + 관리자 패널(F2, 관리자만)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9768,7 +10192,7 @@ function CBT.OnResults()
 end
 
 return CBT
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX31"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX32"><Properties><string name="Name">CharacterPose</string><ProtectedString name="Source"><![CDATA[-- 캐릭터 자세 (클라이언트): 경기 중인 모든 캐릭터(플레이어·봇)
 --  · 조준: 총을 앞으로 겨누고 상체·머리·팔이 조준 각도(AimPitch)를 나눠서 따라감
 --  · 달리기: 상체를 숙이고 총을 비스듬히 내려 듦 · 걷기: 몸을 낮추고 조심스럽게 · 앉기: 무릎을 굽힌 자세 (움직이면 종종걸음)
 --  · 사격 반동: 팔이 위로 튀었다가 돌아옴
@@ -10039,7 +10463,7 @@ function Pose.Init()
 end
 
 return Pose
-]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX32"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
+]]></ProtectedString></Properties></Item><Item class="LocalScript" referent="RBX33"><Properties><string name="Name">Client</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- SPLASH FRONT 클라이언트 진입점
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -10381,7 +10805,7 @@ do
 end
 
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX33"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래쉬, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래쉬, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -10927,7 +11351,7 @@ function Effects.OnFX(kind, d)
 end
 
 return Effects
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX34"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">HUD</string><ProtectedString name="Source"><![CDATA[-- 경기 HUD: 타이머·점수바·미션·조준선·히트마커·잉크·스페셜·체력·킬피드·결과
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12161,7 +12585,7 @@ function HUD.ItemToast(id)
 end
 
 return HUD
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX35"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">ItemClient</string><ProtectedString name="Source"><![CDATA[-- 미션 보상 아이템 (클라이언트): F 사용 · G 순서 바꾸기 · 제트팩 추진(Space) · 연막탄 조준점
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -12281,7 +12705,7 @@ function ItemClient.Init(remoteFolder, hud)
 end
 
 return ItemClient
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">LobbyUI</string><ProtectedString name="Source"><![CDATA[-- 로비 UI: 프로필 · 접속자 목록(왼쪽) · 매치 참가(오른쪽 아래) · 상점 · 랭킹 TOP 50 · 크레이트 개봉 연출
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -13682,7 +14106,7 @@ function Lobby.Init(remoteFolder, hud)
 end
 
 return Lobby
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX37"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MapInteract</string><ProtectedString name="Source"><![CDATA[-- 맵 장치(클라이언트): 점프패드 발사, 집라인 탑승
 -- 캐릭터 물리는 클라이언트 소유라서 플레이어 이동은 여기서 처리 (봇은 서버 MapBuilder가 처리)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13858,7 +14282,7 @@ function MapInteract.IsRiding()
 end
 
 return MapInteract
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX38"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
 -- 파이널 스플래쉬(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
@@ -13951,7 +14375,7 @@ function MusicPlayer.PlayResult(won)
 end
 
 return MusicPlayer
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX39"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">PaintVisual</string><ProtectedString name="Source"><![CDATA[-- 바닥 페인트 연출 (클라이언트 전용)
 -- 서버의 바닥 셀(4스터드 격자)은 점수·이동속도 판정용으로 그대로 두고 화면에서는 숨김.
 -- 대신 셀마다 셀보다 큰 둥근 페인트 방울을 무작위로 겹쳐 깔아 스플래툰처럼 번진 모양을 만들고,
 -- 칠해질 때 '촥' 하고 퍼지는 애니메이션 + 주변 물방울을 뿌림
@@ -14174,7 +14598,7 @@ function PV.Init()
 end
 
 return PV
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX40"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">SoundBank</string><ProtectedString name="Source"><![CDATA[-- 상황별 효과음 재생
 -- 업로드 후: 효과음 37개가 든 아틀라스 1개(AssetIds.SfxAtlas)에서 PlaybackRegion으로 해당 구간만 재생
 -- 업로드 전: Studio 기본음으로 대체
 local SoundService = game:GetService("SoundService")
@@ -14259,7 +14683,7 @@ function SoundBank.Play(name, position, volume, pitch, looped)
 end
 
 return SoundBank
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">UIKit</string><ProtectedString name="Source"><![CDATA[-- 공용 UI 스타일: 패널·버튼·닫기 버튼·아이템 이미지(3D 미리보기)
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ModelKit = require(ReplicatedStorage.Shared.ModelKit)
@@ -14569,7 +14993,7 @@ function UI.ItemImage(parent, item, size)
 end
 
 return UI
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX42"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX43"><Properties><string name="Name">WeaponController</string><ProtectedString name="Source"><![CDATA[-- 1인칭 사격 컨트롤: 뷰모델, 반동·탄퍼짐, 조준(ADS/스코프), 스페셜, 앉기, 바닥 색에 따른 이동속도
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -15846,7 +16270,7 @@ function WC.Init(remoteFolder, hud, effects)
 end
 
 return WC
-]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX45"><Properties><string name="Name">First</string></Properties><Item class="LocalScript" referent="RBX44"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX46"><Properties><string name="Name">First</string></Properties><Item class="LocalScript" referent="RBX45"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
 -- 격납고 유리 천장 위에서 카메라가 떨어지듯 내려와 캐릭터 뒤에 붙으며 화면이 열림 (하늘·빈 공간이 보이지 않게)
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")

@@ -92,10 +92,29 @@ function DataService.Load(player)
 	if store then
 		-- 일시적 오류는 몇 번 다시 시도. 끝내 실패하면 이번 접속은 저장하지 않음 (빈 데이터로 덮어써 구매품을 잃지 않게)
 		failed = true
-		for attempt = 1, 4 do
-			local ok, result = pcall(function()
-				return store:GetAsync("u" .. player.UserId)
+		-- 다른 서버(로비↔경기)에서 막 넘어왔으면 그 서버가 저장한 최신본이 보일 때까지 잠깐 기다림
+		local minSaved = nil
+		pcall(function()
+			local td = player:GetJoinData().TeleportData
+			if type(td) == "table" and type(td.SF) == "table" and type(td.SF.SavedAt) == "number" then
+				minSaved = td.SF.SavedAt - 1
+			end
+		end)
+		local function fetch()
+			return pcall(function()
+				local o = Instance.new("DataStoreGetOptions")
+				o.UseCache = false
+				return store:GetAsync("u" .. player.UserId, o)
 			end)
+		end
+		for attempt = 1, 4 do
+			local ok, result = fetch()
+			local waited = 0
+			while ok and minSaved and waited < 6 and type(result) == "table" and (result.SavedAt or 0) < minSaved do
+				waited = waited + 1
+				task.wait(1.5)
+				ok, result = fetch()
+			end
 			if ok then
 				data = result
 				failed = false

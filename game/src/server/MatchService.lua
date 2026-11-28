@@ -17,6 +17,7 @@ local Telemetry = require(script.Parent.TelemetryService)
 local ItemService = require(script.Parent.ItemService)
 local QuestService = require(script.Parent.QuestService)
 local MapBuilder = require(script.Parent.MapBuilder)
+local Router = require(script.Parent.MatchRouter)
 
 local MatchService = {}
 
@@ -1259,7 +1260,7 @@ local function padOf(queueId, side)
 end
 
 local function setQueue(player, queueId, viaPad, side)
-	if player:GetAttribute("InMatch") then
+	if player:GetAttribute("InMatch") or player:GetAttribute("Teleporting") then
 		return
 	end
 	local q = queueId ~= nil and queueDef(queueId)
@@ -1337,6 +1338,25 @@ function MatchService.JoinInProgress(player)
 			slotOwner = o.OwnerId
 		end
 	end
+	if not slotOwner and S.Mode == "Solo" and #S.Owners < 8 then
+		-- 솔로: 쓰지 않은 색 자리를 새로 열어 줌
+		local usedId = {}
+		for _, o in ipairs(S.Owners) do
+			usedId[o.OwnerId] = true
+		end
+		for i = 1, 8 do
+			if not usedId[i] then
+				table.insert(S.Owners, { OwnerId = i, Name = player.DisplayName, Color = Config.SoloColors[i] })
+				local palette = {}
+				for _, o in ipairs(S.Owners) do
+					palette[o.OwnerId] = o.Color
+				end
+				PaintService.SetPalette(palette)
+				slotOwner = i
+				break
+			end
+		end
+	end
 	if slotOwner then
 		slotTeam = slotOwner
 		slotName = "빈자리"
@@ -1393,13 +1413,53 @@ function MatchService.JoinInProgress(player)
 	return true
 end
 
+-- 진행 중인 경기에서 더 들어올 수 있는 자리 수 (빈자리 + 봇 자리)
+local function openSlots()
+	if S.Phase ~= "Playing" then
+		return 0
+	end
+	local q = queueDef(S.QueueId)
+	local cap = (S.Mode == "Solo") and 1 or ((q and q.TeamSize) or 3)
+	local total, bots = {}, 0
+	for _, o in ipairs(Combatants.All()) do
+		total[o.OwnerId] = (total[o.OwnerId] or 0) + 1
+		if o.IsBot then
+			bots = bots + 1
+		end
+	end
+	local empty = 0
+	for _, o in ipairs(S.Owners) do
+		empty = empty + math.max(0, cap - (total[o.OwnerId] or 0))
+	end
+	if S.Mode == "Solo" then
+		empty = empty + math.max(0, 8 - #S.Owners)
+	end
+	return empty + bots
+end
+
 -- [배틀 시작] 빠른 참가: 진행 중인 배틀의 빈자리 → 없으면 사람이 기다리는 대기열(자리 남은 팀전) → 없으면 3vs3 대기
 local function quickJoin(player)
-	if player:GetAttribute("InMatch") then
+	if player:GetAttribute("InMatch") or player:GetAttribute("Teleporting") then
 		return
 	end
 	if MatchService.JoinInProgress(player) then
 		return
+	end
+	if Router.IsMatchServer then
+		return -- 경기 서버에서는 이 경기에만 합류
+	end
+	-- 다른 서버에서 진행 중인 경기: 빈자리 있고 남은 시간이 가장 긴 곳으로 바로 입장
+	local entry = Router.FindRunning(45)
+	if entry then
+		local left = math.max(0, math.floor(entry.EndsAt - now()))
+		local q = queueDef(entry.Queue)
+		remotes.Notify:FireClient(player, "진행 중인 배틀에 입장합니다 · " .. ((q and q.Id) or "") .. " · 남은 시간 "
+			.. string.format("%d:%02d", left // 60, left % 60), Color3.fromRGB(140, 255, 200))
+		player:SetAttribute("Teleporting", true)
+		if Router.JoinRunning(player, entry) then
+			return
+		end
+		player:SetAttribute("Teleporting", nil)
 	end
 	local counts = queueCounts()
 	local pick, best = nil, 0
@@ -1494,6 +1554,9 @@ function MatchService.LeaveMatch(player)
 	end
 	Telemetry.Custom(player, "LeftMatch", 1, S.Mode or "", tostring(S.QueueId), "")
 	remotes.Notify:FireClient(player, "경기에서 나와 로비로 돌아왔어요", Color3.fromRGB(200, 220, 255))
+	if Router.IsMatchServer then
+		task.spawn(Router.ToLobby, { player })
+	end
 end
 
 -- 경기 중 무기 교체: 부활 직후이거나 우리 스폰 근처일 때만
@@ -1627,6 +1690,8 @@ function MatchService.SetNextMap(query)
 end
 
 function MatchService.Init(remoteFolder, mapList, lobbyInfo)
+	Router.SetSaver(DataService.Save)
+	Router.Init()
 	remotes = remoteFolder
 	maps = mapList
 	arena = maps[1]
@@ -1692,7 +1757,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 			task.wait(0.3)
 			for _, pl in ipairs(Players:GetPlayers()) do
 				local qid = pl:GetAttribute("Queue")
-				if qid and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
+				if qid and not Router.IsMatchServer and not pl:GetAttribute("InMatch") and os.clock() - (joinAt[pl] or 0) > Config.PadLeaveGrace then
 					local pad = padOf(qid, pl:GetAttribute("QueueSide"))
 					local char = pl.Character
 					local r = char and char:FindFirstChild("HumanoidRootPart")
@@ -1769,6 +1834,194 @@ function MatchService.Run()
 		end
 	end)
 
+	-- 경기 진행 (끝나면 endMatch → 결과 → 로비 상태)
+	local function runPlaying()
+		-- 3) 경기
+		local last = os.clock()
+		while S.Phase == "Playing" do
+			task.wait(0.25)
+			local dt = os.clock() - last
+			last = os.clock()
+			local left = S.EndsAt - now()
+			if not S.FinalSplash and left <= Config.FinalSplashTime then
+				S.FinalSplash = true
+				PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
+				announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
+				remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
+			end
+			if S.Mode == "Flag" then
+				flagTick(dt)
+				for _, f in ipairs(S.Flags) do
+					if f.Owner ~= 0 then
+						S.FlagScore[f.Owner] = (S.FlagScore[f.Owner] or 0) + Config.Flag.PointsPerSecond * dt
+					end
+				end
+				for _, v in pairs(S.FlagScore) do
+					if v >= Config.Flag.WinScore then
+						left = 0
+					end
+				end
+			end
+			-- 낙사 판정 (스카이 루프탑 등 낭떠러지 맵)
+			if arena.KillY then
+				for _, e in ipairs(Combatants.All()) do
+					if e.Alive and e.Model then
+						local r = e.Model:FindFirstChild("HumanoidRootPart")
+						local h = e.Model:FindFirstChildOfClass("Humanoid")
+						if r and h and h.Health > 0 and r.Position.Y < arena.KillY then
+							if os.clock() - e.LastDamaged > 6 then
+								e.LastAttacker = nil
+							end
+							h.Health = 0
+						end
+					end
+				end
+			end
+			local anyHuman = false
+			for _, e in ipairs(Combatants.All()) do
+				if not e.IsBot then
+					anyHuman = true
+				end
+			end
+			if left <= 0 or not anyHuman then
+				endMatch()
+			end
+		end
+	end
+
+	-- 로비 서버: 대기열이 차면 경기 전용 서버로 함께 이동 (실패하거나 Studio면 이 서버에서 진행)
+	local function launchRemote(q)
+		if not Router.Enabled or Router.IsMatchServer then
+			return false
+		end
+		local capacity = (q.Mode == "Solo") and 8 or q.TeamSize * 2
+		local humans = {}
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl:GetAttribute("Queue") == q.Id and not pl:GetAttribute("InMatch") and #humans < capacity then
+				table.insert(humans, pl)
+			end
+		end
+		if #humans == 0 then
+			return false
+		end
+		local mi = mapIndexFor(q)
+		local mapId = maps[mi] and maps[mi].Id
+		for _, pl in ipairs(humans) do
+			pl:SetAttribute("Teleporting", true)
+			remotes.Notify:FireClient(pl, "배틀 서버로 이동 중이에요…", Color3.fromRGB(140, 255, 200))
+		end
+		if Router.Launch(q, humans, mapId) then
+			for _, pl in ipairs(humans) do
+				pl:SetAttribute("Queue", nil)
+				pl:SetAttribute("QueueSide", nil)
+				pl:SetAttribute("QueueTime", nil)
+				joinAt[pl] = nil
+			end
+			task.delay(30, function()
+				for _, pl in ipairs(humans) do
+					if pl.Parent then
+						pl:SetAttribute("Teleporting", nil) -- 이동이 안 됐으면 다시 참가할 수 있게
+					end
+				end
+			end)
+			return true
+		end
+		for _, pl in ipairs(humans) do
+			pl:SetAttribute("Teleporting", nil)
+		end
+		queueMap[q.Id] = mapId
+		return false
+	end
+
+	-- 경기 서버: 함께 이동해 온 인원이 모이면 바로 한 판 → 결과 후 모두 로비 서버로
+	local function runMatchServer()
+		S.Phase = "Countdown"
+		local qid, expected, firstT = nil, 1, nil
+		while true do
+			task.wait(0.5)
+			for _, pl in ipairs(Players:GetPlayers()) do
+				local sf = Router.NoteArrival(pl)
+				if sf and not pl:GetAttribute("Queue") and not pl:GetAttribute("InMatch")
+					and DataService.Get(pl) and pl.Character then
+					if sf.Kind == "Match" and type(sf.Queue) == "string" and queueDef(sf.Queue) then
+						qid = qid or sf.Queue
+						expected = math.max(expected, tonumber(sf.Count) or 1)
+						if sf.Map and queueMap[qid] == nil then
+							queueMap[qid] = sf.Map
+						end
+					end
+					if qid then
+						local side = type(sf.Sides) == "table" and sf.Sides[tostring(pl.UserId)] or nil
+						pl:SetAttribute("Queue", qid)
+						pl:SetAttribute("QueueSide", side)
+						pl:SetAttribute("QueueTime", os.clock())
+						firstT = firstT or os.clock()
+					end
+				end
+			end
+			if qid then
+				S.QueueId = qid
+				S.EndsAt = now() + math.max(1, 20 - (os.clock() - (firstT or os.clock())))
+				if (queueCounts()[qid] or 0) >= expected or os.clock() - (firstT or os.clock()) > 20 then
+					break
+				end
+			end
+		end
+		for sec = 3, 1, -1 do
+			S.EndsAt = now() + sec
+			for _, pl in ipairs(Players:GetPlayers()) do
+				remotes.FX:FireClient(pl, "Cue", { Name = "countdown_tick" })
+			end
+			task.wait(1)
+		end
+		local q = queueDef(qid)
+		if q and startMatch(q) then
+			runPlaying()
+		end
+		Router.Unpublish()
+		S.Phase = "Lobby"
+		Router.ToLobby(Players:GetPlayers())
+		-- 늦게 온 사람·이동 실패한 사람도 로비로
+		while true do
+			task.wait(5)
+			if #Players:GetPlayers() > 0 then
+				Router.ToLobby(Players:GetPlayers())
+			end
+		end
+	end
+
+	if Router.IsMatchServer then
+		-- 상태 알림: 로비의 [배틀 시작]이 이 경기를 찾을 수 있게
+		task.spawn(function()
+			while true do
+				task.wait(5)
+				if S.Phase == "Playing" then
+					Router.Publish({ Queue = S.QueueId, Mode = S.Mode, EndsAt = S.EndsAt, Open = openSlots() })
+				end
+			end
+		end)
+		-- 진행 중에 들어온 사람(빈자리 입장 · 늦게 도착)은 바로 합류, 안 되면 로비로
+		Players.PlayerAdded:Connect(function(pl)
+			Router.NoteArrival(pl)
+			task.spawn(function()
+				local t0 = os.clock()
+				while pl.Parent and not (DataService.Get(pl) and pl.Character) and os.clock() - t0 < 20 do
+					task.wait(0.3)
+				end
+				if not pl.Parent or S.Phase == "Countdown" then
+					return -- 시작 전이면 대기 루프가 받아 줌
+				end
+				task.wait(0.5)
+				if S.Phase ~= "Playing" or not MatchService.JoinInProgress(pl) then
+					remotes.Notify:FireClient(pl, "들어갈 자리가 없어 로비로 돌아가요", Color3.fromRGB(255, 200, 90))
+					Router.ToLobby({ pl })
+				end
+			end)
+		end)
+		task.spawn(runMatchServer)
+		return
+	end
+
 	task.spawn(function()
 		while true do
 			-- 1) 로비 대기
@@ -1800,58 +2053,12 @@ function MatchService.Run()
 					break
 				end
 			end
-			if not aborted and startMatch(q) then
-				-- 3) 경기
-				local last = os.clock()
-				while S.Phase == "Playing" do
-					task.wait(0.25)
-					local dt = os.clock() - last
-					last = os.clock()
-					local left = S.EndsAt - now()
-					if not S.FinalSplash and left <= Config.FinalSplashTime then
-						S.FinalSplash = true
-						PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
-						announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
-						remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
-					end
-					if S.Mode == "Flag" then
-						flagTick(dt)
-						for _, f in ipairs(S.Flags) do
-							if f.Owner ~= 0 then
-								S.FlagScore[f.Owner] = (S.FlagScore[f.Owner] or 0) + Config.Flag.PointsPerSecond * dt
-							end
-						end
-						for _, v in pairs(S.FlagScore) do
-							if v >= Config.Flag.WinScore then
-								left = 0
-							end
-						end
-					end
-					-- 낙사 판정 (스카이 루프탑 등 낭떠러지 맵)
-					if arena.KillY then
-						for _, e in ipairs(Combatants.All()) do
-							if e.Alive and e.Model then
-								local r = e.Model:FindFirstChild("HumanoidRootPart")
-								local h = e.Model:FindFirstChildOfClass("Humanoid")
-								if r and h and h.Health > 0 and r.Position.Y < arena.KillY then
-									if os.clock() - e.LastDamaged > 6 then
-										e.LastAttacker = nil
-									end
-									h.Health = 0
-								end
-							end
-						end
-					end
-					local anyHuman = false
-					for _, e in ipairs(Combatants.All()) do
-						if not e.IsBot then
-							anyHuman = true
-						end
-					end
-					if left <= 0 or not anyHuman then
-						endMatch()
-					end
-				end
+			if aborted then
+				S.QueueId = nil
+			elseif launchRemote(q) then
+				S.QueueId = nil -- 다른 서버에서 진행 → 이 로비는 바로 다음 대기열을 받음
+			elseif startMatch(q) then
+				runPlaying()
 			else
 				S.QueueId = nil
 			end
