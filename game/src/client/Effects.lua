@@ -425,6 +425,53 @@ local function endProj(d)
 	end
 end
 
+-- 칼 베기 궤적: 눈앞에서 대각선으로 휘어지는 빛의 호 (찌르기는 앞으로 뻗는 빛줄기)
+-- cf: 기준(카메라 또는 캐릭터 가슴) · side: 1/-1 휘두르는 방향
+function Effects.SlashArc(cf, heavy, color, side)
+	local folder = workspace:FindFirstChild("ClientFX")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "ClientFX"
+		folder.Parent = workspace
+	end
+	local function seg(c, size, delay, life)
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		p.Size = size
+		p.CFrame = c
+		p.Transparency = 1
+		p.Parent = folder
+		task.delay(delay, function()
+			p.Transparency = 0.15
+			TweenService:Create(p, TweenInfo.new(life, Enum.EasingStyle.Quad), { Transparency = 1, Size = size * Vector3.new(0.3, 1.2, 1) }):Play()
+		end)
+		Debris:AddItem(p, delay + life + 0.05)
+	end
+	if heavy then
+		-- 찌르기: 앞으로 뻗는 빛줄기 3겹
+		for i = 0, 2 do
+			seg(cf * CFrame.new(0.15 - i * 0.05, -0.1, -2.6 - i * 0.4), Vector3.new(0.05 + i * 0.03, 0.05 + i * 0.03, 2.2), i * 0.03, 0.2)
+		end
+		return
+	end
+	-- 베기: 화면 앞 반지름 2.2의 호를 대각선으로, 조각 14개를 시간차로 그려 휘두르는 느낌
+	local n, r = 14, 2.2
+	local tilt = CFrame.Angles(0, 0, math.rad(side * 32))
+	for i = 0, n - 1 do
+		local t = i / (n - 1)
+		local a = math.rad((-65 + 130 * t) * side)
+		local pos = cf * tilt * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -r)
+		local w = 0.06 + math.sin(t * math.pi) * 0.12
+		seg(pos * CFrame.Angles(0, math.rad(90), 0), Vector3.new(w, 0.03, 2 * math.pi * r / n * 1.1), t * 0.07, 0.22)
+	end
+end
+
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
 	if kind == "Slash" then
@@ -434,6 +481,7 @@ function Effects.OnFX(kind, d)
 			local root = d.Model:FindFirstChild("HumanoidRootPart")
 			if root then
 				SoundBank.Play("knife_swing", root.Position, 0.6)
+				Effects.SlashArc(root.CFrame * CFrame.new(0, 0.8, 0.6), d.Heavy, d.Color or Color3.new(1, 1, 1), math.random() < 0.5 and 1 or -1)
 			end
 		end
 		return
@@ -476,6 +524,9 @@ function Effects.OnFX(kind, d)
 		end
 		SoundBank.Play("fire_" .. string.lower(d.Weapon or "pistol"), d.From, 0.55)
 	elseif kind == "Proj" then
+		if d.Model then
+			CharacterPose.Throw(d.Model) -- 3인칭 던지는 팔 동작
+		end
 		startProj(d)
 	elseif kind == "ProjEnd" then
 		endProj(d)

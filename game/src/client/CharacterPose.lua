@@ -14,6 +14,7 @@ local cache = setmetatable({}, { __mode = "k" })  -- model -> 관절
 local smooth = setmetatable({}, { __mode = "k" }) -- model -> { Pitch, Run, Crouch, Walk }
 local localStance = "Normal"
 local slashes = setmetatable({}, { __mode = "k" }) -- model -> { T = 1→0, Heavy }
+local throws = setmetatable({}, { __mode = "k" })  -- model -> T 1→0 (수류탄 던지기)
 
 function Pose.Kick(model, recoil)
 	if model then
@@ -25,6 +26,13 @@ end
 function Pose.Slash(model, heavy)
 	if model then
 		slashes[model] = { T = 1, Heavy = heavy == true, Side = -((slashes[model] and slashes[model].Side) or -1) }
+	end
+end
+
+-- 수류탄 던지기 (오른팔을 뒤로 젖혔다가 앞으로)
+function Pose.Throw(model)
+	if model then
+		throws[model] = 1
 	end
 end
 
@@ -165,6 +173,26 @@ local function pose(model, pitchDeg, stance, dt)
 	end
 	if j.LW then
 		j.LW.Transform = CFrame.new()
+	end
+
+	-- 던지기: 오른팔을 머리 뒤로 젖혔다가 앞으로 내리꽂음 (다른 동작 위에 덮어씀)
+	local th = throws[model]
+	if th then
+		th = th - dt / 0.5
+		if th <= 0 then
+			throws[model] = nil
+		else
+			throws[model] = th
+			local p = 1 - th
+			local raise = (p < 0.45) and (p / 0.45) * 170 or 170 - ((p - 0.45) / 0.55) * 150
+			j.RS.Transform = CFrame.Angles(rad(raise), 0, rad(-15))
+			if j.RE then
+				j.RE.Transform = CFrame.Angles(rad((p < 0.45) and 60 or 10), 0, 0)
+			end
+			if j.Waist then
+				j.Waist.Transform = j.Waist.Transform * CFrame.Angles(0, rad((p < 0.45) and 20 or -15), 0)
+			end
+		end
 	end
 
 	-- 슬라이드: 상체를 뒤로 젖히고, 오른다리는 앞으로 쭉 · 왼다리는 접어서 미끄러짐

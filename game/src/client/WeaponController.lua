@@ -35,6 +35,12 @@ local vmKick = 0         -- 뷰모델 반동
 local melee = false       -- 칼을 든 상태 (X 키)
 local sliding, slideT, slideDir, slideSpeed, lastSlide = false, 0, nil, 0, 0 -- 슬라이드 (달리다가 C)
 local SLIDE_TIME = 0.75
+-- 1인칭 손·동작
+local hands = nil          -- { Right = Model, Left = Model, Ball = Part }
+local switchT, switchKnife = 0, false -- 총 ↔ 칼 전환(꺼냈다 올리기) 1 → 0
+local actionT, actionKind = 0, nil    -- 발사 후 동작: "pump"(산탄총 펌프) / "bolt"(저격총 볼트)
+local actionDelay = 0
+local throwT = 0                      -- 수류탄 던지기 1 → 0
 local slashT, slashHeavy, lastSlash, slashSide = 0, false, 0, 1 -- 칼 휘두르기 연출
 local punchPitch, punchYaw = 0, 0 -- 저격총 반동: 조준이 실제로 위로 튀는 양(복귀 안 됨), 몇 프레임에 나눠 적용
 local baseHip = nil
@@ -101,12 +107,97 @@ function WC.UpdateViewmodelParent()
 	local _, sight = zoomInfo(w)
 	local show = enabled and not tpActive() and not (aiming and sight == "Scope")
 	viewmodel.Parent = show and camera() or nil
+	if hands then
+		hands.Right.Parent = show and camera() or nil
+		hands.Left.Parent = show and camera() or nil
+		hands.Ball.Parent = (show and throwT > 0) and camera() or nil
+	end
+end
+
+------------------------------------------------------------------------
+-- 1인칭 손 (장갑 + 소매). 총 종류마다 왼손 위치가 다름
+------------------------------------------------------------------------
+local GLOVE = Color3.fromRGB(46, 46, 56)
+local SLEEVE = Color3.fromRGB(34, 38, 56)
+
+local function vp(parent, name, size, cf, color, mat)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Parent = parent
+	return p
+end
+
+-- 손 하나: 원점 = 손바닥 가운데, 손가락은 앞(-Z) 방향으로 감싸 쥠, 팔은 뒤(+Z)로
+local function makeHand(isLeft, accent)
+	local m = Instance.new("Model")
+	m.Name = isLeft and "LeftHand" or "RightHand"
+	local sx = isLeft and -1 or 1
+	local root = vp(m, "Root", Vector3.new(0.05, 0.05, 0.05), CFrame.new(), GLOVE)
+	root.Transparency = 1
+	vp(m, "Palm", Vector3.new(0.26, 0.3, 0.34), CFrame.new(0, 0, 0.02), GLOVE, Enum.Material.Fabric)
+	vp(m, "Fingers", Vector3.new(0.24, 0.12, 0.3), CFrame.new(-0.02 * sx, -0.16, -0.12) * CFrame.Angles(math.rad(-35), 0, 0), GLOVE, Enum.Material.Fabric)
+	vp(m, "Knuckle", Vector3.new(0.25, 0.08, 0.1), CFrame.new(0, 0.12, -0.14), Color3.fromRGB(70, 70, 82), Enum.Material.SmoothPlastic)
+	vp(m, "Thumb", Vector3.new(0.08, 0.08, 0.24), CFrame.new(0.15 * -sx, 0.04, -0.12) * CFrame.Angles(0, math.rad(18 * sx), 0), GLOVE, Enum.Material.Fabric)
+	vp(m, "Cuff", Vector3.new(0.3, 0.34, 0.1), CFrame.new(0, 0, 0.24), accent, Enum.Material.Neon)
+	-- 팔뚝 소매: 손목에서 뒤쪽·바깥·아래로 화면 밖까지
+	vp(m, "Forearm", Vector3.new(0.3, 0.32, 1.7), CFrame.new(0.12 * sx, -0.1, 1.08) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), SLEEVE, Enum.Material.Fabric)
+	vp(m, "Stripe", Vector3.new(0.31, 0.06, 1.4), CFrame.new(0.12 * sx, 0.06, 1.12) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), accent, Enum.Material.Neon)
+	m.PrimaryPart = root
+	return m
+end
+
+-- 총 종류별 손 위치 (총의 손잡이(Anchor)를 기준, 총의 앞이 -Z)
+local function handPoses(w, length)
+	local right = CFrame.new(0.01, -0.2, 0.1) * CFrame.Angles(math.rad(-12), 0, 0)
+	local cls = w.Class or ""
+	local left
+	if melee then
+		return CFrame.new(0.02, -0.05, 0.05) * CFrame.Angles(0, 0, math.rad(10)), nil
+	elseif cls == "권총" then
+		left = CFrame.new(-0.14, -0.27, 0.06) * CFrame.Angles(math.rad(-10), math.rad(-25), math.rad(20)) -- 두 손으로 감싸 쥠
+	elseif cls == "산탄총" then
+		left = CFrame.new(-0.04, -0.16, -length * 0.46) * CFrame.Angles(0, 0, math.rad(70)) -- 펌프 손잡이
+	elseif cls == "저격총" then
+		left = CFrame.new(-0.04, -0.17, -length * 0.36) * CFrame.Angles(0, 0, math.rad(75))
+	elseif cls == "유탄발사기" then
+		left = CFrame.new(-0.08, -0.22, -length * 0.34) * CFrame.Angles(0, 0, math.rad(60))
+	else
+		left = CFrame.new(-0.04, -0.15, -length * 0.42) * CFrame.Angles(0, 0, math.rad(75)) -- 소총·기관총: 총열 덮개 아래
+	end
+	return right, left
+end
+
+-- 종류별 발사 반동 세기(화면 위로 튀는 각도) · 발사 후 동작
+local KICK = { ["권총"] = 6, ["산탄총"] = 9, ["저격총"] = 8, ["유탄발사기"] = 10, ["따발총"] = 2.4, ["카빈"] = 2.8 }
+
+local function buildHands()
+	if hands then
+		hands.Right:Destroy()
+		if hands.Left then
+			hands.Left:Destroy()
+		end
+		hands.Ball:Destroy()
+	end
+	local accent = teamColor()
+	local ball = vp(nil, "Grenade", Vector3.new(0.42, 0.42, 0.42), CFrame.new(), accent, Enum.Material.Neon)
+	ball.Shape = Enum.PartType.Ball
+	hands = { Right = makeHand(false, accent), Left = makeHand(true, accent), Ball = ball }
 end
 
 local function buildViewmodel()
 	if viewmodel then
 		viewmodel:Destroy()
 	end
+	buildHands()
 	local w = weapon()
 	local m, muzzle
 	if melee then
@@ -198,7 +289,81 @@ local function placeViewmodel(dt)
 		local knifeBase = CFrame.new(0.95, -0.95, -1.85) * CFrame.Angles(math.rad(12), math.rad(-22), math.rad(-28))
 		cf = cam.CFrame * knifeBase * runPose * sway * bob * swing
 	end
-	viewmodel:PivotTo(cf)
+	-- 총 ↔ 칼 전환: 아래에서 올라오며 꺼냄 (칼은 손안에서 한 바퀴 돌리며)
+	local flip = CFrame.new()
+	if switchT > 0 then
+		switchT = math.max(0, switchT - dt / 0.38)
+		local e = switchT * switchT
+		cf = cf * CFrame.new(0.1 * e, -0.9 * e, 0.25 * e) * CFrame.Angles(math.rad(-55 * e), math.rad(10 * e), math.rad(25 * e))
+		if switchKnife and melee then
+			flip = CFrame.Angles(0, 0, math.rad(360 * (1 - (1 - switchT) ^ 0.6)))
+		end
+	end
+	-- 수류탄 던지기: 총을 잠깐 내림
+	throwT = math.max(0, throwT - dt / 0.55)
+	if throwT > 0 then
+		local s = math.sin((1 - throwT) * math.pi)
+		cf = cf * CFrame.new(0.15 * s, -0.55 * s, 0.2 * s) * CFrame.Angles(math.rad(-35 * s), math.rad(15 * s), 0)
+	end
+	-- 발사 후 동작: 펌프(왼손 앞뒤) / 볼트(오른손 젖혔다 당김)
+	local rExtra, lExtra = CFrame.new(), CFrame.new()
+	if actionKind then
+		if actionDelay > 0 then
+			actionDelay = actionDelay - dt
+		else
+			actionT = math.max(0, actionT - dt / (actionKind == "bolt" and 0.6 or 0.4))
+			local s = math.sin((1 - actionT) * math.pi)
+			if actionKind == "pump" then
+				lExtra = CFrame.new(0, 0, 0.38 * s)
+				cf = cf * CFrame.Angles(math.rad(4 * s), 0, math.rad(-6 * s))
+			elseif actionKind == "bolt" then
+				rExtra = CFrame.new(0.12 * s, 0.32 * s, 0.28 * s) * CFrame.Angles(math.rad(25 * s), 0, math.rad(-35 * s))
+				cf = cf * CFrame.Angles(0, 0, math.rad(14 * s))
+			end
+			if actionT <= 0 then
+				actionKind = nil
+			end
+		end
+	end
+	viewmodel:PivotTo(cf * flip)
+	-- 손: 총 손잡이 기준 자세 + 동작
+	if hands and hands.Right.Parent then
+		local rp, lp = handPoses(w, vmLength)
+		hands.Right:PivotTo(cf * rp * rExtra)
+		if throwT > 0 then
+			-- 왼손: 아래 뒤에서 어깨 위로 들어 올려 앞으로 던짐 (0.55 지점에서 손을 떠남)
+			local p = 1 - throwT
+			local a = math.clamp(p / 0.55, 0, 1)
+			local from = CFrame.new(-0.75, -0.9, -0.4) * CFrame.Angles(math.rad(-30), 0, 0)
+			local top = CFrame.new(-0.55, 0.35, 0.1) * CFrame.Angles(math.rad(60), 0, math.rad(20))
+			local release = CFrame.new(-0.25, 0.1, -1.6) * CFrame.Angles(math.rad(-20), 0, 0)
+			local hcf = (a < 0.6) and from:Lerp(top, a / 0.6) or top:Lerp(release, (a - 0.6) / 0.4)
+			if p > 0.55 then
+				hcf = release:Lerp(CFrame.new(-0.6, -1.2, -0.8), math.clamp((p - 0.55) / 0.45, 0, 1))
+			end
+			hands.Left:PivotTo(cam.CFrame * hcf)
+			hands.Left.Parent = camera()
+			if p < 0.55 then
+				hands.Ball.Parent = camera()
+				hands.Ball.CFrame = cam.CFrame * hcf * CFrame.new(0, -0.05, -0.32)
+			else
+				hands.Ball.Parent = nil
+			end
+		elseif lp then
+			hands.Left.Parent = camera()
+			hands.Left:PivotTo(cf * lp * lExtra)
+			hands.Ball.Parent = nil
+		else
+			hands.Left.Parent = nil -- 칼: 한 손
+			hands.Ball.Parent = nil
+		end
+		local hide = scoped and 1 or 0
+		for _, part in ipairs(hands.Right:GetChildren()) do
+			if part:IsA("BasePart") and part.Name ~= "Root" then
+				part.LocalTransparencyModifier = hide
+			end
+		end
+	end
 end
 
 local function muzzleCFrame()
@@ -342,7 +507,12 @@ local function fire()
 	SoundBank.Play("fire_" .. string.lower(w.Id), nil, w.StoreModel and 0.75 or 0.55, 0.96 + math.random() * 0.08)
 	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
 	kick = math.min(kick + w.Recoil * 0.35, 4)
-	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
+	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4) * ((KICK[w.Class] or 3) / 3)
+	if w.Class == "산탄총" then
+		actionKind, actionT, actionDelay = "pump", 1, 0.12
+	elseif w.Class == "저격총" then
+		actionKind, actionT, actionDelay = "bolt", 1, 0.22
+	end
 	CharacterPose.Kick(player.Character, w.Recoil)
 	if w.KickUp then
 		punchPitch = punchPitch + w.KickUp * (aiming and 1 or 0.75)
@@ -370,6 +540,12 @@ slash = function(heavy)
 	lastSlash = now
 	slashT, slashHeavy, slashSide = 1, heavy, -slashSide
 	CharacterPose.Slash(player.Character, heavy) -- 3인칭에서도 팔이 휘둘러짐
+	-- 베기 궤적 (칼 스킨의 빛 색, 없으면 팀 색)
+	local look = WeaponSkins.LookFor(player, "Knife")
+	local trailColor = (look and look.Accent) or teamColor()
+	if not tpActive() then
+		Effects.SlashArc(camera().CFrame * CFrame.new(0, -0.15, 0), heavy, trailColor, slashSide)
+	end
 	local cam = camera()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -405,6 +581,7 @@ local function setMelee(on)
 		UserInputService.MouseDeltaSensitivity = 1
 	end
 	slashT = 0
+	switchT, switchKnife = 1, on -- 꺼내는 동작
 	if remotes then
 		remotes.Melee:FireServer("equip", on)
 	end
@@ -432,6 +609,8 @@ local function special()
 	local hit = workspace:Raycast(cam.CFrame.Position, cam.CFrame.LookVector * 70, params)
 	local target = hit and hit.Position or (cam.CFrame.Position + cam.CFrame.LookVector * 70)
 	remotes.Special:FireServer(target)
+	throwT = 1 -- 왼손으로 던지는 동작
+	SoundBank.Play("knife_swing", nil, 0.45, 0.8)
 end
 
 local applyViewRef = nil
@@ -870,6 +1049,7 @@ function WC.Init(remoteFolder, hud, effects)
 	-- 무기가 바뀌면(스폰 지점 교체) 1인칭 총 모형·잉크 갱신
 	player:GetAttributeChangedSignal("Weapon"):Connect(function()
 		melee = false
+		switchT, switchKnife = 1, false
 		if enabled then
 			setAim(false)
 			spreadExtra = 0

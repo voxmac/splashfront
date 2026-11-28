@@ -141,7 +141,7 @@ Config.SmokeRadius = 14
 Config.GoldenRange = 320
 
 -- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐
-Config.Throw = { Speed = 55, Gravity = 70, MaxTime = 3 }
+Config.Throw = { Speed = 74, Gravity = 70, MaxTime = 3 } -- Speed: 던지는 속도(겨눈 곳까지 낮은 궤도로 계산)
 
 -- 미션
 Config.MissionInterval = 35

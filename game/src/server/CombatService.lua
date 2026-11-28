@@ -344,18 +344,36 @@ function CombatService.Throw(e, target, kind, color, onLand)
 		return false
 	end
 	local T = Config.Throw
-	local from = head.Position + Vector3.new(0, 0.6, 0)
+	-- 던지는 손(오른손) 높이에서 출발
+	local hand = e.Model and (e.Model:FindFirstChild("RightHand") or e.Model:FindFirstChild("Right Arm"))
+	local from = hand and (hand.Position + Vector3.new(0, 0.8, 0)) or (head.Position + Vector3.new(0, 0.6, 0))
 	local offset = target - from
 	if offset.Magnitude > 75 then
 		target = from + offset.Unit * 75
 		offset = target - from
 	end
 	local g = Vector3.new(0, -T.Gravity, 0)
-	local flight = math.clamp(offset.Magnitude / T.Speed, 0.25, 1.4)
-	local vel = offset / flight - g * (0.5 * flight)
+	-- 겨눈 곳에 맞게: 정해진 속도로 그 지점에 닿는 '낮은 각도' 궤도를 계산
+	-- (가까우면 거의 직선, 멀수록 자연스럽게 휨 · 위·아래를 겨누면 그 각도로)
+	local vel
+	local speed = T.Speed
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	local x, y = flat.Magnitude, offset.Y
+	if x < 0.5 then
+		vel = Vector3.new(0, (y >= 0) and math.sqrt(2 * T.Gravity * math.max(y, 1)) or -speed * 0.5, 0)
+	else
+		local v2 = speed * speed
+		local disc = v2 * v2 - T.Gravity * (T.Gravity * x * x + 2 * y * v2)
+		if disc >= 0 then
+			local theta = math.atan((v2 - math.sqrt(disc)) / (T.Gravity * x))
+			vel = flat.Unit * (math.cos(theta) * speed) + Vector3.new(0, math.sin(theta) * speed, 0)
+		else
+			vel = offset.Unit * speed -- 닿을 수 없으면 겨눈 방향 그대로
+		end
+	end
 	projCount = projCount + 1
 	local id = projCount
-	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind })
+	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind, Model = e.Model, Thrower = e.Player })
 	task.spawn(function()
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude

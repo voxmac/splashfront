@@ -239,7 +239,7 @@ Config.SmokeRadius = 14
 Config.GoldenRange = 320
 
 -- 투척물(스페셜 크로마 봄·연막탄): 바닥·벽·캐릭터에 닿는 순간 터짐
-Config.Throw = { Speed = 55, Gravity = 70, MaxTime = 3 }
+Config.Throw = { Speed = 74, Gravity = 70, MaxTime = 3 } -- Speed: 던지는 속도(겨눈 곳까지 낮은 궤도로 계산)
 
 -- 미션
 Config.MissionInterval = 35
@@ -3088,18 +3088,36 @@ function CombatService.Throw(e, target, kind, color, onLand)
 		return false
 	end
 	local T = Config.Throw
-	local from = head.Position + Vector3.new(0, 0.6, 0)
+	-- 던지는 손(오른손) 높이에서 출발
+	local hand = e.Model and (e.Model:FindFirstChild("RightHand") or e.Model:FindFirstChild("Right Arm"))
+	local from = hand and (hand.Position + Vector3.new(0, 0.8, 0)) or (head.Position + Vector3.new(0, 0.6, 0))
 	local offset = target - from
 	if offset.Magnitude > 75 then
 		target = from + offset.Unit * 75
 		offset = target - from
 	end
 	local g = Vector3.new(0, -T.Gravity, 0)
-	local flight = math.clamp(offset.Magnitude / T.Speed, 0.25, 1.4)
-	local vel = offset / flight - g * (0.5 * flight)
+	-- 겨눈 곳에 맞게: 정해진 속도로 그 지점에 닿는 '낮은 각도' 궤도를 계산
+	-- (가까우면 거의 직선, 멀수록 자연스럽게 휨 · 위·아래를 겨누면 그 각도로)
+	local vel
+	local speed = T.Speed
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	local x, y = flat.Magnitude, offset.Y
+	if x < 0.5 then
+		vel = Vector3.new(0, (y >= 0) and math.sqrt(2 * T.Gravity * math.max(y, 1)) or -speed * 0.5, 0)
+	else
+		local v2 = speed * speed
+		local disc = v2 * v2 - T.Gravity * (T.Gravity * x * x + 2 * y * v2)
+		if disc >= 0 then
+			local theta = math.atan((v2 - math.sqrt(disc)) / (T.Gravity * x))
+			vel = flat.Unit * (math.cos(theta) * speed) + Vector3.new(0, math.sin(theta) * speed, 0)
+		else
+			vel = offset.Unit * speed -- 닿을 수 없으면 겨눈 방향 그대로
+		end
+	end
 	projCount = projCount + 1
 	local id = projCount
-	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind })
+	remotes.FX:FireAllClients("Proj", { Id = id, From = from, Vel = vel, G = g, Color = color, Kind = kind, Model = e.Model, Thrower = e.Player })
 	task.spawn(function()
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
@@ -6876,11 +6894,29 @@ local function pickFlagPositions(count)
 	end
 	table.sort(ys)
 	local midY = ys[math.floor(#ys / 2) + 1]
-	local keep = math.max(18, span * 0.12) -- 스폰과 이 거리 이상 떨어진 곳만
+	local keep = math.max(18, span * 0.12) -- 스폰 중심과 이 거리 이상 떨어진 곳만
+	-- 리스폰 지역 제외: 모든 스폰 지점에서 (팀 리스폰 반경 + 여유) 안쪽은 깃발 후보에서 뺌
+	local respawnR = (Config.TeamSpawnRadius or 22) + 16
+	local allSpawns = {}
+	for _, list in pairs(arena.Spawns or {}) do
+		for _, cf in ipairs(list) do
+			table.insert(allSpawns, flat(cf.Position))
+		end
+	end
+	local function nearSpawn(pos)
+		local fp = flat(pos)
+		for _, sp in ipairs(allSpawns) do
+			if (fp - sp).Magnitude < respawnR then
+				return true
+			end
+		end
+		return false
+	end
 	local cands = {}
 	for _, c in ipairs(cells) do
 		local pos = c.Position
-		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep then
+		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep
+			and not nearSpawn(pos) then
 			table.insert(cands, c)
 		end
 	end
@@ -9931,6 +9967,7 @@ local cache = setmetatable({}, { __mode = "k" })  -- model -> 관절
 local smooth = setmetatable({}, { __mode = "k" }) -- model -> { Pitch, Run, Crouch, Walk }
 local localStance = "Normal"
 local slashes = setmetatable({}, { __mode = "k" }) -- model -> { T = 1→0, Heavy }
+local throws = setmetatable({}, { __mode = "k" })  -- model -> T 1→0 (수류탄 던지기)
 
 function Pose.Kick(model, recoil)
 	if model then
@@ -9942,6 +9979,13 @@ end
 function Pose.Slash(model, heavy)
 	if model then
 		slashes[model] = { T = 1, Heavy = heavy == true, Side = -((slashes[model] and slashes[model].Side) or -1) }
+	end
+end
+
+-- 수류탄 던지기 (오른팔을 뒤로 젖혔다가 앞으로)
+function Pose.Throw(model)
+	if model then
+		throws[model] = 1
 	end
 end
 
@@ -10082,6 +10126,26 @@ local function pose(model, pitchDeg, stance, dt)
 	end
 	if j.LW then
 		j.LW.Transform = CFrame.new()
+	end
+
+	-- 던지기: 오른팔을 머리 뒤로 젖혔다가 앞으로 내리꽂음 (다른 동작 위에 덮어씀)
+	local th = throws[model]
+	if th then
+		th = th - dt / 0.5
+		if th <= 0 then
+			throws[model] = nil
+		else
+			throws[model] = th
+			local p = 1 - th
+			local raise = (p < 0.45) and (p / 0.45) * 170 or 170 - ((p - 0.45) / 0.55) * 150
+			j.RS.Transform = CFrame.Angles(rad(raise), 0, rad(-15))
+			if j.RE then
+				j.RE.Transform = CFrame.Angles(rad((p < 0.45) and 60 or 10), 0, 0)
+			end
+			if j.Waist then
+				j.Waist.Transform = j.Waist.Transform * CFrame.Angles(0, rad((p < 0.45) and 20 or -15), 0)
+			end
+		end
 	end
 
 	-- 슬라이드: 상체를 뒤로 젖히고, 오른다리는 앞으로 쭉 · 왼다리는 접어서 미끄러짐
@@ -10842,6 +10906,53 @@ local function endProj(d)
 	end
 end
 
+-- 칼 베기 궤적: 눈앞에서 대각선으로 휘어지는 빛의 호 (찌르기는 앞으로 뻗는 빛줄기)
+-- cf: 기준(카메라 또는 캐릭터 가슴) · side: 1/-1 휘두르는 방향
+function Effects.SlashArc(cf, heavy, color, side)
+	local folder = workspace:FindFirstChild("ClientFX")
+	if not folder then
+		folder = Instance.new("Folder")
+		folder.Name = "ClientFX"
+		folder.Parent = workspace
+	end
+	local function seg(c, size, delay, life)
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		p.Size = size
+		p.CFrame = c
+		p.Transparency = 1
+		p.Parent = folder
+		task.delay(delay, function()
+			p.Transparency = 0.15
+			TweenService:Create(p, TweenInfo.new(life, Enum.EasingStyle.Quad), { Transparency = 1, Size = size * Vector3.new(0.3, 1.2, 1) }):Play()
+		end)
+		Debris:AddItem(p, delay + life + 0.05)
+	end
+	if heavy then
+		-- 찌르기: 앞으로 뻗는 빛줄기 3겹
+		for i = 0, 2 do
+			seg(cf * CFrame.new(0.15 - i * 0.05, -0.1, -2.6 - i * 0.4), Vector3.new(0.05 + i * 0.03, 0.05 + i * 0.03, 2.2), i * 0.03, 0.2)
+		end
+		return
+	end
+	-- 베기: 화면 앞 반지름 2.2의 호를 대각선으로, 조각 14개를 시간차로 그려 휘두르는 느낌
+	local n, r = 14, 2.2
+	local tilt = CFrame.Angles(0, 0, math.rad(side * 32))
+	for i = 0, n - 1 do
+		local t = i / (n - 1)
+		local a = math.rad((-65 + 130 * t) * side)
+		local pos = cf * tilt * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -r)
+		local w = 0.06 + math.sin(t * math.pi) * 0.12
+		seg(pos * CFrame.Angles(0, math.rad(90), 0), Vector3.new(w, 0.03, 2 * math.pi * r / n * 1.1), t * 0.07, 0.22)
+	end
+end
+
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
 	if kind == "Slash" then
@@ -10851,6 +10962,7 @@ function Effects.OnFX(kind, d)
 			local root = d.Model:FindFirstChild("HumanoidRootPart")
 			if root then
 				SoundBank.Play("knife_swing", root.Position, 0.6)
+				Effects.SlashArc(root.CFrame * CFrame.new(0, 0.8, 0.6), d.Heavy, d.Color or Color3.new(1, 1, 1), math.random() < 0.5 and 1 or -1)
 			end
 		end
 		return
@@ -10893,6 +11005,9 @@ function Effects.OnFX(kind, d)
 		end
 		SoundBank.Play("fire_" .. string.lower(d.Weapon or "pistol"), d.From, 0.55)
 	elseif kind == "Proj" then
+		if d.Model then
+			CharacterPose.Throw(d.Model) -- 3인칭 던지는 팔 동작
+		end
 		startProj(d)
 	elseif kind == "ProjEnd" then
 		endProj(d)
@@ -14591,6 +14706,12 @@ local vmKick = 0         -- 뷰모델 반동
 local melee = false       -- 칼을 든 상태 (X 키)
 local sliding, slideT, slideDir, slideSpeed, lastSlide = false, 0, nil, 0, 0 -- 슬라이드 (달리다가 C)
 local SLIDE_TIME = 0.75
+-- 1인칭 손·동작
+local hands = nil          -- { Right = Model, Left = Model, Ball = Part }
+local switchT, switchKnife = 0, false -- 총 ↔ 칼 전환(꺼냈다 올리기) 1 → 0
+local actionT, actionKind = 0, nil    -- 발사 후 동작: "pump"(산탄총 펌프) / "bolt"(저격총 볼트)
+local actionDelay = 0
+local throwT = 0                      -- 수류탄 던지기 1 → 0
 local slashT, slashHeavy, lastSlash, slashSide = 0, false, 0, 1 -- 칼 휘두르기 연출
 local punchPitch, punchYaw = 0, 0 -- 저격총 반동: 조준이 실제로 위로 튀는 양(복귀 안 됨), 몇 프레임에 나눠 적용
 local baseHip = nil
@@ -14657,12 +14778,97 @@ function WC.UpdateViewmodelParent()
 	local _, sight = zoomInfo(w)
 	local show = enabled and not tpActive() and not (aiming and sight == "Scope")
 	viewmodel.Parent = show and camera() or nil
+	if hands then
+		hands.Right.Parent = show and camera() or nil
+		hands.Left.Parent = show and camera() or nil
+		hands.Ball.Parent = (show and throwT > 0) and camera() or nil
+	end
+end
+
+------------------------------------------------------------------------
+-- 1인칭 손 (장갑 + 소매). 총 종류마다 왼손 위치가 다름
+------------------------------------------------------------------------
+local GLOVE = Color3.fromRGB(46, 46, 56)
+local SLEEVE = Color3.fromRGB(34, 38, 56)
+
+local function vp(parent, name, size, cf, color, mat)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = mat or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Parent = parent
+	return p
+end
+
+-- 손 하나: 원점 = 손바닥 가운데, 손가락은 앞(-Z) 방향으로 감싸 쥠, 팔은 뒤(+Z)로
+local function makeHand(isLeft, accent)
+	local m = Instance.new("Model")
+	m.Name = isLeft and "LeftHand" or "RightHand"
+	local sx = isLeft and -1 or 1
+	local root = vp(m, "Root", Vector3.new(0.05, 0.05, 0.05), CFrame.new(), GLOVE)
+	root.Transparency = 1
+	vp(m, "Palm", Vector3.new(0.26, 0.3, 0.34), CFrame.new(0, 0, 0.02), GLOVE, Enum.Material.Fabric)
+	vp(m, "Fingers", Vector3.new(0.24, 0.12, 0.3), CFrame.new(-0.02 * sx, -0.16, -0.12) * CFrame.Angles(math.rad(-35), 0, 0), GLOVE, Enum.Material.Fabric)
+	vp(m, "Knuckle", Vector3.new(0.25, 0.08, 0.1), CFrame.new(0, 0.12, -0.14), Color3.fromRGB(70, 70, 82), Enum.Material.SmoothPlastic)
+	vp(m, "Thumb", Vector3.new(0.08, 0.08, 0.24), CFrame.new(0.15 * -sx, 0.04, -0.12) * CFrame.Angles(0, math.rad(18 * sx), 0), GLOVE, Enum.Material.Fabric)
+	vp(m, "Cuff", Vector3.new(0.3, 0.34, 0.1), CFrame.new(0, 0, 0.24), accent, Enum.Material.Neon)
+	-- 팔뚝 소매: 손목에서 뒤쪽·바깥·아래로 화면 밖까지
+	vp(m, "Forearm", Vector3.new(0.3, 0.32, 1.7), CFrame.new(0.12 * sx, -0.1, 1.08) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), SLEEVE, Enum.Material.Fabric)
+	vp(m, "Stripe", Vector3.new(0.31, 0.06, 1.4), CFrame.new(0.12 * sx, 0.06, 1.12) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), accent, Enum.Material.Neon)
+	m.PrimaryPart = root
+	return m
+end
+
+-- 총 종류별 손 위치 (총의 손잡이(Anchor)를 기준, 총의 앞이 -Z)
+local function handPoses(w, length)
+	local right = CFrame.new(0.01, -0.2, 0.1) * CFrame.Angles(math.rad(-12), 0, 0)
+	local cls = w.Class or ""
+	local left
+	if melee then
+		return CFrame.new(0.02, -0.05, 0.05) * CFrame.Angles(0, 0, math.rad(10)), nil
+	elseif cls == "권총" then
+		left = CFrame.new(-0.14, -0.27, 0.06) * CFrame.Angles(math.rad(-10), math.rad(-25), math.rad(20)) -- 두 손으로 감싸 쥠
+	elseif cls == "산탄총" then
+		left = CFrame.new(-0.04, -0.16, -length * 0.46) * CFrame.Angles(0, 0, math.rad(70)) -- 펌프 손잡이
+	elseif cls == "저격총" then
+		left = CFrame.new(-0.04, -0.17, -length * 0.36) * CFrame.Angles(0, 0, math.rad(75))
+	elseif cls == "유탄발사기" then
+		left = CFrame.new(-0.08, -0.22, -length * 0.34) * CFrame.Angles(0, 0, math.rad(60))
+	else
+		left = CFrame.new(-0.04, -0.15, -length * 0.42) * CFrame.Angles(0, 0, math.rad(75)) -- 소총·기관총: 총열 덮개 아래
+	end
+	return right, left
+end
+
+-- 종류별 발사 반동 세기(화면 위로 튀는 각도) · 발사 후 동작
+local KICK = { ["권총"] = 6, ["산탄총"] = 9, ["저격총"] = 8, ["유탄발사기"] = 10, ["따발총"] = 2.4, ["카빈"] = 2.8 }
+
+local function buildHands()
+	if hands then
+		hands.Right:Destroy()
+		if hands.Left then
+			hands.Left:Destroy()
+		end
+		hands.Ball:Destroy()
+	end
+	local accent = teamColor()
+	local ball = vp(nil, "Grenade", Vector3.new(0.42, 0.42, 0.42), CFrame.new(), accent, Enum.Material.Neon)
+	ball.Shape = Enum.PartType.Ball
+	hands = { Right = makeHand(false, accent), Left = makeHand(true, accent), Ball = ball }
 end
 
 local function buildViewmodel()
 	if viewmodel then
 		viewmodel:Destroy()
 	end
+	buildHands()
 	local w = weapon()
 	local m, muzzle
 	if melee then
@@ -14754,7 +14960,81 @@ local function placeViewmodel(dt)
 		local knifeBase = CFrame.new(0.95, -0.95, -1.85) * CFrame.Angles(math.rad(12), math.rad(-22), math.rad(-28))
 		cf = cam.CFrame * knifeBase * runPose * sway * bob * swing
 	end
-	viewmodel:PivotTo(cf)
+	-- 총 ↔ 칼 전환: 아래에서 올라오며 꺼냄 (칼은 손안에서 한 바퀴 돌리며)
+	local flip = CFrame.new()
+	if switchT > 0 then
+		switchT = math.max(0, switchT - dt / 0.38)
+		local e = switchT * switchT
+		cf = cf * CFrame.new(0.1 * e, -0.9 * e, 0.25 * e) * CFrame.Angles(math.rad(-55 * e), math.rad(10 * e), math.rad(25 * e))
+		if switchKnife and melee then
+			flip = CFrame.Angles(0, 0, math.rad(360 * (1 - (1 - switchT) ^ 0.6)))
+		end
+	end
+	-- 수류탄 던지기: 총을 잠깐 내림
+	throwT = math.max(0, throwT - dt / 0.55)
+	if throwT > 0 then
+		local s = math.sin((1 - throwT) * math.pi)
+		cf = cf * CFrame.new(0.15 * s, -0.55 * s, 0.2 * s) * CFrame.Angles(math.rad(-35 * s), math.rad(15 * s), 0)
+	end
+	-- 발사 후 동작: 펌프(왼손 앞뒤) / 볼트(오른손 젖혔다 당김)
+	local rExtra, lExtra = CFrame.new(), CFrame.new()
+	if actionKind then
+		if actionDelay > 0 then
+			actionDelay = actionDelay - dt
+		else
+			actionT = math.max(0, actionT - dt / (actionKind == "bolt" and 0.6 or 0.4))
+			local s = math.sin((1 - actionT) * math.pi)
+			if actionKind == "pump" then
+				lExtra = CFrame.new(0, 0, 0.38 * s)
+				cf = cf * CFrame.Angles(math.rad(4 * s), 0, math.rad(-6 * s))
+			elseif actionKind == "bolt" then
+				rExtra = CFrame.new(0.12 * s, 0.32 * s, 0.28 * s) * CFrame.Angles(math.rad(25 * s), 0, math.rad(-35 * s))
+				cf = cf * CFrame.Angles(0, 0, math.rad(14 * s))
+			end
+			if actionT <= 0 then
+				actionKind = nil
+			end
+		end
+	end
+	viewmodel:PivotTo(cf * flip)
+	-- 손: 총 손잡이 기준 자세 + 동작
+	if hands and hands.Right.Parent then
+		local rp, lp = handPoses(w, vmLength)
+		hands.Right:PivotTo(cf * rp * rExtra)
+		if throwT > 0 then
+			-- 왼손: 아래 뒤에서 어깨 위로 들어 올려 앞으로 던짐 (0.55 지점에서 손을 떠남)
+			local p = 1 - throwT
+			local a = math.clamp(p / 0.55, 0, 1)
+			local from = CFrame.new(-0.75, -0.9, -0.4) * CFrame.Angles(math.rad(-30), 0, 0)
+			local top = CFrame.new(-0.55, 0.35, 0.1) * CFrame.Angles(math.rad(60), 0, math.rad(20))
+			local release = CFrame.new(-0.25, 0.1, -1.6) * CFrame.Angles(math.rad(-20), 0, 0)
+			local hcf = (a < 0.6) and from:Lerp(top, a / 0.6) or top:Lerp(release, (a - 0.6) / 0.4)
+			if p > 0.55 then
+				hcf = release:Lerp(CFrame.new(-0.6, -1.2, -0.8), math.clamp((p - 0.55) / 0.45, 0, 1))
+			end
+			hands.Left:PivotTo(cam.CFrame * hcf)
+			hands.Left.Parent = camera()
+			if p < 0.55 then
+				hands.Ball.Parent = camera()
+				hands.Ball.CFrame = cam.CFrame * hcf * CFrame.new(0, -0.05, -0.32)
+			else
+				hands.Ball.Parent = nil
+			end
+		elseif lp then
+			hands.Left.Parent = camera()
+			hands.Left:PivotTo(cf * lp * lExtra)
+			hands.Ball.Parent = nil
+		else
+			hands.Left.Parent = nil -- 칼: 한 손
+			hands.Ball.Parent = nil
+		end
+		local hide = scoped and 1 or 0
+		for _, part in ipairs(hands.Right:GetChildren()) do
+			if part:IsA("BasePart") and part.Name ~= "Root" then
+				part.LocalTransparencyModifier = hide
+			end
+		end
+	end
 end
 
 local function muzzleCFrame()
@@ -14898,7 +15178,12 @@ local function fire()
 	SoundBank.Play("fire_" .. string.lower(w.Id), nil, w.StoreModel and 0.75 or 0.55, 0.96 + math.random() * 0.08)
 	-- 화면 반동은 작게(복귀 포함), 손맛은 총 모형 반동으로
 	kick = math.min(kick + w.Recoil * 0.35, 4)
-	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
+	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4) * ((KICK[w.Class] or 3) / 3)
+	if w.Class == "산탄총" then
+		actionKind, actionT, actionDelay = "pump", 1, 0.12
+	elseif w.Class == "저격총" then
+		actionKind, actionT, actionDelay = "bolt", 1, 0.22
+	end
 	CharacterPose.Kick(player.Character, w.Recoil)
 	if w.KickUp then
 		punchPitch = punchPitch + w.KickUp * (aiming and 1 or 0.75)
@@ -14926,6 +15211,12 @@ slash = function(heavy)
 	lastSlash = now
 	slashT, slashHeavy, slashSide = 1, heavy, -slashSide
 	CharacterPose.Slash(player.Character, heavy) -- 3인칭에서도 팔이 휘둘러짐
+	-- 베기 궤적 (칼 스킨의 빛 색, 없으면 팀 색)
+	local look = WeaponSkins.LookFor(player, "Knife")
+	local trailColor = (look and look.Accent) or teamColor()
+	if not tpActive() then
+		Effects.SlashArc(camera().CFrame * CFrame.new(0, -0.15, 0), heavy, trailColor, slashSide)
+	end
 	local cam = camera()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -14961,6 +15252,7 @@ local function setMelee(on)
 		UserInputService.MouseDeltaSensitivity = 1
 	end
 	slashT = 0
+	switchT, switchKnife = 1, on -- 꺼내는 동작
 	if remotes then
 		remotes.Melee:FireServer("equip", on)
 	end
@@ -14988,6 +15280,8 @@ local function special()
 	local hit = workspace:Raycast(cam.CFrame.Position, cam.CFrame.LookVector * 70, params)
 	local target = hit and hit.Position or (cam.CFrame.Position + cam.CFrame.LookVector * 70)
 	remotes.Special:FireServer(target)
+	throwT = 1 -- 왼손으로 던지는 동작
+	SoundBank.Play("knife_swing", nil, 0.45, 0.8)
 end
 
 local applyViewRef = nil
@@ -15426,6 +15720,7 @@ function WC.Init(remoteFolder, hud, effects)
 	-- 무기가 바뀌면(스폰 지점 교체) 1인칭 총 모형·잉크 갱신
 	player:GetAttributeChangedSignal("Weapon"):Connect(function()
 		melee = false
+		switchT, switchKnife = 1, false
 		if enabled then
 			setAim(false)
 			spreadExtra = 0

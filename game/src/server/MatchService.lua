@@ -664,11 +664,29 @@ local function pickFlagPositions(count)
 	end
 	table.sort(ys)
 	local midY = ys[math.floor(#ys / 2) + 1]
-	local keep = math.max(18, span * 0.12) -- 스폰과 이 거리 이상 떨어진 곳만
+	local keep = math.max(18, span * 0.12) -- 스폰 중심과 이 거리 이상 떨어진 곳만
+	-- 리스폰 지역 제외: 모든 스폰 지점에서 (팀 리스폰 반경 + 여유) 안쪽은 깃발 후보에서 뺌
+	local respawnR = (Config.TeamSpawnRadius or 22) + 16
+	local allSpawns = {}
+	for _, list in pairs(arena.Spawns or {}) do
+		for _, cf in ipairs(list) do
+			table.insert(allSpawns, flat(cf.Position))
+		end
+	end
+	local function nearSpawn(pos)
+		local fp = flat(pos)
+		for _, sp in ipairs(allSpawns) do
+			if (fp - sp).Magnitude < respawnR then
+				return true
+			end
+		end
+		return false
+	end
 	local cands = {}
 	for _, c in ipairs(cells) do
 		local pos = c.Position
-		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep then
+		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep
+			and not nearSpawn(pos) then
 			table.insert(cands, c)
 		end
 	end
