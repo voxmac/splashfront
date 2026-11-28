@@ -392,6 +392,7 @@ function HUD.OnState(s)
 		local f = make("Frame", { Size = UDim2.new(share, 0, 1, 0), BackgroundColor3 = t.Color, BorderSizePixel = 0, LayoutOrder = i }, barHolder)
 		if share > 0.12 then
 			local label = (s.Mode == "Flag") and string.format("%s %.0f", t.Name, t.Score)
+				or (s.Variant == "DM") and string.format("%d킬", t.Kills or 0)
 				or string.format("%.0f점 · 페인트 %.0f%%", t.Score, t.Coverage or 0)
 			text(f, { Size = UDim2.fromScale(1, 1), Text = label, Font = Enum.Font.GothamBold })
 		end
@@ -1102,10 +1103,10 @@ function HUD.ShowResults(r)
 			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(210, 205, 240), ZIndex = 12 }, card)
 	end
-	local unit = (r.Mode == "Flag") and "점" or "%"
+	local unit = (r.Mode == "Flag") and "점" or (r.Variant == "DM") and "킬" or "%"
 	if r.Mode == "Solo" then
 		local t = r.Teams[1]
-		teamTable(results, 20, 960, "솔로 순위", Color3.fromRGB(255, 200, 60), t and string.format("1위 %.1f%s", t.Score, unit) or "-", sortRows(r.Rows),
+		teamTable(results, 20, 960, (r.Variant == "DM") and "데스매치 순위" or "솔로 순위", Color3.fromRGB(255, 200, 60), t and ((unit == "킬") and string.format("1위 %d%s", math.floor(t.Score), unit) or string.format("1위 %.1f%s", t.Score, unit)) or "-", sortRows(r.Rows),
 			t and ("1위 · " .. (t.Name or "")) or "")
 	else
 		-- 왼쪽 = 우리 팀, 오른쪽 = 상대 팀
@@ -1136,7 +1137,9 @@ function HUD.ShowResults(r)
 			Color3.fromRGB(255, 250, 220), Color3.fromRGB(255, 190, 40), 3).ZIndex = 14
 	end
 	text(results, { Size = UDim2.new(1, -40, 0, 20), Position = UDim2.new(0, 20, 1, -32), Font = Enum.Font.Gotham, ZIndex = 11, TextScaled = false, TextSize = 15,
-		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패" or "승패 = 페인트 면적 80% + 처치·미션 20%") .. " · 개인 점수 = 칠한 셀 + 처치×30" })
+		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패 · 개인 점수 = 칠한 셀 + 처치×30"
+			or r.Variant == "DM" and ("데스매치 · 처치 수로 순위 (" .. Config.DMKillTarget .. "킬 먼저 달성 시 종료)")
+			or "승패 = 페인트 면적 80% + 처치·미션 20% · 개인 점수 = 칠한 셀 + 처치×30") })
 	task.delay(Config.ResultsTime, function()
 		results.Visible = false
 	end)

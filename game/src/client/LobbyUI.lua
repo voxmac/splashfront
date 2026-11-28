@@ -939,6 +939,9 @@ end
 ------------------------------------------------------------------------
 local function queueTitle(q)
 	local mode = Config.Modes[q.Mode]
+	if q.Variant == "DM" then
+		return "솔로 데스매치 8인"
+	end
 	return (q.Mode == "Solo") and "솔로 페인트 로얄 8인" or string.format("%s %dvs%d", mode.Name, q.TeamSize, q.TeamSize)
 end
 

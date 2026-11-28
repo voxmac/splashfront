@@ -771,9 +771,9 @@ function MapBuilder.BuildLobby()
 	------------------------------------------------------------------
 	-- 매치 대기 발판 무대 (부채꼴 배치)
 	------------------------------------------------------------------
-	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(146, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
+	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(160, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
 		Color = Color3.fromRGB(28, 26, 42), Material = Enum.Material.DiamondPlate })
-	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(146, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
+	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(160, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
 		Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })
 	-- 팀전은 A존 / B존 발판 두 개: 같은 존에 선 사람끼리 한 팀으로 시작
 	local ZONE_COLORS = { Color3.fromRGB(0, 170, 255), Color3.fromRGB(255, 120, 40) }
@@ -843,7 +843,7 @@ function MapBuilder.BuildLobby()
 
 	for i, q in ipairs(Config.Queues) do
 		local t = (i - (n + 1) / 2)
-		local x = t * 28
+		local x = t * math.min(28, 150 / n)
 		local z = -26 - (2 - math.abs(t)) * 2.5
 		local c = PAD_COLORS[((i - 1) % #PAD_COLORS) + 1]
 		local base = Vector3.new(x, Y + 0.6, z)
@@ -859,8 +859,8 @@ function MapBuilder.BuildLobby()
 			anchor = part({ Name = "QueueBoardAnchor_" .. q.Id, Parent = deco, Size = Vector3.new(1, 1, 1), Position = base + Vector3.new(0, 1, 0),
 				Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
 		end
-		local mode = Config.Modes[q.Mode]
-		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
+		local mode = Config.Modes[q.Variant or q.Mode]
+		local title2 = q.Variant == "DM" and "데스매치 8인" or q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
 		-- 안내 화면: 발판 뒤에 세운 얇은 스크린 (떠 있는 글씨판 대신 → 발판·존 표시와 겹치지 않음)
 		local screenPos = Vector3.new(x, Y + 5.2, z - 8.6)
 		local screen = part({ Name = "QueueScreen", Parent = lobby, Size = Vector3.new(13, 4.4, 0.3), CFrame = CFrame.lookAt(screenPos,

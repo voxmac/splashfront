@@ -141,6 +141,8 @@ local function scores()
 		local score
 		if S.Mode == "Flag" then
 			score = S.FlagScore[o.OwnerId] or 0
+		elseif S.Variant == "DM" then
+			score = kills[o.OwnerId] or 0 -- 데스매치: 처치 수가 곧 점수
 		else
 			-- 페인트 몫 80% + 전투(처치·미션) 몫 20% → 0~100점
 			local paintShare = (sumCov > 0) and (cov / sumCov) or 0
@@ -192,7 +194,7 @@ local function broadcast()
 		end
 		table.insert(flags, { Name = f.Name, Owner = f.Owner, Progress = best })
 	end
-	local modeDef = S.Mode and Config.Modes[S.Mode]
+	local modeDef = S.Mode and Config.Modes[S.Variant or S.Mode]
 	if arena.Jumbotron then
 		local text = Config.GameName
 		if S.Phase == "Playing" then
@@ -283,6 +285,7 @@ local function broadcast()
 		Phase = S.Phase,
 		QueueId = S.QueueId,
 		Mode = S.Mode,
+		Variant = S.Variant,
 		ModeName = modeDef and modeDef.Name or "",
 		MapName = arena.Name,
 		MapId = arena.Id,
@@ -940,6 +943,8 @@ local function startMatch(q)
 	PaintService.SetRadiusMultiplier(1)
 	S.QueueId = q.Id
 	S.Mode = mode
+	S.Variant = q.Variant
+	PaintService.SetEnabled(q.Variant ~= "DM")
 	S.Bonus = {}
 	S.FlagScore = {}
 	S.Flags = {}
@@ -1067,11 +1072,14 @@ local function startMatch(q)
 		task.spawn(spawnEntity, e)
 	end
 	BotService.Start()
-	MissionService.Start()
+	if S.Variant ~= "DM" then
+		MissionService.Start() -- 데스매치는 미션 없이 순수 전투
+	end
 	for _, pl in ipairs(humans) do
 		remotes.FX:FireClient(pl, "Cue", { Name = "countdown_go" })
 	end
-	announce(Config.Modes[mode].Name .. " 시작! " .. Config.Modes[mode].Desc, Color3.fromRGB(255, 255, 255))
+	local md = Config.Modes[S.Variant or mode]
+	announce(md.Name .. " 시작! " .. md.Desc, Color3.fromRGB(255, 255, 255))
 	return true
 end
 
@@ -1182,6 +1190,7 @@ local function endMatch()
 	end)
 	remotes.Results:FireAllClients({
 		Mode = S.Mode,
+		Variant = S.Variant,
 		Teams = final,
 		WinnerName = winnerInfo and winnerInfo.Name or nil,
 		WinnerColor = winnerInfo and winnerInfo.Color or nil,
@@ -1222,6 +1231,8 @@ local function endMatch()
 	MapBuilder.ApplyLighting("Lobby") -- 로비로 돌아오면 격납고 조명
 	S.Phase = "Lobby"
 	S.Mode = nil
+	S.Variant = nil
+	PaintService.SetEnabled(true)
 	S.QueueId = nil
 	S.Mission = nil
 	S.Owners = {}
@@ -1853,7 +1864,14 @@ function MatchService.Run()
 			local dt = os.clock() - last
 			last = os.clock()
 			local left = S.EndsAt - now()
-			if not S.FinalSplash and left <= Config.FinalSplashTime then
+			if S.Variant == "DM" then
+			for _, e in ipairs(Combatants.All()) do
+				if e.Kills >= Config.DMKillTarget then
+					left = 0
+				end
+			end
+		end
+		if S.Variant ~= "DM" and not S.FinalSplash and left <= Config.FinalSplashTime then
 				S.FinalSplash = true
 				PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
 				announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))

@@ -206,13 +206,16 @@ Config.Modes = {
 	Turf = { Id = "Turf", Name = "터프 배틀", Desc = "더 넓게 칠한 팀이 승리" },
 	Flag = { Id = "Flag", Name = "플래그 러시", Desc = "깃발을 꽂아 100점 먼저" },
 	Solo = { Id = "Solo", Name = "솔로 페인트 로얄", Desc = "8인 개인전, 면적 1위" },
+	DM = { Id = "DM", Name = "솔로 데스매치", Desc = "8인 개인전 · 페인트 없이 처치 1위" },
 }
+Config.DMKillTarget = 25 -- 데스매치: 먼저 이 처치 수에 닿으면 바로 종료
 Config.Queues = {
 	{ Id = "2v2", Mode = "Turf", TeamSize = 2, Ranked = true },
 	{ Id = "3v3", Mode = "Turf", TeamSize = 3, Ranked = true },
 	{ Id = "5v5", Mode = "Turf", TeamSize = 5, Ranked = true },
 	{ Id = "Flag3v3", Mode = "Flag", TeamSize = 3, Ranked = true },
 	{ Id = "Solo", Mode = "Solo", TeamSize = 8, Ranked = true },
+	{ Id = "SoloDM", Mode = "Solo", Variant = "DM", TeamSize = 8, Ranked = true },
 }
 
 Config.Flag = {
@@ -3004,7 +3007,7 @@ function CombatService.Tick(dt)
 			local root = rootOf(e)
 			if root then
 				if now - e.LastFire > Config.InkRefillDelay and e.Ink < Config.InkMax then
-					local own = PaintService.OwnerBelow(root.Position) == e.OwnerId
+					local own = not PaintService.IsEnabled() or PaintService.OwnerBelow(root.Position) == e.OwnerId -- 데스매치는 늘 빠른 충전
 					local rate = own and Config.InkRefillOwnColor or Config.InkRefill
 					e.Ink = math.min(Config.InkMax, e.Ink + rate * dt)
 				end
@@ -4968,9 +4971,9 @@ function MapBuilder.BuildLobby()
 	------------------------------------------------------------------
 	-- 매치 대기 발판 무대 (부채꼴 배치)
 	------------------------------------------------------------------
-	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(146, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
+	part({ Name = "Stage", Parent = lobby, Size = Vector3.new(160, 0.6, 30), Position = Vector3.new(0, Y + 0.3, -28),
 		Color = Color3.fromRGB(28, 26, 42), Material = Enum.Material.DiamondPlate })
-	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(146, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
+	part({ Name = "StageEdge", Parent = deco, Size = Vector3.new(160, 0.25, 0.6), Position = Vector3.new(0, Y + 0.65, -13),
 		Color = LOBBY_COLORS[3], Material = Enum.Material.Neon, CanQuery = false })
 	-- 팀전은 A존 / B존 발판 두 개: 같은 존에 선 사람끼리 한 팀으로 시작
 	local ZONE_COLORS = { Color3.fromRGB(0, 170, 255), Color3.fromRGB(255, 120, 40) }
@@ -5040,7 +5043,7 @@ function MapBuilder.BuildLobby()
 
 	for i, q in ipairs(Config.Queues) do
 		local t = (i - (n + 1) / 2)
-		local x = t * 28
+		local x = t * math.min(28, 150 / n)
 		local z = -26 - (2 - math.abs(t)) * 2.5
 		local c = PAD_COLORS[((i - 1) % #PAD_COLORS) + 1]
 		local base = Vector3.new(x, Y + 0.6, z)
@@ -5056,8 +5059,8 @@ function MapBuilder.BuildLobby()
 			anchor = part({ Name = "QueueBoardAnchor_" .. q.Id, Parent = deco, Size = Vector3.new(1, 1, 1), Position = base + Vector3.new(0, 1, 0),
 				Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false })
 		end
-		local mode = Config.Modes[q.Mode]
-		local title2 = q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
+		local mode = Config.Modes[q.Variant or q.Mode]
+		local title2 = q.Variant == "DM" and "데스매치 8인" or q.Mode == "Solo" and "솔로 8인" or (mode.Name .. "  " .. q.TeamSize .. "vs" .. q.TeamSize)
 		-- 안내 화면: 발판 뒤에 세운 얇은 스크린 (떠 있는 글씨판 대신 → 발판·존 표시와 겹치지 않음)
 		local screenPos = Vector3.new(x, Y + 5.2, z - 8.6)
 		local screen = part({ Name = "QueueScreen", Parent = lobby, Size = Vector3.new(13, 4.4, 0.3), CFrame = CFrame.lookAt(screenPos,
@@ -6393,6 +6396,8 @@ local function scores()
 		local score
 		if S.Mode == "Flag" then
 			score = S.FlagScore[o.OwnerId] or 0
+		elseif S.Variant == "DM" then
+			score = kills[o.OwnerId] or 0 -- 데스매치: 처치 수가 곧 점수
 		else
 			-- 페인트 몫 80% + 전투(처치·미션) 몫 20% → 0~100점
 			local paintShare = (sumCov > 0) and (cov / sumCov) or 0
@@ -6444,7 +6449,7 @@ local function broadcast()
 		end
 		table.insert(flags, { Name = f.Name, Owner = f.Owner, Progress = best })
 	end
-	local modeDef = S.Mode and Config.Modes[S.Mode]
+	local modeDef = S.Mode and Config.Modes[S.Variant or S.Mode]
 	if arena.Jumbotron then
 		local text = Config.GameName
 		if S.Phase == "Playing" then
@@ -6535,6 +6540,7 @@ local function broadcast()
 		Phase = S.Phase,
 		QueueId = S.QueueId,
 		Mode = S.Mode,
+		Variant = S.Variant,
 		ModeName = modeDef and modeDef.Name or "",
 		MapName = arena.Name,
 		MapId = arena.Id,
@@ -7192,6 +7198,8 @@ local function startMatch(q)
 	PaintService.SetRadiusMultiplier(1)
 	S.QueueId = q.Id
 	S.Mode = mode
+	S.Variant = q.Variant
+	PaintService.SetEnabled(q.Variant ~= "DM")
 	S.Bonus = {}
 	S.FlagScore = {}
 	S.Flags = {}
@@ -7319,11 +7327,14 @@ local function startMatch(q)
 		task.spawn(spawnEntity, e)
 	end
 	BotService.Start()
-	MissionService.Start()
+	if S.Variant ~= "DM" then
+		MissionService.Start() -- 데스매치는 미션 없이 순수 전투
+	end
 	for _, pl in ipairs(humans) do
 		remotes.FX:FireClient(pl, "Cue", { Name = "countdown_go" })
 	end
-	announce(Config.Modes[mode].Name .. " 시작! " .. Config.Modes[mode].Desc, Color3.fromRGB(255, 255, 255))
+	local md = Config.Modes[S.Variant or mode]
+	announce(md.Name .. " 시작! " .. md.Desc, Color3.fromRGB(255, 255, 255))
 	return true
 end
 
@@ -7434,6 +7445,7 @@ local function endMatch()
 	end)
 	remotes.Results:FireAllClients({
 		Mode = S.Mode,
+		Variant = S.Variant,
 		Teams = final,
 		WinnerName = winnerInfo and winnerInfo.Name or nil,
 		WinnerColor = winnerInfo and winnerInfo.Color or nil,
@@ -7474,6 +7486,8 @@ local function endMatch()
 	MapBuilder.ApplyLighting("Lobby") -- 로비로 돌아오면 격납고 조명
 	S.Phase = "Lobby"
 	S.Mode = nil
+	S.Variant = nil
+	PaintService.SetEnabled(true)
 	S.QueueId = nil
 	S.Mission = nil
 	S.Owners = {}
@@ -8105,7 +8119,14 @@ function MatchService.Run()
 			local dt = os.clock() - last
 			last = os.clock()
 			local left = S.EndsAt - now()
-			if not S.FinalSplash and left <= Config.FinalSplashTime then
+			if S.Variant == "DM" then
+			for _, e in ipairs(Combatants.All()) do
+				if e.Kills >= Config.DMKillTarget then
+					left = 0
+				end
+			end
+		end
+		if S.Variant ~= "DM" and not S.FinalSplash and left <= Config.FinalSplashTime then
 				S.FinalSplash = true
 				PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
 				announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
@@ -8670,6 +8691,7 @@ local palette = {}      -- ownerId -> Color3
 local counts = {}       -- ownerId -> 셀 수
 local totalCells = 0
 local radiusMul = 1
+local enabled = true -- 데스매치: 바닥을 칠하지 않음 (스페셜 게이지만 충전)
 local overlap = OverlapParams.new()
 overlap.FilterType = Enum.RaycastFilterType.Include
 local downRay = RaycastParams.new()
@@ -8685,6 +8707,14 @@ end
 
 function PaintService.SetPalette(map)
 	palette = map
+end
+
+function PaintService.SetEnabled(on)
+	enabled = on and true or false
+end
+
+function PaintService.IsEnabled()
+	return enabled
 end
 
 function PaintService.SetRadiusMultiplier(m)
@@ -8755,6 +8785,14 @@ function PaintService.PaintAt(position, radius, ownerId, painterEntity)
 		return 0
 	end
 	local r = radius * radiusMul
+	if not enabled then
+		-- 칠하지 않고, 칠했을 셀 수 정도로 크로마 봄 게이지만 채움 (셀 4스터드 기준)
+		if painterEntity then
+			local cs = Config.CellSize or 4
+			painterEntity.Special = painterEntity.Special + 0.6 * (r / cs) * (r / cs)
+		end
+		return 0
+	end
 	local parts = workspace:GetPartBoundsInRadius(position, r, overlap)
 	local changed = 0
 	local material = painterEntity and painterEntity.PatternMaterial or nil
@@ -11759,6 +11797,7 @@ function HUD.OnState(s)
 		local f = make("Frame", { Size = UDim2.new(share, 0, 1, 0), BackgroundColor3 = t.Color, BorderSizePixel = 0, LayoutOrder = i }, barHolder)
 		if share > 0.12 then
 			local label = (s.Mode == "Flag") and string.format("%s %.0f", t.Name, t.Score)
+				or (s.Variant == "DM") and string.format("%d킬", t.Kills or 0)
 				or string.format("%.0f점 · 페인트 %.0f%%", t.Score, t.Coverage or 0)
 			text(f, { Size = UDim2.fromScale(1, 1), Text = label, Font = Enum.Font.GothamBold })
 		end
@@ -12469,10 +12508,10 @@ function HUD.ShowResults(r)
 			Text = string.format("처치 %d · 점수 %d", mvpRow.Kills or 0, mvpRow.Score or mvpRow.Cells or 0), Font = Enum.Font.GothamBold, TextSize = 13,
 			TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Color3.fromRGB(210, 205, 240), ZIndex = 12 }, card)
 	end
-	local unit = (r.Mode == "Flag") and "점" or "%"
+	local unit = (r.Mode == "Flag") and "점" or (r.Variant == "DM") and "킬" or "%"
 	if r.Mode == "Solo" then
 		local t = r.Teams[1]
-		teamTable(results, 20, 960, "솔로 순위", Color3.fromRGB(255, 200, 60), t and string.format("1위 %.1f%s", t.Score, unit) or "-", sortRows(r.Rows),
+		teamTable(results, 20, 960, (r.Variant == "DM") and "데스매치 순위" or "솔로 순위", Color3.fromRGB(255, 200, 60), t and ((unit == "킬") and string.format("1위 %d%s", math.floor(t.Score), unit) or string.format("1위 %.1f%s", t.Score, unit)) or "-", sortRows(r.Rows),
 			t and ("1위 · " .. (t.Name or "")) or "")
 	else
 		-- 왼쪽 = 우리 팀, 오른쪽 = 상대 팀
@@ -12503,7 +12542,9 @@ function HUD.ShowResults(r)
 			Color3.fromRGB(255, 250, 220), Color3.fromRGB(255, 190, 40), 3).ZIndex = 14
 	end
 	text(results, { Size = UDim2.new(1, -40, 0, 20), Position = UDim2.new(0, 20, 1, -32), Font = Enum.Font.Gotham, ZIndex = 11, TextScaled = false, TextSize = 15,
-		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패" or "승패 = 페인트 면적 80% + 처치·미션 20%") .. " · 개인 점수 = 칠한 셀 + 처치×30" })
+		TextColor3 = Color3.fromRGB(160, 160, 180), Text = (r.Ranked and "랭크전 · " or "일반전 · 레이팅 변동 없음 · ") .. (r.Mode == "Flag" and "깃발 점수로 승패 · 개인 점수 = 칠한 셀 + 처치×30"
+			or r.Variant == "DM" and ("데스매치 · 처치 수로 순위 (" .. Config.DMKillTarget .. "킬 먼저 달성 시 종료)")
+			or "승패 = 페인트 면적 80% + 처치·미션 20% · 개인 점수 = 칠한 셀 + 처치×30") })
 	task.delay(Config.ResultsTime, function()
 		results.Visible = false
 	end)
@@ -13660,6 +13701,9 @@ end
 ------------------------------------------------------------------------
 local function queueTitle(q)
 	local mode = Config.Modes[q.Mode]
+	if q.Variant == "DM" then
+		return "솔로 데스매치 8인"
+	end
 	return (q.Mode == "Solo") and "솔로 페인트 로얄 8인" or string.format("%s %dvs%d", mode.Name, q.TeamSize, q.TeamSize)
 end
 

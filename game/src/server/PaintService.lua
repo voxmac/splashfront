@@ -10,6 +10,7 @@ local palette = {}      -- ownerId -> Color3
 local counts = {}       -- ownerId -> 셀 수
 local totalCells = 0
 local radiusMul = 1
+local enabled = true -- 데스매치: 바닥을 칠하지 않음 (스페셜 게이지만 충전)
 local overlap = OverlapParams.new()
 overlap.FilterType = Enum.RaycastFilterType.Include
 local downRay = RaycastParams.new()
@@ -25,6 +26,14 @@ end
 
 function PaintService.SetPalette(map)
 	palette = map
+end
+
+function PaintService.SetEnabled(on)
+	enabled = on and true or false
+end
+
+function PaintService.IsEnabled()
+	return enabled
 end
 
 function PaintService.SetRadiusMultiplier(m)
@@ -95,6 +104,14 @@ function PaintService.PaintAt(position, radius, ownerId, painterEntity)
 		return 0
 	end
 	local r = radius * radiusMul
+	if not enabled then
+		-- 칠하지 않고, 칠했을 셀 수 정도로 크로마 봄 게이지만 채움 (셀 4스터드 기준)
+		if painterEntity then
+			local cs = Config.CellSize or 4
+			painterEntity.Special = painterEntity.Special + 0.6 * (r / cs) * (r / cs)
+		end
+		return 0
+	end
 	local parts = workspace:GetPartBoundsInRadius(position, r, overlap)
 	local changed = 0
 	local material = painterEntity and painterEntity.PatternMaterial or nil

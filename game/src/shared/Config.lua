@@ -108,13 +108,16 @@ Config.Modes = {
 	Turf = { Id = "Turf", Name = "터프 배틀", Desc = "더 넓게 칠한 팀이 승리" },
 	Flag = { Id = "Flag", Name = "플래그 러시", Desc = "깃발을 꽂아 100점 먼저" },
 	Solo = { Id = "Solo", Name = "솔로 페인트 로얄", Desc = "8인 개인전, 면적 1위" },
+	DM = { Id = "DM", Name = "솔로 데스매치", Desc = "8인 개인전 · 페인트 없이 처치 1위" },
 }
+Config.DMKillTarget = 25 -- 데스매치: 먼저 이 처치 수에 닿으면 바로 종료
 Config.Queues = {
 	{ Id = "2v2", Mode = "Turf", TeamSize = 2, Ranked = true },
 	{ Id = "3v3", Mode = "Turf", TeamSize = 3, Ranked = true },
 	{ Id = "5v5", Mode = "Turf", TeamSize = 5, Ranked = true },
 	{ Id = "Flag3v3", Mode = "Flag", TeamSize = 3, Ranked = true },
 	{ Id = "Solo", Mode = "Solo", TeamSize = 8, Ranked = true },
+	{ Id = "SoloDM", Mode = "Solo", Variant = "DM", TeamSize = 8, Ranked = true },
 }
 
 Config.Flag = {

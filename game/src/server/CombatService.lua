@@ -459,7 +459,7 @@ function CombatService.Tick(dt)
 			local root = rootOf(e)
 			if root then
 				if now - e.LastFire > Config.InkRefillDelay and e.Ink < Config.InkMax then
-					local own = PaintService.OwnerBelow(root.Position) == e.OwnerId
+					local own = not PaintService.IsEnabled() or PaintService.OwnerBelow(root.Position) == e.OwnerId -- 데스매치는 늘 빠른 충전
 					local rate = own and Config.InkRefillOwnColor or Config.InkRefill
 					e.Ink = math.min(Config.InkMax, e.Ink + rate * dt)
 				end
