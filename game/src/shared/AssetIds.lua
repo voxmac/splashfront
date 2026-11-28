@@ -8,7 +8,7 @@ return {
 		victory = 91809035108902,
 		defeat = 87734150667942,
 	},
-	SfxAtlas = 126178007674975,
+	SfxAtlas = 108642537866058,
 	SfxRegions = {
 		fire_pistol = { 0.0, 0.401 },
 		fire_rifle = { 0.901, 1.254 },
@@ -54,6 +54,10 @@ return {
 		fire_k5 = { 53.623, 54.353 },
 		hit_real = { 54.853, 54.943 },
 		hit_real_head = { 55.443, 55.797 },
+		knife_swing = { 56.297, 56.557 },
+		knife_hit = { 57.057, 57.317 },
+		knife_draw = { 57.817, 58.347 },
+		slide = { 58.847, 59.447 },
 	},
 	Models = {
 		Gun_Pistol = 121488403845338,
