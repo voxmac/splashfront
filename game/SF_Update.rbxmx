@@ -14268,7 +14268,7 @@ local function placeViewmodel(dt)
 			swing = (slashT > 0) and (CFrame.new(-0.55 * sweep, 0.25 * s, -0.35 * s) * CFrame.Angles(math.rad(-25 * s), math.rad(-60 * sweep), math.rad(-50 * s)))
 				or CFrame.new()
 		end
-		local knifeBase = CFrame.new(0.75, -0.8, -1.15) * CFrame.Angles(math.rad(8), math.rad(-12), math.rad(-15))
+		local knifeBase = CFrame.new(0.95, -0.95, -1.85) * CFrame.Angles(math.rad(12), math.rad(-22), math.rad(-28))
 		cf = cam.CFrame * knifeBase * runPose * sway * bob * swing
 	end
 	viewmodel:PivotTo(cf)
