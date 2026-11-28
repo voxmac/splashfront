@@ -144,38 +144,36 @@ local function buildWeapons(page)
 		end
 	end
 
-	-- 근접 무기: 칼 외형 (성능은 모두 같음 · 경기 중 X 키로 총 ↔ 칼)
-	local head = make("Frame", { Size = UDim2.new(1, -10, 0, 44), BackgroundColor3 = Color3.fromRGB(255, 200, 70), LayoutOrder = 100 }, page)
-	corner(head, 10)
-	UI.gradient(head, Color3.fromRGB(255, 236, 160), Color3.fromRGB(255, 170, 40), 90)
-	label(head, { Text = "근접 무기 · 칼 외형  (X 키로 총 ↔ 칼 · 성능은 모두 같아요)", Font = Enum.Font.GothamBlack, TextSize = 20,
-		Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(40, 24, 0) })
-	local kgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 101 }, page)
-	make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 232), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, kgrid)
+	-- 근접 무기: 칼 외형 (성능은 모두 같음 · 경기 중 X 키로 총 ↔ 칼) · 총과 같은 줄 모양
+	label(page, { Text = "근접 무기 · 칼  (X 키로 총 ↔ 칼 · 모양만 다르고 성능은 같아요)", Font = Enum.Font.GothamBlack, TextSize = 18,
+		TextColor3 = C.Gold, Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 100 })
 	local curKnife = player:GetAttribute("KnifeModel") or "Tactical"
 	local knifeLook = WeaponSkins.LookFor(player, "Knife")
 	for i, k in ipairs(Weapons.KnifeModels) do
 		local mine = owned("OwnedKnives", k.Id) or k.Id == "Tactical"
 		local on = curKnife == k.Id
-		local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, kgrid)
-		corner(card, 12)
-		UI.stroke(card, on and C.Gold or Color3.fromRGB(255, 200, 70), 2, on and 0 or 0.6)
-		local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 120), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
-		corner(pic, 10)
-		UI.gradient(pic, Color3.fromRGB(255, 240, 200), Color3.fromRGB(150, 110, 60), 90)
-		UI.KnifeImage(pic, k.Id, C.Cyan, knifeLook)
-		label(card, { Text = k.Name, TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 134), Size = UDim2.new(1, -24, 0, 24) })
-		label(card, { Text = k.Desc, TextSize = 14, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 160), Size = UDim2.new(1, -24, 0, 18),
-			TextTruncate = Enum.TextTruncate.AtEnd })
+		local row = make("Frame", { Size = UDim2.new(1, -10, 0, 112), BackgroundColor3 = C.Panel, LayoutOrder = 100 + i }, page)
+		corner(row, 14)
+		if on then
+			UI.stroke(row, C.Cyan, 2)
+		end
+		local img = make("Frame", { Size = UDim2.fromOffset(170, 96), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, row)
+		corner(img, 12)
+		UI.gradient(img, Color3.fromRGB(70, 66, 110), Color3.fromRGB(34, 32, 54), 90)
+		UI.KnifeImage(img, k.Id, C.Cyan, knifeLook)
+		label(row, { Text = k.Name, Font = Enum.Font.GothamBlack, TextSize = 26, Position = UDim2.fromOffset(194, 10), Size = UDim2.new(1, -380, 0, 30) })
+		label(row, { Text = "칼 · 근접", TextSize = 18, TextColor3 = C.Gold, Position = UDim2.fromOffset(194, 42), Size = UDim2.new(1, -380, 0, 22) })
+		label(row, { Text = k.Desc, Position = UDim2.fromOffset(194, 70), Size = UDim2.new(1, -380, 0, 22), TextSize = 17, TextColor3 = C.Sub,
+			Font = Enum.Font.GothamMedium, TextTruncate = Enum.TextTruncate.AtEnd })
 		local text, color
 		if on then
 			text, color = "장착 중", C.Dim
 		elseif mine then
 			text, color = "장착", C.Green
 		else
-			text, color = k.Price .. " 코인", (coins >= k.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+			text, color = tostring(k.Price), (coins >= k.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
 		end
-		local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -46), TextSize = 18 })
+		local b = button(row, text, color, { Size = UDim2.fromOffset(160, 52), Position = UDim2.new(1, -176, 0.5, -26), TextSize = 22 })
 		b.MouseButton1Click:Connect(function()
 			if on then
 				return

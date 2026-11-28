@@ -419,79 +419,128 @@ function ModelKit.Knife(accent, model, look)
 	local dark = Color3.fromRGB(30, 30, 36)
 	local gunmetal = Color3.fromRGB(150, 155, 168)
 	model = model or "Tactical"
-
-	if model == "Kunai" then
-		-- 쿠나이: 마름모 날 + 천을 감은 손잡이 + 끝 고리
-		kp("Grip", "Body", Vector3.new(0.16, 0.16, 0.6), CFrame.new(0, 0, 0.05), Color3.fromRGB(40, 36, 44), Enum.Material.Fabric)
-		for i = -2, 2 do
-			kp("Wrap", "Accent", Vector3.new(0.17, 0.17, 0.035), CFrame.new(0, 0, 0.05 + i * 0.12) * CFrame.Angles(0, 0, math.rad(45)), accent, Enum.Material.Neon)
-		end
-		ring("Ring", "Metal", CFrame.new(0, 0, 0.5), 0.14, 0.05, 10, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
-		kp("Neck", "Metal", Vector3.new(0.1, 0.1, 0.12), CFrame.new(0, 0, -0.3), gunmetal, Enum.Material.Metal)
-		-- 마름모 날: 쐐기 4개 (위·아래, 앞·뒤)
-		kp("BladeF1", "Blade", Vector3.new(0.05, 0.22, 0.55), CFrame.new(0, 0.11, -0.86), steel, Enum.Material.Metal, "WedgePart")
-		kp("BladeF2", "Blade", Vector3.new(0.05, 0.22, 0.55), CFrame.new(0, -0.11, -0.86) * CFrame.Angles(0, 0, math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
-		kp("BladeB1", "Blade", Vector3.new(0.05, 0.22, 0.22), CFrame.new(0, 0.11, -0.47) * CFrame.Angles(0, math.rad(180), 0), steel, Enum.Material.Metal, "WedgePart")
-		kp("BladeB2", "Blade", Vector3.new(0.05, 0.22, 0.22), CFrame.new(0, -0.11, -0.47) * CFrame.Angles(0, math.rad(180), math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
-		kp("Ridge", "Accent", Vector3.new(0.06, 0.03, 0.72), CFrame.new(0, 0, -0.72), accent, Enum.Material.Neon)
-	elseif model == "Butterfly" then
-		-- 버터플라이: 갈라진 두 손잡이(구멍 뚫린 채널) + 길고 가는 날
-		for _, x in ipairs({ -0.07, 0.07 }) do
-			kp("Handle", "Body", Vector3.new(0.06, 0.2, 0.7), CFrame.new(x, 0, 0.05), dark, Enum.Material.Metal)
-			for i = -1, 1 do
-				kp("Slot", "Accent", Vector3.new(0.065, 0.06, 0.12), CFrame.new(x, 0, 0.05 + i * 0.2), accent, Enum.Material.Neon)
+	local edgeLight = Color3.fromRGB(236, 240, 248) -- 날 끝 연마면(밝게)
+	local fullerC = Color3.fromRGB(120, 126, 140)   -- 홈(어둡게)
+	-- 곡선 날: 중심선을 따라 조각을 이어 붙임. pts = { {z, y, 높이}, ... } (앞으로 갈수록 z 감소)
+	local function curvedBlade(pts, thick, withEdge, edgeBelow)
+		for i = 1, #pts - 1 do
+			local a0, a1 = pts[i], pts[i + 1]
+			local p0, p1 = Vector3.new(0, a0[2], a0[1]), Vector3.new(0, a1[2], a1[1])
+			local mid = (p0 + p1) / 2
+			local len = (p1 - p0).Magnitude + 0.02
+			local h = (a0[3] + a1[3]) / 2
+			local cf = CFrame.lookAt(mid, p1)
+			kp("Blade", "Blade", Vector3.new(thick, math.max(h, 0.03), len), cf, steel, Enum.Material.Metal)
+			if withEdge then
+				local off = edgeBelow and -h / 2 or h / 2
+				kp("Bevel", "Metal", Vector3.new(thick * 0.7, math.max(h * 0.28, 0.02), len), cf * CFrame.new(0, off * 0.72, 0), edgeLight, Enum.Material.Foil)
+				kp("Edge", "Accent", Vector3.new(thick * 1.08, 0.022, len), cf * CFrame.new(0, off, 0), accent, Enum.Material.Neon)
 			end
 		end
-		kp("Latch", "Metal", Vector3.new(0.2, 0.05, 0.08), CFrame.new(0, -0.1, 0.38), gunmetal, Enum.Material.Metal)
-		kp("Pivot", "Metal", Vector3.new(0.22, 0.12, 0.12), CFrame.new(0, 0.02, -0.32), gunmetal, Enum.Material.Metal, "Part").Shape = Enum.PartType.Cylinder
-		kp("Blade", "Blade", Vector3.new(0.045, 0.2, 0.8), CFrame.new(0, 0.03, -0.75), steel, Enum.Material.Metal)
-		kp("Tip", "Blade", Vector3.new(0.045, 0.2, 0.32), CFrame.new(0, 0.03, -1.31), steel, Enum.Material.Metal, "WedgePart")
-		kp("Swedge", "Accent", Vector3.new(0.05, 0.03, 0.9), CFrame.new(0, 0.12, -0.85), accent, Enum.Material.Neon)
+	end
+	-- 손잡이 홈(손가락 자리) 여러 개
+	local function fingerGrooves(z0, z1, n, w, h, y)
+		for i = 0, n - 1 do
+			local z = z0 + (z1 - z0) * (i + 0.5) / n
+			kp("Groove", "Metal", Vector3.new(w + 0.01, 0.05, 0.05), CFrame.new(0, y - h / 2 + 0.02, z), Color3.fromRGB(20, 20, 26), Enum.Material.SmoothPlastic)
+		end
+	end
+
+	if model == "Kunai" then
+		-- 쿠나이: 마름모 날(가운데 능선) + 천 감기 손잡이(교차 무늬) + 큰 고리
+		kp("Grip", "Body", Vector3.new(0.15, 0.15, 0.62), CFrame.new(0, 0, 0.05), Color3.fromRGB(40, 36, 44), Enum.Material.Fabric)
+		for i = -3, 3 do
+			local sgn = (i % 2 == 0) and 1 or -1
+			kp("Wrap", "Accent", Vector3.new(0.17, 0.17, 0.03), CFrame.new(0, 0, 0.05 + i * 0.085) * CFrame.Angles(math.rad(22 * sgn), 0, math.rad(45)), accent, Enum.Material.Neon)
+		end
+		ring("Ring", "Metal", CFrame.new(0, 0, 0.55), 0.17, 0.055, 14, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
+		ring("RingGlow", "Accent", CFrame.new(0, 0, 0.55), 0.12, 0.02, 14, accent, Enum.Material.Neon, CFrame.Angles(0, math.rad(90), 0))
+		kp("Collar", "Metal", Vector3.new(0.17, 0.17, 0.06), CFrame.new(0, 0, -0.27), gunmetal, Enum.Material.Metal)
+		kp("Neck", "Metal", Vector3.new(0.09, 0.09, 0.12), CFrame.new(0, 0, -0.34), gunmetal, Enum.Material.Metal)
+		-- 마름모: 넓어졌다 뾰족해짐 (위·아래 대칭 쐐기, 가운데 능선)
+		kp("BladeF1", "Blade", Vector3.new(0.05, 0.24, 0.62), CFrame.new(0, 0.12, -0.92), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeF2", "Blade", Vector3.new(0.05, 0.24, 0.62), CFrame.new(0, -0.12, -0.92) * CFrame.Angles(0, 0, math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeB1", "Blade", Vector3.new(0.05, 0.24, 0.22), CFrame.new(0, 0.12, -0.5) * CFrame.Angles(0, math.rad(180), 0), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeB2", "Blade", Vector3.new(0.05, 0.24, 0.22), CFrame.new(0, -0.12, -0.5) * CFrame.Angles(0, math.rad(180), math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
+		kp("Ridge", "Metal", Vector3.new(0.065, 0.035, 0.78), CFrame.new(0, 0, -0.78), edgeLight, Enum.Material.Foil)
+		kp("RidgeGlow", "Accent", Vector3.new(0.07, 0.012, 0.6), CFrame.new(0, 0.025, -0.72), accent, Enum.Material.Neon)
+	elseif model == "Butterfly" then
+		-- 버터플라이: 길고 각진(탄토 끝) 날 + 두 개의 긴 채널 손잡이(네온 인레이) + 래치 + 피벗 핀
+		for _, x in ipairs({ -0.075, 0.075 }) do
+			kp("Handle", "Body", Vector3.new(0.055, 0.2, 0.86), CFrame.new(x, 0, 0.12), dark, Enum.Material.Metal)
+			kp("Inlay", "Accent", Vector3.new(0.06, 0.05, 0.62), CFrame.new(x, 0.02, 0.16), accent, Enum.Material.Neon)
+			kp("Cap", "Metal", Vector3.new(0.06, 0.22, 0.06), CFrame.new(x, 0, 0.56), gunmetal, Enum.Material.Metal)
+			kp("Pin", "Metal", Vector3.new(0.07, 0.07, 0.07), CFrame.new(x, 0.06, -0.24), edgeLight, Enum.Material.Foil)
+		end
+		kp("Latch", "Accent", Vector3.new(0.2, 0.045, 0.1), CFrame.new(0, -0.1, 0.55), accent, Enum.Material.Neon)
+		kp("Tang", "Metal", Vector3.new(0.12, 0.2, 0.14), CFrame.new(0, 0.01, -0.3), gunmetal, Enum.Material.Metal)
+		kp("Blade", "Blade", Vector3.new(0.045, 0.21, 0.92), CFrame.new(0, 0.02, -0.82), steel, Enum.Material.Metal)
+		kp("Fuller", "Metal", Vector3.new(0.05, 0.035, 0.7), CFrame.new(0, 0.06, -0.78), fullerC, Enum.Material.Metal)
+		kp("Tip", "Blade", Vector3.new(0.045, 0.21, 0.26), CFrame.new(0, 0.02, -1.41) * CFrame.Angles(math.rad(180), 0, 0), steel, Enum.Material.Metal, "WedgePart")
+		kp("Bevel", "Metal", Vector3.new(0.035, 0.05, 1.12), CFrame.new(0, -0.08, -0.92), edgeLight, Enum.Material.Foil)
+		kp("Edge", "Accent", Vector3.new(0.05, 0.02, 1.15), CFrame.new(0, -0.105, -0.92), accent, Enum.Material.Neon)
 	elseif model == "Karambit" then
-		-- 카람빗: 손가락 고리 + 아래로 휘어진 갈고리 날
-		kp("Grip", "Body", Vector3.new(0.17, 0.26, 0.5), CFrame.new(0, 0, 0.02) * CFrame.Angles(math.rad(-12), 0, 0), dark, Enum.Material.Fabric)
-		kp("GripLine", "Accent", Vector3.new(0.18, 0.04, 0.5), CFrame.new(0, 0.1, 0.02) * CFrame.Angles(math.rad(-12), 0, 0), accent, Enum.Material.Neon)
-		ring("FingerRing", "Metal", CFrame.new(0, -0.05, 0.42), 0.17, 0.06, 12, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
-		-- 휘어진 날: 조각 6개를 호를 따라
-		local segs = 6
-		for i = 0, segs - 1 do
-			local t0 = i / segs
-			local ang = math.rad(-8 - 70 * t0)
-			local r = 0.75
-			local pos = Vector3.new(0, -r + r * math.cos(ang), -0.3 - r * math.sin(-ang))
-			local h = 0.24 * (1 - t0 * 0.7)
-			kp("Blade", "Blade", Vector3.new(0.05, h, 0.2), CFrame.new(pos) * CFrame.Angles(ang, 0, 0), steel, Enum.Material.Metal)
-			kp("Edge", "Accent", Vector3.new(0.055, 0.03, 0.2), CFrame.new(pos) * CFrame.Angles(ang, 0, 0) * CFrame.new(0, -h / 2, 0), accent, Enum.Material.Neon)
+		-- 카람빗: 아래로 매끈하게 휘는 갈고리 날(14조각, 끝으로 갈수록 가늘어짐) + 휜 손잡이 + 네온 테 손가락 고리
+		kp("Grip", "Body", Vector3.new(0.16, 0.25, 0.52), CFrame.new(0, 0.02, 0.04) * CFrame.Angles(math.rad(-14), 0, 0), dark, Enum.Material.Fabric)
+		kp("Scale", "Accent", Vector3.new(0.17, 0.035, 0.46), CFrame.new(0, 0.12, 0.04) * CFrame.Angles(math.rad(-14), 0, 0), accent, Enum.Material.Neon)
+		fingerGrooves(-0.15, 0.2, 3, 0.16, 0.25, 0.0)
+		ring("FingerRing", "Metal", CFrame.new(0, -0.06, 0.46), 0.18, 0.065, 16, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
+		ring("RingGlow", "Accent", CFrame.new(0, -0.06, 0.46), 0.13, 0.022, 16, accent, Enum.Material.Neon, CFrame.Angles(0, math.rad(90), 0))
+		local pts = {}
+		local n = 14
+		for i = 0, n do
+			local t = i / n
+			local ang = math.rad(6 + 95 * t)
+			local r = 0.78
+			table.insert(pts, { -0.24 - r * math.sin(ang), 0.05 - r * (1 - math.cos(ang)), 0.26 * (1 - t * 0.85) })
 		end
+		curvedBlade(pts, 0.05, true, false)
 	elseif model == "Tanto" then
-		-- 탄토: 동그란 츠바(가드) + 마름모 무늬로 감은 손잡이 + 살짝 휜 긴 날, 각진 끝
-		kp("Grip", "Body", Vector3.new(0.2, 0.24, 0.72), CFrame.new(0, 0, 0.12), Color3.fromRGB(26, 24, 30), Enum.Material.Fabric)
-		for i = -2, 2 do
-			kp("Ito", "Accent", Vector3.new(0.21, 0.25, 0.04), CFrame.new(0, 0, 0.12 + i * 0.13) * CFrame.Angles(math.rad(25), 0, 0), accent, Enum.Material.Neon)
+		-- 탄토: 긴 날(살짝 휨, 각진 끝) + 하몬 물결 라인 + 금빛 원형 츠바 + 마름모 감기 손잡이
+		kp("Grip", "Body", Vector3.new(0.19, 0.23, 0.76), CFrame.new(0, 0, 0.14), Color3.fromRGB(24, 22, 28), Enum.Material.Fabric)
+		for i = -3, 3 do
+			local sgn = (i % 2 == 0) and 1 or -1
+			kp("Ito", "Accent", Vector3.new(0.2, 0.24, 0.03), CFrame.new(0, 0, 0.14 + i * 0.1) * CFrame.Angles(math.rad(28 * sgn), 0, 0), accent, Enum.Material.Neon)
 		end
-		kp("Kashira", "Metal", Vector3.new(0.22, 0.26, 0.06), CFrame.new(0, 0, 0.5), gunmetal, Enum.Material.Metal)
-		local tsuba = kp("Tsuba", "Metal", Vector3.new(0.06, 0.5, 0.5), CFrame.new(0, 0, -0.26) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(200, 170, 90),
-			Enum.Material.Metal)
+		local gold = Color3.fromRGB(214, 176, 90)
+		kp("Kashira", "Metal", Vector3.new(0.21, 0.25, 0.07), CFrame.new(0, 0, 0.55), gold, Enum.Material.Foil)
+		local tsuba = kp("Tsuba", "Metal", Vector3.new(0.06, 0.52, 0.52), CFrame.new(0, 0, -0.26) * CFrame.Angles(0, math.rad(90), 0), gold, Enum.Material.Foil)
 		tsuba.Shape = Enum.PartType.Cylinder
-		kp("Habaki", "Metal", Vector3.new(0.07, 0.24, 0.1), CFrame.new(0, 0.02, -0.33), Color3.fromRGB(200, 170, 90), Enum.Material.Metal)
-		for i = 0, 3 do
-			local z = -0.55 - i * 0.32
-			kp("Blade", "Blade", Vector3.new(0.05, 0.24, 0.34), CFrame.new(0, 0.02 + i * 0.025, z) * CFrame.Angles(math.rad(i * 2.5), 0, 0), steel, Enum.Material.Metal)
+		ring("TsubaRim", "Accent", CFrame.new(0, 0, -0.26), 0.25, 0.025, 18, accent, Enum.Material.Neon, CFrame.Angles(0, math.rad(90), 0))
+		kp("Habaki", "Metal", Vector3.new(0.07, 0.25, 0.1), CFrame.new(0, 0.02, -0.34), gold, Enum.Material.Foil)
+		local pts = {}
+		for i = 0, 10 do
+			local t = i / 10
+			table.insert(pts, { -0.38 - 1.42 * t, 0.02 + 0.16 * t * t, 0.25 - 0.03 * t })
 		end
-		kp("Tip", "Blade", Vector3.new(0.05, 0.26, 0.24), CFrame.new(0, 0.12, -1.86) * CFrame.Angles(0, 0, math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
-		kp("Hamon", "Accent", Vector3.new(0.055, 0.03, 1.3), CFrame.new(0, -0.07, -1.05) * CFrame.Angles(math.rad(4), 0, 0), accent, Enum.Material.Neon)
+		curvedBlade(pts, 0.05, true, true)
+		kp("Kissaki", "Blade", Vector3.new(0.05, 0.24, 0.24), CFrame.new(0, 0.22, -1.92) * CFrame.Angles(math.rad(180), 0, 0), steel, Enum.Material.Metal, "WedgePart")
+		-- 하몬(물결 무늬 담금질 선)
+		for i = 0, 9 do
+			local z = -0.48 - i * 0.14
+			kp("Hamon", "Metal", Vector3.new(0.055, 0.03, 0.08), CFrame.new(0, -0.02 + 0.02 * math.sin(i * 1.7) + 0.16 * ((i / 9) ^ 2), z), edgeLight, Enum.Material.Foil)
+		end
 	else
-		-- 택티컬(기본): 고무 그립 + 금속 가드 + 뾰족한 날 + 팀 색 날 라인
-		kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.62), CFrame.new(0, 0, 0.05), dark, Enum.Material.Fabric)
+		-- 택티컬(기본): 손가락 홈 그립 + 끝 유리깨기 + 양끝 둥근 가드 + 홈(풀러)과 연마면, 등날 톱니
+		kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.64), CFrame.new(0, 0, 0.06), dark, Enum.Material.Fabric)
+		fingerGrooves(-0.2, 0.3, 4, 0.2, 0.26, 0)
 		for i = -1, 1 do
-			kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.04), CFrame.new(0, 0, 0.05 + i * 0.18), accent, Enum.Material.Neon)
+			kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.03), CFrame.new(0, 0, 0.06 + i * 0.2), accent, Enum.Material.Neon)
 		end
-		kp("Pommel", "Metal", Vector3.new(0.24, 0.3, 0.1), CFrame.new(0, 0, 0.4), gunmetal, Enum.Material.Metal)
-		kp("Guard", "Metal", Vector3.new(0.14, 0.5, 0.08), CFrame.new(0, 0.04, -0.3), gunmetal, Enum.Material.Metal)
-		kp("Blade", "Blade", Vector3.new(0.05, 0.28, 0.78), CFrame.new(0, 0.04, -0.73), steel, Enum.Material.Metal)
-		kp("Tip", "Blade", Vector3.new(0.05, 0.28, 0.3), CFrame.new(0, 0.04, -1.27), steel, Enum.Material.Metal, "WedgePart")
-		kp("Spine", "Body", Vector3.new(0.07, 0.05, 0.8), CFrame.new(0, 0.18, -0.72), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
-		kp("Edge", "Accent", Vector3.new(0.06, 0.035, 0.98), CFrame.new(0, -0.1, -0.82), accent, Enum.Material.Neon)
+		kp("Pommel", "Metal", Vector3.new(0.23, 0.29, 0.1), CFrame.new(0, 0, 0.42), gunmetal, Enum.Material.Metal)
+		kp("Breaker", "Metal", Vector3.new(0.1, 0.1, 0.1), CFrame.new(0, 0, 0.5), edgeLight, Enum.Material.Foil)
+		kp("Guard", "Metal", Vector3.new(0.14, 0.52, 0.08), CFrame.new(0, 0.03, -0.3), gunmetal, Enum.Material.Metal)
+		for _, y in ipairs({ 0.29, -0.23 }) do
+			kp("GuardEnd", "Metal", Vector3.new(0.15, 0.1, 0.1), CFrame.new(0, y, -0.3), gunmetal, Enum.Material.Metal, "Part").Shape = Enum.PartType.Ball
+		end
+		kp("Blade", "Blade", Vector3.new(0.05, 0.28, 0.82), CFrame.new(0, 0.04, -0.75), steel, Enum.Material.Metal)
+		kp("Tip", "Blade", Vector3.new(0.05, 0.28, 0.32), CFrame.new(0, 0.04, -1.32), steel, Enum.Material.Metal, "WedgePart")
+		kp("Fuller", "Metal", Vector3.new(0.055, 0.05, 0.6), CFrame.new(0, 0.1, -0.68), fullerC, Enum.Material.Metal)
+		kp("Bevel", "Metal", Vector3.new(0.045, 0.07, 1.0), CFrame.new(0, -0.07, -0.84), edgeLight, Enum.Material.Foil)
+		kp("Edge", "Accent", Vector3.new(0.058, 0.025, 1.04), CFrame.new(0, -0.1, -0.86), accent, Enum.Material.Neon)
+		for i = 0, 5 do
+			kp("Serration", "Metal", Vector3.new(0.05, 0.06, 0.06), CFrame.new(0, 0.18, -0.45 - i * 0.075) * CFrame.Angles(math.rad(45), 0, 0), gunmetal, Enum.Material.Metal)
+		end
 	end
 	m.PrimaryPart = anchor
 	if look then
