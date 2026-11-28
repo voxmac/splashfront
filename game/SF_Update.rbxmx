@@ -12327,7 +12327,7 @@ local function buildWeapons(page)
 	end
 
 	-- 근접 무기: 칼 외형 (성능은 모두 같음 · 경기 중 X 키로 총 ↔ 칼) · 총과 같은 줄 모양
-	label(page, { Text = "근접 무기 · 칼  (X 키로 총 ↔ 칼 · 모양만 다르고 성능은 같아요)", Font = Enum.Font.GothamBlack, TextSize = 18,
+	label(page, { Text = "근접 무기 · 칼", Font = Enum.Font.GothamBlack, TextSize = 18,
 		TextColor3 = C.Gold, Size = UDim2.new(1, -10, 0, 30), LayoutOrder = 100 })
 	local curKnife = player:GetAttribute("KnifeModel") or "Tactical"
 	local knifeLook = WeaponSkins.LookFor(player, "Knife")
