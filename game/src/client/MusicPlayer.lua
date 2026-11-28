@@ -23,6 +23,14 @@ local function idOf(track)
 	return nil
 end
 
+-- 서버 이동 전환 화면(SF_Transition) 중에는 배경음악·징글을 끄고, 끝나면 서서히 다시 켬
+local function muted()
+	return SoundService:GetAttribute("SF_Transition") == true
+end
+local function targetVolume()
+	return muted() and 0 or Config.Music.Volume
+end
+
 local function setTrack(track)
 	if track == current then
 		return
@@ -42,7 +50,7 @@ local function setTrack(track)
 		loop.SoundId = id
 		loop.TimePosition = 0
 		loop:Play()
-		TweenService:Create(loop, TweenInfo.new(0.6), { Volume = Config.Music.Volume }):Play()
+		TweenService:Create(loop, TweenInfo.new(0.6), { Volume = targetVolume() }):Play()
 	end)
 end
 
@@ -59,6 +67,18 @@ function MusicPlayer.Init()
 	jingle.Ended:Connect(function()
 		jinglePlaying = false
 	end)
+	SoundService:GetAttributeChangedSignal("SF_Transition"):Connect(function()
+		if muted() then
+			TweenService:Create(loop, TweenInfo.new(0.5), { Volume = 0 }):Play()
+			TweenService:Create(jingle, TweenInfo.new(0.5), { Volume = 0 }):Play()
+		else
+			TweenService:Create(loop, TweenInfo.new(1.5), { Volume = Config.Music.Volume }):Play()
+			jingle.Volume = Config.Music.Volume + 0.2
+		end
+	end)
+	if muted() then
+		loop.Volume = 0
+	end
 end
 
 function MusicPlayer.OnState(s)
@@ -84,6 +104,7 @@ function MusicPlayer.PlayResult(won)
 	current = nil
 	jinglePlaying = true
 	jingle.SoundId = id
+	jingle.Volume = muted() and 0 or (Config.Music.Volume + 0.2)
 	jingle:Play()
 	task.delay(20, function()
 		jinglePlaying = false

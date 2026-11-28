@@ -206,6 +206,7 @@ player:GetAttributeChangedSignal("Teleporting"):Connect(function()
 		leaving = makeTransition(msg, 0)
 		leavingState = { p = 0, target = 0.35, cap = 0.55, msg = msg }
 		leaving.Parent = player:WaitForChild("PlayerGui")
+		SoundService:SetAttribute("SF_Transition", true) -- 배경음악·효과음 끄고 전환 음악만
 		animate(leaving, leavingState)
 		leavingMusic = startMusic(toLobby and MUSIC_LOBBY or MUSIC_BATTLE)
 		-- 이동 화면(정지 화면)은 출발 직전의 진행 상태로 등록
@@ -224,6 +225,7 @@ player:GetAttributeChangedSignal("Teleporting"):Connect(function()
 		-- 이동이 취소·실패하면 다시 화면을 엶
 		fadeOut(leaving)
 		stopMusic(leavingMusic)
+		SoundService:SetAttribute("SF_Transition", nil)
 		leaving, leavingState, leavingMusic = nil, nil, nil
 	end
 end)
@@ -254,6 +256,7 @@ if arrivedSF then
 	if old then
 		old:Destroy()
 	end
+	SoundService:SetAttribute("SF_Transition", true)
 	local state = { p = p0, target = p0 + 0.1, cap = 0.8, msg = stages[1] }
 	animate(g, state)
 	local music = startMusic(toBattle and MUSIC_BATTLE or MUSIC_LOBBY)
@@ -288,6 +291,10 @@ if arrivedSF then
 	task.wait(0.5)
 	stopMusic(music)
 	fadeOut(g)
+	-- 전환 음악이 다 줄어든 뒤 게임 음악을 서서히 켬 (겹치지 않게)
+	task.delay(1.0, function()
+		SoundService:SetAttribute("SF_Transition", nil)
+	end)
 	return
 end
 

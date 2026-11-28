@@ -47,6 +47,9 @@ local ALIAS = { fire_k2 = "fire_rifle", fire_k2c1 = "fire_rifle", fire_k3 = "fir
 	knife_swing = "special_throw", knife_hit = "hit_real", knife_draw = "zipline_start", slide = "jump_pad" }
 
 function SoundBank.Play(name, position, volume, pitch, looped)
+	if game:GetService("SoundService"):GetAttribute("SF_Transition") then
+		return nil -- 서버 이동 전환 화면 중에는 효과음을 내지 않음 (전환 음악만)
+	end
 	if not AssetIds.SfxRegions[name] then
 		name = ALIAS[name] or (string.sub(name, 1, 5) == "fire_" and "fire_rifle") or name
 	end
