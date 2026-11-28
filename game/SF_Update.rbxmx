@@ -194,7 +194,7 @@ Config.WeaponSwitchGrace = 6    -- 부활 후 이 시간(초) 동안도 무기 �
 Config.HitAssist = { Body = 1.8, Head = 0.9, PerStud = 0.015 } -- 서버 명중 보정(스터드): 지연 보상
 Config.HitClaim = { MaxMove = 9, MaxPerp = 1.5 } -- 클라이언트 명중 판정 인정 범위: 대상이 그 사이 움직인 거리 / 탄도에서 벗어난 거리
 Config.ResultsTime = 10
-Config.FillWithBots = true      -- 인원 부족 시 봇으로 채움 (스튜디오 테스트용으로도 필요)
+Config.FillWithBots = false     -- 인원 부족 시 봇으로 채움 · 기본 끔, 관리자 설정 '빈자리 봇'에서 켜고 끔(저장됨)
 Config.RankedAllowBots = false  -- 봇이 섞인 경기는 레이팅 미반영 · 관리자 설정 '봇 포함 랭크 반영'에서 켜고 끔(저장됨)
 
 -- 승리 판정 (터프·솔로): 최종 점수 = 페인트 면적 몫 80% + (처치 + 미션 점수) 몫 20%  (각각 전체 중 우리 비율)
@@ -1811,8 +1811,8 @@ ACTIONS.crate = function(player, n)
 end
 
 ACTIONS.bots = function()
-	Config.FillWithBots = not Config.FillWithBots
-	return "봇 채우기: " .. (Config.FillWithBots and "켜짐" or "꺼짐") .. " (다음 경기부터)"
+	SettingsService.Set("FillWithBots", Config.FillWithBots and 0 or 1) -- 저장 + 모든 서버에 반영
+	return "봇 채우기: " .. (Config.FillWithBots and "켜짐" or "꺼짐") .. " (다음 경기부터 · 저장됨)"
 end
 
 ACTIONS.rankedBots = function()

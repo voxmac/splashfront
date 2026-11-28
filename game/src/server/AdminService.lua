@@ -104,8 +104,8 @@ ACTIONS.crate = function(player, n)
 end
 
 ACTIONS.bots = function()
-	Config.FillWithBots = not Config.FillWithBots
-	return "봇 채우기: " .. (Config.FillWithBots and "켜짐" or "꺼짐") .. " (다음 경기부터)"
+	SettingsService.Set("FillWithBots", Config.FillWithBots and 0 or 1) -- 저장 + 모든 서버에 반영
+	return "봇 채우기: " .. (Config.FillWithBots and "켜짐" or "꺼짐") .. " (다음 경기부터 · 저장됨)"
 end
 
 ACTIONS.rankedBots = function()
