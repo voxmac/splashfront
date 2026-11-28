@@ -1727,7 +1727,12 @@ local HEAVY = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeig
 -- 서버 이동(로비 ↔ 배틀) 전환 화면: 프로필 로딩 화면 대신 짧은 전환 화면만 보여 주고 뒤에서 처리
 ------------------------------------------------------------------------
 local TeleportService = game:GetService("TeleportService")
-local function makeTransition(msg)
+local SoundService = game:GetService("SoundService")
+local MUSIC_BATTLE = "rbxassetid://125224859846133" -- 크로마 테마 (배틀로 갈 때)
+local MUSIC_LOBBY = "rbxassetid://137125830506009" -- 로비 테마 (로비로 갈 때)
+
+-- 전환 화면: 로고 + 단계 문구 + 진행 막대(채움 + 흐르는 빛) · p = 0~1
+local function makeTransition(msg, p)
 	local g = Instance.new("ScreenGui")
 	g.Name = "SF_Transition"
 	g.IgnoreGuiInset = true
@@ -1736,13 +1741,34 @@ local function makeTransition(msg)
 	local f = Instance.new("Frame")
 	f.Name = "Bg"
 	f.Size = UDim2.fromScale(1, 1)
-	f.BackgroundColor3 = Color3.fromRGB(8, 10, 22)
+	f.BackgroundColor3 = Color3.new(1, 1, 1)
 	f.BorderSizePixel = 0
 	f.Parent = g
+	local gr = Instance.new("UIGradient")
+	gr.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(26, 34, 70)),
+		ColorSequenceKeypoint.new(0.6, Color3.fromRGB(10, 13, 28)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(4, 5, 12)),
+	})
+	gr.Rotation = 90
+	gr.Parent = f
+	for k = 0, 5 do
+		local st = Instance.new("Frame")
+		st.Name = "Stripe"
+		st.AnchorPoint = Vector2.new(0.5, 0.5)
+		st.Size = UDim2.new(0, 10, 1.6, 0)
+		st.Position = UDim2.new(0.08 + k * 0.17, 0, 0.5, 0)
+		st.Rotation = 24
+		st.BorderSizePixel = 0
+		st.BackgroundColor3 = (k % 2 == 0) and Color3.fromRGB(255, 40, 200) or Color3.fromRGB(240, 255, 40)
+		st.BackgroundTransparency = 0.88
+		st.Parent = f
+	end
 	local logo = Instance.new("ImageLabel")
+	logo.Name = "Logo"
 	logo.AnchorPoint = Vector2.new(0.5, 0.5)
-	logo.Position = UDim2.fromScale(0.5, 0.44)
-	logo.Size = UDim2.fromScale(0.3, 0.18)
+	logo.Position = UDim2.fromScale(0.5, 0.42)
+	logo.Size = UDim2.fromScale(0.34, 0.2)
 	logo.BackgroundTransparency = 1
 	logo.ScaleType = Enum.ScaleType.Fit
 	logo.Image = "rbxassetid://132379224854027"
@@ -1751,46 +1777,132 @@ local function makeTransition(msg)
 	t.Name = "Msg"
 	t.AnchorPoint = Vector2.new(0.5, 0.5)
 	t.Position = UDim2.fromScale(0.5, 0.6)
-	t.Size = UDim2.fromScale(0.5, 0.04)
+	t.Size = UDim2.fromScale(0.5, 0.038)
 	t.BackgroundTransparency = 1
 	t.TextScaled = true
-	t.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy, Enum.FontStyle.Italic)
+	t.FontFace = HEAVY
 	t.TextColor3 = Color3.fromRGB(240, 255, 40)
 	t.Text = msg
 	t.Parent = f
-	local bar = Instance.new("Frame")
-	bar.AnchorPoint = Vector2.new(0.5, 0.5)
-	bar.Position = UDim2.fromScale(0.5, 0.66)
-	bar.Size = UDim2.new(0.22, 0, 0, 4)
-	bar.BackgroundColor3 = Color3.fromRGB(255, 70, 200)
-	bar.BorderSizePixel = 0
-	bar.Parent = f
+	local track = Instance.new("Frame")
+	track.Name = "Track"
+	track.AnchorPoint = Vector2.new(0.5, 0.5)
+	track.Position = UDim2.fromScale(0.5, 0.66)
+	track.Size = UDim2.new(0.34, 0, 0, 8)
+	track.BackgroundColor3 = Color3.fromRGB(30, 38, 70)
+	track.BorderSizePixel = 0
+	track.ClipsDescendants = true
+	track.Parent = f
+	local c1 = Instance.new("UICorner")
+	c1.CornerRadius = UDim.new(1, 0)
+	c1.Parent = track
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(p or 0, 1)
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
+	fill.BorderSizePixel = 0
+	fill.Parent = track
+	local fg = Instance.new("UIGradient")
+	fg.Color = ColorSequence.new(Color3.fromRGB(255, 60, 200), Color3.fromRGB(60, 220, 255))
+	fg.Parent = fill
+	local c2 = Instance.new("UICorner")
+	c2.CornerRadius = UDim.new(1, 0)
+	c2.Parent = fill
+	local shine = Instance.new("Frame")
+	shine.Name = "Shine"
+	shine.Size = UDim2.new(0, 60, 1, 0)
+	shine.Position = UDim2.new(-0.3, 0, 0, 0)
+	shine.BackgroundColor3 = Color3.new(1, 1, 1)
+	shine.BackgroundTransparency = 0.55
+	shine.BorderSizePixel = 0
+	shine.Parent = fill
+	local pct = Instance.new("TextLabel")
+	pct.Name = "Pct"
+	pct.AnchorPoint = Vector2.new(0.5, 0.5)
+	pct.Position = UDim2.fromScale(0.5, 0.7)
+	pct.Size = UDim2.fromScale(0.2, 0.026)
+	pct.BackgroundTransparency = 1
+	pct.TextScaled = true
+	pct.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+	pct.TextColor3 = Color3.fromRGB(170, 180, 220)
+	pct.Text = math.floor((p or 0) * 100) .. "%"
+	pct.Parent = f
 	return g
+end
+
+-- 전환 화면 움직임: 진행 막대가 목표를 향해 부드럽게 차오르고(기다리는 동안 천천히), 빛이 흐르고, 줄무늬가 흐름
+local function animate(g, state)
+	local f = g:FindFirstChild("Bg")
+	local fill = f and f.Track.Fill
+	local t0 = os.clock()
+	local conn
+	conn = RunService.RenderStepped:Connect(function(dt)
+		if not g.Parent then
+			conn:Disconnect()
+			return
+		end
+		-- 목표에 가까워질수록 느려짐 → 멈춘 느낌 없이 계속 진행 중
+		state.p = state.p + (state.target - state.p) * math.min(1, dt * (state.target >= 1 and 6 or 1.2))
+		state.target = math.min(state.cap or 0.95, state.target + dt * 0.02)
+		fill.Size = UDim2.fromScale(state.p, 1)
+		f.Pct.Text = math.floor(state.p * 100 + 0.5) .. "%"
+		local k = ((os.clock() - t0) % 1.1) / 1.1
+		fill.Shine.Position = UDim2.new(k * 1.4 - 0.3, 0, 0, 0)
+		f.Msg.Text = state.msg .. string.rep(".", math.floor((os.clock() - t0) * 2.5) % 4)
+		for _, st in ipairs(f:GetChildren()) do
+			if st.Name == "Stripe" then
+				local x = st.Position.X.Scale + dt * 0.04
+				st.Position = UDim2.new(x > 1.05 and -0.05 or x, 0, 0.5, 0)
+			end
+		end
+		f.Logo.Size = UDim2.fromScale(0.34 + math.sin((os.clock() - t0) * 2.2) * 0.008, 0.2)
+	end)
+end
+
+-- 음악: 부드럽게 켜고 끄기
+local function startMusic(id)
+	local snd = Instance.new("Sound")
+	snd.Name = "SF_TransitionMusic"
+	snd.SoundId = id
+	snd.Looped = true
+	snd.Volume = 0
+	snd.Parent = SoundService
+	snd:Play()
+	TweenService:Create(snd, TweenInfo.new(1.2), { Volume = 0.45 }):Play()
+	return snd
+end
+local function stopMusic(snd)
+	if snd then
+		TweenService:Create(snd, TweenInfo.new(1.0), { Volume = 0 }):Play()
+		task.delay(1.1, function()
+			snd:Destroy()
+		end)
+	end
 end
 
 local function fadeOut(g)
 	local f = g and g:FindFirstChild("Bg")
 	if f then
-		TweenService:Create(f, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(f, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
 		for _, d in ipairs(f:GetDescendants()) do
 			if d:IsA("TextLabel") then
-				TweenService:Create(d, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+				TweenService:Create(d, TweenInfo.new(0.35), { TextTransparency = 1 }):Play()
 			elseif d:IsA("ImageLabel") then
-				TweenService:Create(d, TweenInfo.new(0.3), { ImageTransparency = 1 }):Play()
+				TweenService:Create(d, TweenInfo.new(0.35), { ImageTransparency = 1 }):Play()
 			elseif d:IsA("Frame") then
-				TweenService:Create(d, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+				TweenService:Create(d, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
 			end
 		end
 	end
-	task.delay(0.45, function()
+	task.delay(0.55, function()
 		if g then
 			g:Destroy()
 		end
 	end)
 end
 
--- 떠날 때: 서버가 Teleporting을 켜면 전환 화면을 띄우고, 이동 중에도 같은 화면이 보이게 등록
-local leaving = nil
+-- 떠날 때: 서버가 Teleporting을 켜면 전환 화면 + 음악, 막대는 0 → 55%까지 (나머지는 도착한 서버에서 이어서)
+local leaving, leavingState, leavingMusic = nil, nil, nil
 player:GetAttributeChangedSignal("Teleporting"):Connect(function()
 	if player:GetAttribute("Teleporting") then
 		if leaving then
@@ -1798,14 +1910,28 @@ player:GetAttributeChangedSignal("Teleporting"):Connect(function()
 		end
 		local toLobby = player:GetAttribute("InMatch") or game.PrivateServerId ~= ""
 		local msg = toLobby and "로비로 돌아가는 중" or "배틀 서버로 이동 중"
-		leaving = makeTransition(msg)
+		leaving = makeTransition(msg, 0)
+		leavingState = { p = 0, target = 0.35, cap = 0.55, msg = msg }
 		leaving.Parent = player:WaitForChild("PlayerGui")
-		pcall(function()
-			TeleportService:SetTeleportGui(makeTransition(msg))
+		animate(leaving, leavingState)
+		leavingMusic = startMusic(toLobby and MUSIC_LOBBY or MUSIC_BATTLE)
+		-- 이동 화면(정지 화면)은 출발 직전의 진행 상태로 등록
+		task.spawn(function()
+			for _ = 1, 8 do
+				if not leaving then
+					return
+				end
+				pcall(function()
+					TeleportService:SetTeleportGui(makeTransition(msg, leavingState.p))
+				end)
+				task.wait(0.5)
+			end
 		end)
 	elseif leaving then
-		fadeOut(leaving) -- 이동이 취소·실패하면 다시 화면을 엶
-		leaving = nil
+		-- 이동이 취소·실패하면 다시 화면을 엶
+		fadeOut(leaving)
+		stopMusic(leavingMusic)
+		leaving, leavingState, leavingMusic = nil, nil, nil
 	end
 end)
 
@@ -1819,33 +1945,55 @@ pcall(function()
 end)
 if arrivedSF then
 	local toBattle = arrivedSF.Kind == "Match" or arrivedSF.Kind == "Join"
-	local g = nil
+	local old = nil
 	pcall(function()
-		g = TeleportService:GetArrivingTeleportGui()
+		old = TeleportService:GetArrivingTeleportGui()
 	end)
-	if not g then
-		g = makeTransition(toBattle and "배틀 서버로 이동 중" or "로비로 돌아가는 중")
-	end
+	local p0 = 0.55
+	pcall(function()
+		local of = old and old:FindFirstChild("Bg")
+		p0 = math.max(p0, of.Track.Fill.Size.X.Scale)
+	end)
+	local stages = toBattle and { "배틀 서버에 연결하는 중", "전장을 준비하는 중", "출격 준비 완료" }
+		or { "로비에 연결하는 중", "프로필 동기화 중", "격납고 도착" }
+	local g = makeTransition(stages[1], p0)
 	g.Parent = player:WaitForChild("PlayerGui")
+	if old then
+		old:Destroy()
+	end
+	local state = { p = p0, target = p0 + 0.1, cap = 0.8, msg = stages[1] }
+	animate(g, state)
+	local music = startMusic(toBattle and MUSIC_BATTLE or MUSIC_LOBBY)
 	if not game:IsLoaded() then
 		game.Loaded:Wait()
 	end
 	local t0 = os.clock()
 	while os.clock() - t0 < 40 do
 		local c = player.Character
-		local ready = c and c:FindFirstChild("HumanoidRootPart") and player:GetAttribute("Coins") ~= nil
+		local root = c and c:FindFirstChild("HumanoidRootPart")
+		local loaded = root ~= nil and player:GetAttribute("Coins") ~= nil
+		if loaded and state.msg == stages[1] then
+			state.msg = stages[2]
+			state.cap = 0.92
+			state.target = math.max(state.target, 0.8)
+		end
+		local ready
 		if toBattle then
 			-- 배틀: 경기에 들어가 캐릭터가 전장에 설 때까지 (로비 대기 화면은 보이지 않게)
-			ready = ready and player:GetAttribute("InMatch") and c:FindFirstChild("HumanoidRootPart").Position.Y < 300
+			ready = loaded and player:GetAttribute("InMatch") and root.Position.Y < 300
 		else
-			ready = ready and player:GetAttribute("LobbyReady")
+			ready = loaded and player:GetAttribute("LobbyReady")
 		end
 		if ready then
 			break
 		end
 		task.wait(0.1)
 	end
-	task.wait(0.3)
+	state.msg = stages[3]
+	state.cap = 1
+	state.target = 1
+	task.wait(0.5)
+	stopMusic(music)
 	fadeOut(g)
 	return
 end
