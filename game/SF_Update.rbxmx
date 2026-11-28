@@ -15178,10 +15178,10 @@ local function makeHand(isLeft, accent)
 	vp(m, "Thumb2", Vector3.new(0.065, 0.065, 0.1), tb * CFrame.new(0, 0, -0.13) * CFrame.Angles(0, math.rad(-20 * sx), 0) * CFrame.new(0, 0, -0.05), shade, SM)
 	-- 손목·팔뚝 소매 (무광 자켓) + 팀색은 얇은 무광 띠 하나
 	vp(m, "Wrist", Vector3.new(0.22, 0.24, 0.14), CFrame.new(0, 0, 0.22), skin, SM)
-	local arm = CFrame.new(0.12 * sx, -0.1, 1.1) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0)
-	vp(m, "Forearm", Vector3.new(0.32, 0.34, 1.6), arm, SLEEVE, Enum.Material.Fabric)
-	vp(m, "Cuff", Vector3.new(0.35, 0.37, 0.12), arm * CFrame.new(0, 0, -0.78), SLEEVE:Lerp(Color3.new(1, 1, 1), 0.08), Enum.Material.Fabric)
-	vp(m, "Stripe", Vector3.new(0.355, 0.375, 0.04), arm * CFrame.new(0, 0, -0.68), accent:Lerp(SLEEVE, 0.35), SM)
+	local arm = CFrame.new(0.08 * sx, -0.08, 0.78) * CFrame.Angles(math.rad(10), math.rad(12 * sx), 0)
+	vp(m, "Forearm", Vector3.new(0.3, 0.32, 1.0), arm, SLEEVE, SM)
+	vp(m, "Cuff", Vector3.new(0.33, 0.35, 0.1), arm * CFrame.new(0, 0, -0.48), SLEEVE:Lerp(Color3.new(1, 1, 1), 0.1), SM)
+	vp(m, "Stripe", Vector3.new(0.335, 0.355, 0.035), arm * CFrame.new(0, 0, -0.4), accent:Lerp(SLEEVE, 0.45), SM)
 	m.PrimaryPart = root
 	return m
 end
@@ -15196,13 +15196,13 @@ local function handPoses(w, length)
 	elseif cls == "권총" then
 		left = CFrame.new(-0.14, -0.27, 0.06) * CFrame.Angles(math.rad(-10), math.rad(-25), math.rad(20)) -- 두 손으로 감싸 쥠
 	elseif cls == "산탄총" then
-		left = CFrame.new(-0.04, -0.16, -length * 0.46) * CFrame.Angles(0, 0, math.rad(70)) -- 펌프 손잡이
+		left = CFrame.new(-0.04, -0.16, -length * 0.3) * CFrame.Angles(0, 0, math.rad(70)) -- 펌프 손잡이
 	elseif cls == "저격총" then
-		left = CFrame.new(-0.04, -0.17, -length * 0.36) * CFrame.Angles(0, 0, math.rad(75))
+		left = CFrame.new(-0.04, -0.17, -length * 0.26) * CFrame.Angles(0, 0, math.rad(75))
 	elseif cls == "유탄발사기" then
-		left = CFrame.new(-0.08, -0.22, -length * 0.34) * CFrame.Angles(0, 0, math.rad(60))
+		left = CFrame.new(-0.08, -0.22, -length * 0.24) * CFrame.Angles(0, 0, math.rad(60))
 	else
-		left = CFrame.new(-0.04, -0.15, -length * 0.42) * CFrame.Angles(0, 0, math.rad(75)) -- 소총·기관총: 총열 덮개 아래
+		left = CFrame.new(-0.04, -0.15, -length * 0.27) * CFrame.Angles(0, 0, math.rad(75)) -- 소총·기관총: 총열 덮개 아래
 	end
 	return right, left
 end
@@ -15239,6 +15239,15 @@ local function buildViewmodel()
 		m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
 	end
 	m.Name = "Viewmodel"
+	-- 1인칭: 스킨의 발광 조명이 손·소매까지 물들이지 않게 조명은 빼고, 입자도 줄임
+	for _, d in ipairs(m:GetDescendants()) do
+		if d:IsA("Light") then
+			d:Destroy()
+		elseif d:IsA("ParticleEmitter") then
+			d.Rate = d.Rate * 0.4
+			d.ZOffset = -1
+		end
+	end
 	m:PivotTo(CFrame.new())
 	local _, size = m:GetBoundingBox()
 	vmLength = math.max(size.Z, 0.8)
@@ -15979,6 +15988,21 @@ bindAll = function()
 	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
 	ContextActionService:BindAction("SF_Knife", onAction, true, Enum.KeyCode.X, Enum.KeyCode.DPadLeft)
 	ContextActionService:SetTitle("SF_Knife", "칼")
+	-- 마우스 휠로도 총 ↔ 칼 전환 (한 번 굴릴 때 한 번만)
+	local lastWheel = 0
+	UserInputService.InputChanged:Connect(function(input, processed)
+		if input.UserInputType ~= Enum.UserInputType.MouseWheel or processed then
+			return
+		end
+		if not enabled or uiMode or UserInputService:GetFocusedTextBox() then
+			return
+		end
+		if os.clock() - lastWheel < 0.35 then
+			return
+		end
+		lastWheel = os.clock()
+		setMelee(not melee)
+	end)
 	ContextActionService:SetPosition("SF_Knife", UDim2.new(1, -170, 1, -300))
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
