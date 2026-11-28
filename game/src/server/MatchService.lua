@@ -1320,34 +1320,50 @@ function MatchService.JoinInProgress(player)
 	if (S.EndsAt or 0) - now() < 30 then
 		return false -- 끝나기 직전에는 들어가지 않음
 	end
-	-- 사람이 더 적은 팀의 봇 자리부터
-	local humansOn = {}
+	-- 1) 빈자리(나간 사람 자리 등 정원보다 적은 팀) → 2) 사람이 적은 팀의 봇 자리
+	local q = queueDef(S.QueueId)
+	local cap = (S.Mode == "Solo") and 1 or ((q and q.TeamSize) or 3)
+	local total, humansOn = {}, {}
 	for _, o in ipairs(Combatants.All()) do
+		total[o.OwnerId] = (total[o.OwnerId] or 0) + 1
 		if not o.IsBot then
 			humansOn[o.OwnerId] = (humansOn[o.OwnerId] or 0) + 1
 		end
 	end
-	local bot = nil
-	for _, o in ipairs(Combatants.All()) do
-		if o.IsBot and (not bot or (humansOn[o.OwnerId] or 0) < (humansOn[bot.OwnerId] or 0)) then
-			bot = o
+	local slotOwner, slotTeam, slotName = nil, nil, nil
+	for _, o in ipairs(S.Owners) do
+		local n = total[o.OwnerId] or 0
+		if n < cap and (slotOwner == nil or n < (total[slotOwner] or 0)) then
+			slotOwner = o.OwnerId
 		end
 	end
-	if not bot then
-		return false -- 빈자리 없음
-	end
-	-- 봇 내보내기
-	bot.Alive = false
-	Combatants.Remove(bot)
-	pcall(function()
-		if bot.Model then
-			bot.Model:Destroy()
+	if slotOwner then
+		slotTeam = slotOwner
+		slotName = "빈자리"
+	else
+		local bot = nil
+		for _, o in ipairs(Combatants.All()) do
+			if o.IsBot and (not bot or (humansOn[o.OwnerId] or 0) < (humansOn[bot.OwnerId] or 0)) then
+				bot = o
+			end
 		end
-	end)
+		if not bot then
+			return false -- 빈자리 없음
+		end
+		-- 봇 내보내기
+		bot.Alive = false
+		Combatants.Remove(bot)
+		pcall(function()
+			if bot.Model then
+				bot.Model:Destroy()
+			end
+		end)
+		slotOwner, slotTeam, slotName = bot.OwnerId, bot.TeamId, bot.Name .. " 자리"
+	end
 	local profile = DataService.Get(player)
 	local e = Combatants.New({
 		Id = "P" .. player.UserId, Name = player.DisplayName, Player = player,
-		OwnerId = bot.OwnerId, TeamId = bot.TeamId,
+		OwnerId = slotOwner, TeamId = slotTeam,
 		WeaponId = profile and profile.Equipped or Weapons.Default,
 	})
 	e.PatternMaterial = Cosmetics.PaintStyle(profile and profile.EquippedPattern)
@@ -1372,7 +1388,7 @@ function MatchService.JoinInProgress(player)
 	Telemetry.Funnel(player, "MatchStarted")
 	task.spawn(spawnEntity, e)
 	remotes.FX:FireClient(player, "Cue", { Name = "countdown_go" })
-	remotes.Notify:FireClient(player, "진행 중인 배틀에 합류했어요! (" .. bot.Name .. " 자리)", Color3.fromRGB(140, 255, 200))
+	remotes.Notify:FireClient(player, "진행 중인 배틀에 합류했어요! (" .. slotName .. ")", Color3.fromRGB(140, 255, 200))
 	announce(player.DisplayName .. " 님이 배틀에 합류했어요", Color3.fromRGB(200, 230, 255))
 	return true
 end

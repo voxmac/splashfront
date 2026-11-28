@@ -117,8 +117,7 @@ end
 ------------------------------------------------------------------------
 -- 1인칭 손 (장갑 + 소매). 총 종류마다 왼손 위치가 다름
 ------------------------------------------------------------------------
-local GLOVE = Color3.fromRGB(46, 46, 56)
-local SLEEVE = Color3.fromRGB(34, 38, 56)
+local SLEEVE = Color3.fromRGB(44, 47, 58) -- 무광 자켓 소매
 
 local function vp(parent, name, size, cf, color, mat)
 	local p = Instance.new("Part")
@@ -136,21 +135,58 @@ local function vp(parent, name, size, cf, color, mat)
 	return p
 end
 
+-- 캐릭터 실제 피부색 (손 → 팔 → 기본 피부색 순)
+local function skinColor()
+	local c = player.Character
+	if c then
+		for _, n in ipairs({ "RightHand", "Right Arm", "RightLowerArm", "LeftHand" }) do
+			local p = c:FindFirstChild(n)
+			if p and p:IsA("BasePart") then
+				return p.Color
+			end
+		end
+	end
+	return Color3.fromRGB(234, 184, 146)
+end
+
 -- 손 하나: 원점 = 손바닥 가운데, 손가락은 앞(-Z) 방향으로 감싸 쥠, 팔은 뒤(+Z)로
+-- 실제 캐릭터 손처럼: 피부색 손바닥 + 마디가 굽은 손가락 4개 + 엄지, 팀색은 소매의 얇은 무광 띠에만
 local function makeHand(isLeft, accent)
 	local m = Instance.new("Model")
 	m.Name = isLeft and "LeftHand" or "RightHand"
 	local sx = isLeft and -1 or 1
-	local root = vp(m, "Root", Vector3.new(0.05, 0.05, 0.05), CFrame.new(), GLOVE)
+	local skin = skinColor()
+	local shade = skin:Lerp(Color3.new(0, 0, 0), 0.12)
+	local SM = Enum.Material.SmoothPlastic
+	local root = vp(m, "Root", Vector3.new(0.05, 0.05, 0.05), CFrame.new(), skin)
 	root.Transparency = 1
-	vp(m, "Palm", Vector3.new(0.26, 0.3, 0.34), CFrame.new(0, 0, 0.02), GLOVE, Enum.Material.Fabric)
-	vp(m, "Fingers", Vector3.new(0.24, 0.12, 0.3), CFrame.new(-0.02 * sx, -0.16, -0.12) * CFrame.Angles(math.rad(-35), 0, 0), GLOVE, Enum.Material.Fabric)
-	vp(m, "Knuckle", Vector3.new(0.25, 0.08, 0.1), CFrame.new(0, 0.12, -0.14), Color3.fromRGB(70, 70, 82), Enum.Material.SmoothPlastic)
-	vp(m, "Thumb", Vector3.new(0.08, 0.08, 0.24), CFrame.new(0.15 * -sx, 0.04, -0.12) * CFrame.Angles(0, math.rad(18 * sx), 0), GLOVE, Enum.Material.Fabric)
-	vp(m, "Cuff", Vector3.new(0.3, 0.34, 0.1), CFrame.new(0, 0, 0.24), accent, Enum.Material.Neon)
-	-- 팔뚝 소매: 손목에서 뒤쪽·바깥·아래로 화면 밖까지
-	vp(m, "Forearm", Vector3.new(0.3, 0.32, 1.7), CFrame.new(0.12 * sx, -0.1, 1.08) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), SLEEVE, Enum.Material.Fabric)
-	vp(m, "Stripe", Vector3.new(0.31, 0.06, 1.4), CFrame.new(0.12 * sx, 0.06, 1.12) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0), accent, Enum.Material.Neon)
+	-- 손바닥·손등
+	vp(m, "Palm", Vector3.new(0.25, 0.27, 0.3), CFrame.new(0, 0, 0.03), skin, SM)
+	vp(m, "Back", Vector3.new(0.24, 0.05, 0.26), CFrame.new(0, 0.14, 0.02), shade, SM)
+	-- 손가락 4개: 첫마디는 앞으로, 둘째·셋째 마디는 아래로 굽혀 감싸 쥠
+	for i = 1, 4 do
+		local x = (-0.09 + (i - 1) * 0.06) * sx
+		local len = (i == 2 or i == 3) and 0.13 or 0.11
+		local base = CFrame.new(x, 0.07, -0.12)
+		local f1 = base * CFrame.Angles(math.rad(-25), 0, 0) * CFrame.new(0, 0, -len / 2)
+		vp(m, "Finger" .. i .. "a", Vector3.new(0.055, 0.065, len), f1, skin, SM)
+		local tip1 = base * CFrame.Angles(math.rad(-25), 0, 0) * CFrame.new(0, 0, -len)
+		local f2 = tip1 * CFrame.Angles(math.rad(-75), 0, 0) * CFrame.new(0, 0, -0.05)
+		vp(m, "Finger" .. i .. "b", Vector3.new(0.052, 0.06, 0.1), f2, skin, SM)
+		local tip2 = tip1 * CFrame.Angles(math.rad(-75), 0, 0) * CFrame.new(0, 0, -0.1)
+		local f3 = tip2 * CFrame.Angles(math.rad(-55), 0, 0) * CFrame.new(0, 0, -0.035)
+		vp(m, "Finger" .. i .. "c", Vector3.new(0.05, 0.055, 0.07), f3, shade, SM)
+	end
+	-- 엄지: 손바닥 옆에서 앞으로 뻗어 손잡이를 눌러 쥠
+	local tb = CFrame.new(0.13 * -sx, -0.03, -0.02) * CFrame.Angles(math.rad(-10), math.rad(28 * sx), 0)
+	vp(m, "Thumb1", Vector3.new(0.07, 0.07, 0.13), tb * CFrame.new(0, 0, -0.065), skin, SM)
+	vp(m, "Thumb2", Vector3.new(0.065, 0.065, 0.1), tb * CFrame.new(0, 0, -0.13) * CFrame.Angles(0, math.rad(-20 * sx), 0) * CFrame.new(0, 0, -0.05), shade, SM)
+	-- 손목·팔뚝 소매 (무광 자켓) + 팀색은 얇은 무광 띠 하나
+	vp(m, "Wrist", Vector3.new(0.22, 0.24, 0.14), CFrame.new(0, 0, 0.22), skin, SM)
+	local arm = CFrame.new(0.12 * sx, -0.1, 1.1) * CFrame.Angles(math.rad(8), math.rad(10 * sx), 0)
+	vp(m, "Forearm", Vector3.new(0.32, 0.34, 1.6), arm, SLEEVE, Enum.Material.Fabric)
+	vp(m, "Cuff", Vector3.new(0.35, 0.37, 0.12), arm * CFrame.new(0, 0, -0.78), SLEEVE:Lerp(Color3.new(1, 1, 1), 0.08), Enum.Material.Fabric)
+	vp(m, "Stripe", Vector3.new(0.355, 0.375, 0.04), arm * CFrame.new(0, 0, -0.68), accent:Lerp(SLEEVE, 0.35), SM)
 	m.PrimaryPart = root
 	return m
 end
@@ -1114,6 +1150,13 @@ function WC.Init(remoteFolder, hud, effects)
 				applyView()
 			end)
 		end
+		-- 외형(피부색)이 늦게 입혀지면 손 색을 다시 맞춤
+		task.delay(1.5, function()
+			if enabled and player.Character == char then
+				buildViewmodel()
+				applyView()
+			end
+		end)
 		local hum = char:WaitForChild("Humanoid")
 		hum.StateChanged:Connect(function(_, new)
 			if new == Enum.HumanoidStateType.Landed then
