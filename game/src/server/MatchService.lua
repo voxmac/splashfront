@@ -1190,6 +1190,13 @@ local function endMatch()
 	})
 	broadcast()
 	task.wait(Config.ResultsTime)
+	if Router.IsMatchServer then
+		-- 경기 서버: 결과를 본 뒤 바로 전환 화면 → 로비 서버로 (이 서버의 로비는 보이지 않게)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			pl:SetAttribute("Teleporting", true)
+		end
+		task.wait(0.4)
+	end
 
 	-- 정리 후 로비로
 	BotService.Stop()
@@ -1519,6 +1526,9 @@ end
 function MatchService.LeaveMatch(player)
 	if not player:GetAttribute("InMatch") then
 		return
+	end
+	if Router.IsMatchServer then
+		player:SetAttribute("Teleporting", true)
 	end
 	-- 어떤 단계(경기·결과)에서든 확실히 로비로: 각 정리 단계가 실패해도 다음 단계는 계속
 	local e = Combatants.FromPlayer(player)

@@ -133,6 +133,7 @@ end
 
 -- 로비 → 진행 중인 경기 서버
 function Router.JoinRunning(player, entry)
+	player:SetAttribute("Teleporting", true)
 	local stamp = saveAll({ player })
 	return teleport({ player }, entry.Code, { Kind = "Join", Code = entry.Code, SavedAt = stamp })
 end
@@ -150,6 +151,9 @@ function Router.ToLobby(list)
 	end
 	if #alive == 0 then
 		return true
+	end
+	for _, pl in ipairs(alive) do
+		pl:SetAttribute("Teleporting", true) -- 클라이언트가 전환 화면을 띄움
 	end
 	local stamp = saveAll(alive)
 	local opts = Instance.new("TeleportOptions")
