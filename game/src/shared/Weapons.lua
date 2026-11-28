@@ -110,8 +110,8 @@ end
 -- 좌클릭 = 베기, 우클릭 = 강하게 찌르기. 칼을 들면 조금 더 빨리 달림
 Weapons.Knife = {
 	Id = "Knife", Name = "택티컬 나이프", Class = "칼", Melee = true,
-	Damage = 50, Interval = 0.45,             -- 베기
-	HeavyDamage = 80, HeavyInterval = 1.0,    -- 찌르기
+	Damage = 65, Interval = 0.45,             -- 베기 (2번이면 처치)
+	HeavyDamage = 105, HeavyInterval = 1.0,   -- 찌르기 (한 번에 처치, 체력 100 기준)
 	BackMul = 1.5,                            -- 등 뒤에서 찌르면 1.5배
 	Range = 6.5, SpeedMul = 1.12,
 }

@@ -254,4 +254,67 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
 	end
 end)
 
+-- 연막 안에 들어간 캐릭터는 이름·체력바를 숨김 (내 화면 기준, 0.15초마다 확인)
+do
+	local SHOW = Enum.HumanoidDisplayDistanceType.Viewer
+	local HIDE = Enum.HumanoidDisplayDistanceType.None
+	local hiddenByUs = setmetatable({}, { __mode = "k" })
+	local function puffs()
+		local out = {}
+		local fx = workspace:FindFirstChild("FX")
+		if fx then
+			for _, cloud in ipairs(fx:GetChildren()) do
+				if cloud.Name == "SmokeCloud" then
+					for _, p in ipairs(cloud:GetChildren()) do
+						if p:IsA("BasePart") and p.Transparency < 0.5 then
+							table.insert(out, p)
+						end
+					end
+				end
+			end
+		end
+		return out
+	end
+	local function inSmoke(pos, list)
+		for _, p in ipairs(list) do
+			if (pos - p.Position).Magnitude < p.Size.X * 0.48 then
+				return true
+			end
+		end
+		return false
+	end
+	local function check(model, list)
+		local hum = model and model:FindFirstChildOfClass("Humanoid")
+		local head = model and (model:FindFirstChild("Head") or model:FindFirstChild("HumanoidRootPart"))
+		if not hum or not head then
+			return
+		end
+		local hide = #list > 0 and inSmoke(head.Position, list)
+		if hide and hum.DisplayDistanceType ~= HIDE then
+			hiddenByUs[hum] = hum.DisplayDistanceType
+			hum.DisplayDistanceType = HIDE
+		elseif not hide and hiddenByUs[hum] then
+			hum.DisplayDistanceType = hiddenByUs[hum] or SHOW
+			hiddenByUs[hum] = nil
+		end
+	end
+	task.spawn(function()
+		while true do
+			task.wait(0.15)
+			local list = puffs()
+			for _, pl in ipairs(Players:GetPlayers()) do
+				if pl ~= player and pl.Character then
+					check(pl.Character, list)
+				end
+			end
+			local bots = workspace:FindFirstChild("Bots")
+			if bots then
+				for _, m in ipairs(bots:GetChildren()) do
+					check(m, list)
+				end
+			end
+		end
+	end)
+end
+
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")

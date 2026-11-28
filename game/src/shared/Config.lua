@@ -82,7 +82,7 @@ Config.WalkSpeedMul = 0.55  -- 걷기(Z 전환) · 탄 퍼짐이 줄어 정밀 �
 
 Config.SpecialCells = 150       -- 이만큼 칠하면 스페셜 충전
 Config.SpecialRadius = 14
-Config.SpecialDamage = 70
+Config.SpecialDamage = 100 -- 크로마 봄(수류탄) 중심 피해 · 가장자리는 절반
 
 -- 매치
 Config.MatchLength = 300        -- 5분
