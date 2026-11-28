@@ -202,9 +202,8 @@ function UI.ModelImage(parent, model, size, rotY)
 	return viewportModel(parent, model, size, rotY)
 end
 
-function UI.GunImage(parent, weaponId, accent, skin, size, look)
-	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	-- 총 미리보기: 칸 크기에 꽉 차게(가로·세로 비율에 맞춰 카메라 거리 계산), 밝은 조명
+-- 옆에서 본 무기를 칸 크기에 꽉 차게 (가로·세로 비율에 맞춰 카메라 거리 계산) + 밝은 조명
+local function weaponViewport(parent, model, size)
 	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
 	vp.LightColor = Color3.fromRGB(255, 252, 245)
 	vp.Ambient = Color3.fromRGB(230, 230, 240)
@@ -218,7 +217,6 @@ function UI.GunImage(parent, weaponId, accent, skin, size, look)
 		local aspect = abs.X / abs.Y
 		local vt = math.tan(math.rad(cam.FieldOfView / 2))
 		local ht = vt * aspect
-		-- 옆에서 보므로 화면 가로 = 총 길이(가장 긴 변), 세로 = 높이
 		local long = math.max(sz.X, sz.Z)
 		local dist = math.max((long / 2) / ht, (sz.Y / 2) / vt) * 1.12 + math.min(sz.X, sz.Z) / 2
 		cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Y * 0.08, dist), cf.Position)
@@ -226,6 +224,16 @@ function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	fit()
 	vp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	return vp
+end
+
+function UI.GunImage(parent, weaponId, accent, skin, size, look)
+	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	return weaponViewport(parent, model, size)
+end
+
+-- 칼 미리보기 (외형 Id + 스킨)
+function UI.KnifeImage(parent, knifeModel, accent, look, size)
+	return weaponViewport(parent, ModelKit.Knife(accent or C.Cyan, knifeModel, look), size)
 end
 
 function UI.ItemImage(parent, item, size)

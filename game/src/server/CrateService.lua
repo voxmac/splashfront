@@ -39,6 +39,9 @@ function CrateService.Open(player)
 				table.insert(cands, w.Id)
 			end
 		end
+		if not p.WSkins[WeaponSkins.SkinId(item.Line, "Knife")] then
+			table.insert(cands, "Knife") -- 칼 스킨도 나옴
+		end
 		if #cands == 0 then
 			duplicate = true
 		else
@@ -47,7 +50,7 @@ function CrateService.Open(player)
 			if not p.WSkinEquip[weaponId] then
 				p.WSkinEquip[weaponId] = { Line = item.Line, V = 1 } -- 그 총에 스킨이 없으면 바로 장착
 			end
-			displayName = item.Name .. " · " .. Weapons.Get(weaponId).Name
+			displayName = item.Name .. " · " .. (weaponId == "Knife" and "칼" or Weapons.Get(weaponId).Name)
 		end
 	else
 		duplicate = p.Cosmetics[item.Id] == true

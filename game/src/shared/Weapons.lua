@@ -116,4 +116,17 @@ Weapons.Knife = {
 	Range = 6.5, SpeedMul = 1.12,
 }
 
+-- 칼 외형 (무기 상점에서 코인으로 구매 · 성능은 모두 같고 모양만 다름)
+Weapons.KnifeModels = {
+	{ Id = "Tactical", Name = "택티컬 나이프", Price = 0, Desc = "기본 지급 · 고무 그립의 전투용 칼" },
+	{ Id = "Kunai", Name = "쿠나이", Price = 3000, Desc = "마름모 날과 끝 고리 · 날렵한 투척형" },
+	{ Id = "Butterfly", Name = "버터플라이 나이프", Price = 6000, Desc = "두 갈래 손잡이 · 길고 가는 날" },
+	{ Id = "Karambit", Name = "카람빗", Price = 8000, Desc = "손가락 고리와 갈고리처럼 휜 날" },
+	{ Id = "Tanto", Name = "탄토", Price = 10000, Desc = "금빛 츠바와 살짝 휜 긴 날 · 최고급" },
+}
+Weapons.KnifeModelById = {}
+for _, k in ipairs(Weapons.KnifeModels) do
+	Weapons.KnifeModelById[k.Id] = k
+end
+
 return Weapons

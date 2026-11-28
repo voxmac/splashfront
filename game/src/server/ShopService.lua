@@ -22,7 +22,16 @@ local function shopWeapons()
 			table.insert(list, w.Id)
 		end
 	end
+	table.insert(list, "Knife") -- 칼도 스킨 대상
 	return list
+end
+
+local function weaponName(wid)
+	if wid == "Knife" then
+		return "칼"
+	end
+	local w = Weapons.ById[wid or ""]
+	return w and w.Name or nil
 end
 
 -- 무기 스킨: 구매(낱개·컬렉션 묶음) / 장착(변형 선택) / 해제
@@ -36,14 +45,14 @@ local function weaponSkin(player, action, arg)
 	if action == "buyWSkin" then
 		local lineId, wid = WeaponSkins.Split(arg)
 		local line = WeaponSkins.LineById[lineId or ""]
-		local w = Weapons.ById[wid or ""]
+		local w = weaponName(wid)
 		if not line or not w then
 			return { ok = false, msg = "알 수 없는 스킨" }
 		end
 		if p.WSkins[arg] then
 			return { ok = false, msg = "이미 보유 중" }
 		end
-		local price = WeaponSkins.Price(lineId)
+		local price = WeaponSkins.Price(lineId, wid)
 		if p.Coins < price then
 			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
 		end
@@ -53,7 +62,7 @@ local function weaponSkin(player, action, arg)
 		DataService.Publish(player)
 		DataService.Save(player)
 		Telemetry.Economy(player, false, price, p.Coins, "Shop", "WSkin_" .. arg)
-		return { ok = true, msg = string.format("%s %s 구매 완료! 바로 장착했어요", line.Name, w.Name) }
+		return { ok = true, msg = string.format("%s %s 구매 완료! 바로 장착했어요", line.Name, w) }
 	elseif action == "buyWBundle" then
 		local line = WeaponSkins.LineById[arg or ""]
 		if not line then
@@ -91,6 +100,35 @@ local function weaponSkin(player, action, arg)
 		p.WSkinEquip[wid] = { Line = lineId, V = v }
 		DataService.Publish(player)
 		return { ok = true, msg = string.format("%s 장착 (%s)", line.Name, line.Variants[v].Name) }
+	elseif action == "buyKnife" then
+		-- 칼 외형 구매 (코인)
+		local k = Weapons.KnifeModelById[arg or ""]
+		p.Knives = p.Knives or { Tactical = true }
+		if not k then
+			return { ok = false, msg = "알 수 없는 칼" }
+		end
+		if p.Knives[k.Id] then
+			return { ok = false, msg = "이미 보유 중" }
+		end
+		if p.Coins < k.Price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (k.Price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - k.Price
+		p.Knives[k.Id] = true
+		p.KnifeModel = k.Id
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, k.Price, p.Coins, "Shop", "Knife_" .. k.Id)
+		return { ok = true, msg = k.Name .. " 구매 완료! 바로 장착했어요" }
+	elseif action == "equipKnife" then
+		local k = Weapons.KnifeModelById[arg or ""]
+		p.Knives = p.Knives or { Tactical = true }
+		if not k or not p.Knives[k.Id] then
+			return { ok = false, msg = "먼저 구매하세요" }
+		end
+		p.KnifeModel = k.Id
+		DataService.Publish(player)
+		return { ok = true, msg = k.Name .. " 장착" }
 	elseif action == "unequipWSkin" then
 		p.WSkinEquip[arg or ""] = nil
 		DataService.Publish(player)
@@ -100,7 +138,7 @@ local function weaponSkin(player, action, arg)
 end
 
 local function handle(player, action, weaponId)
-	if (action == "buy" or action == "buyCosmetic" or action == "buyWSkin" or action == "buyWBundle") and not DataService.IsSafe(player) then
+	if (action == "buy" or action == "buyCosmetic" or action == "buyWSkin" or action == "buyWBundle" or action == "buyKnife") and not DataService.IsSafe(player) then
 		return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
 	end
 	local ws = weaponSkin(player, action, weaponId)

@@ -337,7 +337,7 @@ local function attachGun(e, model)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
 	-- 칼은 항상 몸에 지님: 칼을 들면 손에, 총을 들면 오른쪽 허벅지 칼집에
 	if e.Player then
-		local knife = ModelKit.Knife(color)
+		local knife = ModelKit.Knife(color, e.Player:GetAttribute("KnifeModel"), WeaponSkins.LookFor(e.Player, "Knife"))
 		knife.Name = "SF_Knife"
 		local thigh = model:FindFirstChild("RightUpperLeg") or model:FindFirstChild("Right Leg")
 		knife:SetAttribute("InHand", e.Melee == true and hand ~= nil)
@@ -611,7 +611,7 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and ((killer.Player and not killer.Melee and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
+		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.Melee and "Knife" or killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
 		Weapon = killer and (killer.Melee and Weapons.Knife.Name or Weapons.Get(killer.WeaponId).Name) or nil,
 		WeaponId = killer and (killer.Melee and "Knife" or killer.WeaponId) or nil,
 		KillerStreak = killer and killer.Streak or 0,

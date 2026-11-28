@@ -76,21 +76,31 @@ function WeaponSkins.Split(skinId)
 	return string.match(skinId or "", "^([%w_]+)@([%w_]+)$")
 end
 
-function WeaponSkins.Price(lineId)
+WeaponSkins.KnifeMul = 1.6 -- 칼 스킨은 총 스킨보다 비쌈 (발로란트 근접 스킨처럼)
+
+-- wid를 주면 그 무기 기준 가격 (칼이면 1.6배)
+function WeaponSkins.Price(lineId, wid)
 	local l = WeaponSkins.LineById[lineId]
-	return l and WeaponSkins.TierById[l.Tier].Price or nil
+	if not l then
+		return nil
+	end
+	local base = WeaponSkins.TierById[l.Tier].Price
+	if wid == "Knife" then
+		return math.floor(base * WeaponSkins.KnifeMul / 100 + 0.5) * 100
+	end
+	return base
 end
 
 -- weaponIds: 상점에 나오는 총 목록
 function WeaponSkins.BundlePrice(lineId, weaponIds, ownedSet)
-	local each = WeaponSkins.Price(lineId) or 0
-	local n = 0
+	local total, n = 0, 0
 	for _, wid in ipairs(weaponIds) do
 		if not (ownedSet and ownedSet[WeaponSkins.SkinId(lineId, wid)]) then
 			n = n + 1
+			total = total + (WeaponSkins.Price(lineId, wid) or 0)
 		end
 	end
-	return math.floor(each * n * (1 - WeaponSkins.BundleDiscount) / 10 + 0.5) * 10, n
+	return math.floor(total * (1 - WeaponSkins.BundleDiscount) / 10 + 0.5) * 10, n
 end
 
 -- "K2=NeonPulse:2;Rifle=SteelWave:1" -> { K2 = { Line = "NeonPulse", V = 2 }, ... }

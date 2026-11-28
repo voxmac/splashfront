@@ -110,7 +110,7 @@ local function buildViewmodel()
 	local w = weapon()
 	local m, muzzle
 	if melee then
-		m = ModelKit.Knife(teamColor())
+		m = ModelKit.Knife(teamColor(), player:GetAttribute("KnifeModel"), WeaponSkins.LookFor(player, "Knife"))
 	else
 		local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
 		local look = WeaponSkins.LookFor(player, w.Id)
@@ -847,6 +847,11 @@ function WC.Init(remoteFolder, hud, effects)
 	end)
 		player:GetAttributeChangedSignal("WSkinEquip"):Connect(function()
 		if enabled then
+			buildViewmodel()
+		end
+	end)
+	player:GetAttributeChangedSignal("KnifeModel"):Connect(function()
+		if enabled and melee then
 			buildViewmodel()
 		end
 	end)

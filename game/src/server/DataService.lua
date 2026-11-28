@@ -31,6 +31,8 @@ local function defaultProfile()
 		Cosmetics = {},          -- [아이템 Id] = true
 		WSkins = {},             -- 무기 스킨 ["라인@무기"] = true
 		WSkinEquip = {},         -- [무기 Id] = { Line = 라인 Id, V = 변형 번호 }
+		Knives = { Tactical = true }, -- 보유한 칼 외형
+		KnifeModel = "Tactical",      -- 장착한 칼 외형
 		EquippedSkin = nil,
 		EquippedPattern = nil,
 		EquippedEffect = nil,
@@ -71,6 +73,8 @@ function DataService.Publish(player)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
 	player:SetAttribute("OwnedWSkins", ownedString(p.WSkins or {}))
 	player:SetAttribute("WSkinEquip", WeaponSkins.EncodeEquip(p.WSkinEquip))
+	player:SetAttribute("OwnedKnives", ownedString(p.Knives or { Tactical = true }))
+	player:SetAttribute("KnifeModel", p.KnifeModel or "Tactical")
 	player:SetAttribute("CratePity", p.CratePity or 0)
 	player:SetAttribute("Level", p.Level or 1)
 	player:SetAttribute("XP", p.XP or 0)
@@ -118,6 +122,13 @@ function DataService.Load(player)
 		end
 		if type(p.WSkinEquip) ~= "table" then
 			p.WSkinEquip = {}
+		end
+		if type(p.Knives) ~= "table" then
+			p.Knives = {}
+		end
+		p.Knives.Tactical = true
+		if not Weapons.KnifeModelById[p.KnifeModel or ""] or not p.Knives[p.KnifeModel] then
+			p.KnifeModel = "Tactical"
 		end
 	end
 	p.LoadFailed = failed or nil

@@ -69,6 +69,39 @@ end
 ------------------------------------------------------------------------
 -- 상점 페이지
 ------------------------------------------------------------------------
+local function shopWeaponIds()
+	local list = {}
+	for _, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then
+			table.insert(list, w.Id)
+		end
+	end
+	table.insert(list, "Knife") -- 칼 스킨 (가격 1.6배)
+	return list
+end
+
+local function wName(wid)
+	return (wid == "Knife") and "칼" or Weapons.Get(wid).Name
+end
+
+-- 총이면 총 그림, 칼이면 장착한 칼 외형 그림
+local function wImage(parent, wid, look)
+	if wid == "Knife" then
+		return UI.KnifeImage(parent, player:GetAttribute("KnifeModel"), C.Cyan, look)
+	end
+	return UI.GunImage(parent, wid, C.Cyan, nil, nil, look)
+end
+
+-- 등급 가격 (칼이면 1.6배)
+local function tierPrice(tierId, wid)
+	for _, l in ipairs(WeaponSkins.Lines) do
+		if l.Tier == tierId then
+			return WeaponSkins.Price(l.Id, wid)
+		end
+	end
+	return WeaponSkins.TierById[tierId].Price
+end
+
 local function buildWeapons(page)
 	clear(page)
 	local coins = player:GetAttribute("Coins") or 0
@@ -109,6 +142,48 @@ local function buildWeapons(page)
 			buildWeapons(page)
 		end)
 		end
+	end
+
+	-- 근접 무기: 칼 외형 (성능은 모두 같음 · 경기 중 X 키로 총 ↔ 칼)
+	local head = make("Frame", { Size = UDim2.new(1, -10, 0, 44), BackgroundColor3 = Color3.fromRGB(255, 200, 70), LayoutOrder = 100 }, page)
+	corner(head, 10)
+	UI.gradient(head, Color3.fromRGB(255, 236, 160), Color3.fromRGB(255, 170, 40), 90)
+	label(head, { Text = "근접 무기 · 칼 외형  (X 키로 총 ↔ 칼 · 성능은 모두 같아요)", Font = Enum.Font.GothamBlack, TextSize = 20,
+		Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(40, 24, 0) })
+	local kgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 101 }, page)
+	make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 232), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, kgrid)
+	local curKnife = player:GetAttribute("KnifeModel") or "Tactical"
+	local knifeLook = WeaponSkins.LookFor(player, "Knife")
+	for i, k in ipairs(Weapons.KnifeModels) do
+		local mine = owned("OwnedKnives", k.Id) or k.Id == "Tactical"
+		local on = curKnife == k.Id
+		local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, kgrid)
+		corner(card, 12)
+		UI.stroke(card, on and C.Gold or Color3.fromRGB(255, 200, 70), 2, on and 0 or 0.6)
+		local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 120), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
+		corner(pic, 10)
+		UI.gradient(pic, Color3.fromRGB(255, 240, 200), Color3.fromRGB(150, 110, 60), 90)
+		UI.KnifeImage(pic, k.Id, C.Cyan, knifeLook)
+		label(card, { Text = k.Name, TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 134), Size = UDim2.new(1, -24, 0, 24) })
+		label(card, { Text = k.Desc, TextSize = 14, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 160), Size = UDim2.new(1, -24, 0, 18),
+			TextTruncate = Enum.TextTruncate.AtEnd })
+		local text, color
+		if on then
+			text, color = "장착 중", C.Dim
+		elseif mine then
+			text, color = "장착", C.Green
+		else
+			text, color = k.Price .. " 코인", (coins >= k.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+		end
+		local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -46), TextSize = 18 })
+		b.MouseButton1Click:Connect(function()
+			if on then
+				return
+			end
+			shopCall(mine and "equipKnife" or "buyKnife", k.Id)
+			task.wait(0.25)
+			buildWeapons(page)
+		end)
 	end
 end
 
@@ -243,7 +318,7 @@ local function buildCollection(page)
 		for i, sid in ipairs(wsOwned) do
 			local lineId, wid = WeaponSkins.Split(sid)
 			local line = WeaponSkins.LineById[lineId or ""]
-			if line and Weapons.ById[wid] then
+			if line and (Weapons.ById[wid] or wid == "Knife") then
 				local on = eq[wid] and eq[wid].Line == lineId
 				local tier = WeaponSkins.TierById[line.Tier]
 				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
@@ -252,8 +327,8 @@ local function buildCollection(page)
 				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, cardF)
 				corner(pic, 10)
 				UI.gradient(pic, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
-				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
-				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
+				wImage(pic, wid, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
+				label(cardF, { Text = line.Name .. " · " .. wName(wid), TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
 					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
 				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
 				b.MouseButton1Click:Connect(function()
@@ -394,16 +469,6 @@ end
 local wsWeapon = nil       -- 지금 보고 있는 총
 local wsPreview = {}       -- [라인 Id] = 미리보기 변형 번호
 
-local function shopWeaponIds()
-	local list = {}
-	for _, w in ipairs(Weapons.List) do
-		if ModelKit.HasStoreModel(w.Id) then
-			table.insert(list, w.Id)
-		end
-	end
-	return list
-end
-
 local function ownedSet()
 	local set = {}
 	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
@@ -421,7 +486,8 @@ local function buildWeaponSkins(page)
 	if not wsWeapon or not table.find(ids, wsWeapon) then
 		wsWeapon = table.find(ids, player:GetAttribute("Weapon")) and player:GetAttribute("Weapon") or ids[1]
 	end
-	local w = Weapons.Get(wsWeapon)
+	local w = (wsWeapon == "Knife") and { Name = "칼 (" .. ((Weapons.KnifeModelById[player:GetAttribute("KnifeModel") or ""] or {}).Name or "택티컬 나이프") .. ")" }
+		or Weapons.Get(wsWeapon)
 	local order = 0
 	local function nextOrder()
 		order = order + 1
@@ -434,9 +500,9 @@ local function buildWeaponSkins(page)
 	local chips = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
 	make("UIGridLayout", { CellSize = UDim2.new(1 / 6, -6, 0, 36), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chips)
 	for i, wid in ipairs(ids) do
-		local ww = Weapons.Get(wid)
 		local sel = wid == wsWeapon
-		local b = button(chips, ww.Name, sel and C.Pink or C.Panel2, { TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		local b = button(chips, (wid == "Knife") and "★ 칼" or Weapons.Get(wid).Name, sel and C.Pink or ((wid == "Knife") and Color3.fromRGB(150, 110, 40) or C.Panel2),
+			{ TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
 		b.MouseButton1Click:Connect(function()
 			wsWeapon = wid
 			buildWeaponSkins(page)
@@ -452,7 +518,7 @@ local function buildWeaponSkins(page)
 	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, top)
 	corner(pic, 12)
 	UI.gradient(pic, Color3.fromRGB(150, 140, 200), Color3.fromRGB(70, 64, 110), 90)
-	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
+	wImage(pic, wsWeapon, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
 	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(324, 14), Size = UDim2.new(1, -510, 0, 30) })
 	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
 		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(324, 50), Size = UDim2.new(1, -510, 0, 24) })
@@ -471,7 +537,7 @@ local function buildWeaponSkins(page)
 	for _, tier in ipairs(WeaponSkins.Tiers) do
 		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 38), BackgroundColor3 = tier.Color, LayoutOrder = nextOrder() }, page)
 		corner(head, 10)
-		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
+		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tierPrice(tier.Id, wsWeapon)), Font = Enum.Font.GothamBlack, TextSize = 20,
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 270), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
@@ -487,7 +553,7 @@ local function buildWeaponSkins(page)
 				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
 				corner(cp, 10)
 				UI.gradient(cp, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
-				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
+				wImage(cp, wsWeapon, WeaponSkins.Look(line.Id, v))
 				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 156), Size = UDim2.new(1, -24, 0, 22),
 					TextTruncate = Enum.TextTruncate.AtEnd })
 				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 179), Size = UDim2.new(1, -24, 0, 18),
@@ -517,7 +583,8 @@ local function buildWeaponSkins(page)
 				elseif mine then
 					text, color = "장착", C.Green
 				else
-					text, color = tier.Price .. " 코인", (coins >= tier.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+					local price = WeaponSkins.Price(line.Id, wsWeapon)
+					text, color = price .. " 코인", (coins >= price) and C.Pink or Color3.fromRGB(90, 60, 80)
 				end
 				local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -48), TextSize = 18 })
 				b.MouseButton1Click:Connect(function()

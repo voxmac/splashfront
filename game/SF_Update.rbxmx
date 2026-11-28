@@ -943,9 +943,11 @@ function ModelKit.ApplyLook(model, look)
 	end
 end
 
--- 택티컬 나이프: 손잡이(고무 그립) + 금속 가드 + 블레이드(끝이 뾰족) + 팀 색 네온 날 라인
--- 손잡이 가운데가 원점(Anchor), 날은 모델의 앞(-Z)
-function ModelKit.Knife(accent)
+-- 칼 외형 5종 (무기 상점에서 구매·장착, 성능은 모두 같음). 손잡이 가운데가 원점(Anchor), 날은 모델의 앞(-Z)
+-- Kind: Body(손잡이) · Blade(날, 스킨의 주 색) · Metal(가드·금속) · Accent(팀 색 네온) → 무기 스킨(look)이 있으면 그대로 입힘
+-- model: "Tactical"(기본) · "Kunai" · "Butterfly" · "Karambit" · "Tanto"
+function ModelKit.Knife(accent, model, look)
+	accent = accent or Color3.new(1, 1, 1)
 	local m = Instance.new("Model")
 	m.Name = "Knife"
 	local function kp(name, kind, size, cf, color, mat, cls)
@@ -967,24 +969,99 @@ function ModelKit.Knife(accent)
 		p.Parent = m
 		return p
 	end
+	-- 고리(링): 작은 조각을 원으로 배치
+	local function ring(name, kind, center, radius, thick, n, color, mat, axisCF)
+		for i = 1, n do
+			local a = (i / n) * math.pi * 2
+			local seg = 2 * math.pi * radius / n * 1.15
+			kp(name, kind, Vector3.new(thick, thick, seg), center * (axisCF or CFrame.new()) * CFrame.Angles(a, 0, 0) * CFrame.new(0, radius, 0),
+				color, mat)
+		end
+	end
 	local anchor = kp("Anchor", "Anchor", Vector3.new(0.1, 0.1, 0.1), CFrame.new(), Color3.new(), Enum.Material.SmoothPlastic)
 	anchor.Transparency = 1
-	-- 손잡이 (홈 파인 그립 3마디)
-	kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.62), CFrame.new(0, 0, 0.05), Color3.fromRGB(30, 30, 36), Enum.Material.Fabric)
-	for i = -1, 1 do
-		kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.04), CFrame.new(0, 0, 0.05 + i * 0.18), accent, Enum.Material.Neon)
-	end
-	kp("Pommel", "Metal", Vector3.new(0.24, 0.3, 0.1), CFrame.new(0, 0, 0.4), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
-	-- 가드
-	kp("Guard", "Metal", Vector3.new(0.14, 0.5, 0.08), CFrame.new(0, 0.04, -0.3), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
-	-- 블레이드: 몸통 + 뾰족한 끝(쐐기) + 등날
 	local steel = Color3.fromRGB(205, 212, 225)
-	kp("Blade", "Metal", Vector3.new(0.05, 0.28, 0.78), CFrame.new(0, 0.04, -0.73), steel, Enum.Material.Metal)
-	kp("Tip", "Metal", Vector3.new(0.05, 0.28, 0.3), CFrame.new(0, 0.04, -1.27), steel, Enum.Material.Metal, "WedgePart")
-	kp("Spine", "Body", Vector3.new(0.07, 0.05, 0.8), CFrame.new(0, 0.18, -0.72), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
-	-- 날 끝선 (팀 색으로 빛남)
-	kp("Edge", "Accent", Vector3.new(0.06, 0.035, 0.98), CFrame.new(0, -0.1, -0.82), accent, Enum.Material.Neon)
+	local dark = Color3.fromRGB(30, 30, 36)
+	local gunmetal = Color3.fromRGB(150, 155, 168)
+	model = model or "Tactical"
+
+	if model == "Kunai" then
+		-- 쿠나이: 마름모 날 + 천을 감은 손잡이 + 끝 고리
+		kp("Grip", "Body", Vector3.new(0.16, 0.16, 0.6), CFrame.new(0, 0, 0.05), Color3.fromRGB(40, 36, 44), Enum.Material.Fabric)
+		for i = -2, 2 do
+			kp("Wrap", "Accent", Vector3.new(0.17, 0.17, 0.035), CFrame.new(0, 0, 0.05 + i * 0.12) * CFrame.Angles(0, 0, math.rad(45)), accent, Enum.Material.Neon)
+		end
+		ring("Ring", "Metal", CFrame.new(0, 0, 0.5), 0.14, 0.05, 10, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
+		kp("Neck", "Metal", Vector3.new(0.1, 0.1, 0.12), CFrame.new(0, 0, -0.3), gunmetal, Enum.Material.Metal)
+		-- 마름모 날: 쐐기 4개 (위·아래, 앞·뒤)
+		kp("BladeF1", "Blade", Vector3.new(0.05, 0.22, 0.55), CFrame.new(0, 0.11, -0.86), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeF2", "Blade", Vector3.new(0.05, 0.22, 0.55), CFrame.new(0, -0.11, -0.86) * CFrame.Angles(0, 0, math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeB1", "Blade", Vector3.new(0.05, 0.22, 0.22), CFrame.new(0, 0.11, -0.47) * CFrame.Angles(0, math.rad(180), 0), steel, Enum.Material.Metal, "WedgePart")
+		kp("BladeB2", "Blade", Vector3.new(0.05, 0.22, 0.22), CFrame.new(0, -0.11, -0.47) * CFrame.Angles(0, math.rad(180), math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
+		kp("Ridge", "Accent", Vector3.new(0.06, 0.03, 0.72), CFrame.new(0, 0, -0.72), accent, Enum.Material.Neon)
+	elseif model == "Butterfly" then
+		-- 버터플라이: 갈라진 두 손잡이(구멍 뚫린 채널) + 길고 가는 날
+		for _, x in ipairs({ -0.07, 0.07 }) do
+			kp("Handle", "Body", Vector3.new(0.06, 0.2, 0.7), CFrame.new(x, 0, 0.05), dark, Enum.Material.Metal)
+			for i = -1, 1 do
+				kp("Slot", "Accent", Vector3.new(0.065, 0.06, 0.12), CFrame.new(x, 0, 0.05 + i * 0.2), accent, Enum.Material.Neon)
+			end
+		end
+		kp("Latch", "Metal", Vector3.new(0.2, 0.05, 0.08), CFrame.new(0, -0.1, 0.38), gunmetal, Enum.Material.Metal)
+		kp("Pivot", "Metal", Vector3.new(0.22, 0.12, 0.12), CFrame.new(0, 0.02, -0.32), gunmetal, Enum.Material.Metal, "Part").Shape = Enum.PartType.Cylinder
+		kp("Blade", "Blade", Vector3.new(0.045, 0.2, 0.8), CFrame.new(0, 0.03, -0.75), steel, Enum.Material.Metal)
+		kp("Tip", "Blade", Vector3.new(0.045, 0.2, 0.32), CFrame.new(0, 0.03, -1.31), steel, Enum.Material.Metal, "WedgePart")
+		kp("Swedge", "Accent", Vector3.new(0.05, 0.03, 0.9), CFrame.new(0, 0.12, -0.85), accent, Enum.Material.Neon)
+	elseif model == "Karambit" then
+		-- 카람빗: 손가락 고리 + 아래로 휘어진 갈고리 날
+		kp("Grip", "Body", Vector3.new(0.17, 0.26, 0.5), CFrame.new(0, 0, 0.02) * CFrame.Angles(math.rad(-12), 0, 0), dark, Enum.Material.Fabric)
+		kp("GripLine", "Accent", Vector3.new(0.18, 0.04, 0.5), CFrame.new(0, 0.1, 0.02) * CFrame.Angles(math.rad(-12), 0, 0), accent, Enum.Material.Neon)
+		ring("FingerRing", "Metal", CFrame.new(0, -0.05, 0.42), 0.17, 0.06, 12, gunmetal, Enum.Material.Metal, CFrame.Angles(0, math.rad(90), 0))
+		-- 휘어진 날: 조각 6개를 호를 따라
+		local segs = 6
+		for i = 0, segs - 1 do
+			local t0 = i / segs
+			local ang = math.rad(-8 - 70 * t0)
+			local r = 0.75
+			local pos = Vector3.new(0, -r + r * math.cos(ang), -0.3 - r * math.sin(-ang))
+			local h = 0.24 * (1 - t0 * 0.7)
+			kp("Blade", "Blade", Vector3.new(0.05, h, 0.2), CFrame.new(pos) * CFrame.Angles(ang, 0, 0), steel, Enum.Material.Metal)
+			kp("Edge", "Accent", Vector3.new(0.055, 0.03, 0.2), CFrame.new(pos) * CFrame.Angles(ang, 0, 0) * CFrame.new(0, -h / 2, 0), accent, Enum.Material.Neon)
+		end
+	elseif model == "Tanto" then
+		-- 탄토: 동그란 츠바(가드) + 마름모 무늬로 감은 손잡이 + 살짝 휜 긴 날, 각진 끝
+		kp("Grip", "Body", Vector3.new(0.2, 0.24, 0.72), CFrame.new(0, 0, 0.12), Color3.fromRGB(26, 24, 30), Enum.Material.Fabric)
+		for i = -2, 2 do
+			kp("Ito", "Accent", Vector3.new(0.21, 0.25, 0.04), CFrame.new(0, 0, 0.12 + i * 0.13) * CFrame.Angles(math.rad(25), 0, 0), accent, Enum.Material.Neon)
+		end
+		kp("Kashira", "Metal", Vector3.new(0.22, 0.26, 0.06), CFrame.new(0, 0, 0.5), gunmetal, Enum.Material.Metal)
+		local tsuba = kp("Tsuba", "Metal", Vector3.new(0.06, 0.5, 0.5), CFrame.new(0, 0, -0.26) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(200, 170, 90),
+			Enum.Material.Metal)
+		tsuba.Shape = Enum.PartType.Cylinder
+		kp("Habaki", "Metal", Vector3.new(0.07, 0.24, 0.1), CFrame.new(0, 0.02, -0.33), Color3.fromRGB(200, 170, 90), Enum.Material.Metal)
+		for i = 0, 3 do
+			local z = -0.55 - i * 0.32
+			kp("Blade", "Blade", Vector3.new(0.05, 0.24, 0.34), CFrame.new(0, 0.02 + i * 0.025, z) * CFrame.Angles(math.rad(i * 2.5), 0, 0), steel, Enum.Material.Metal)
+		end
+		kp("Tip", "Blade", Vector3.new(0.05, 0.26, 0.24), CFrame.new(0, 0.12, -1.86) * CFrame.Angles(0, 0, math.rad(180)), steel, Enum.Material.Metal, "WedgePart")
+		kp("Hamon", "Accent", Vector3.new(0.055, 0.03, 1.3), CFrame.new(0, -0.07, -1.05) * CFrame.Angles(math.rad(4), 0, 0), accent, Enum.Material.Neon)
+	else
+		-- 택티컬(기본): 고무 그립 + 금속 가드 + 뾰족한 날 + 팀 색 날 라인
+		kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.62), CFrame.new(0, 0, 0.05), dark, Enum.Material.Fabric)
+		for i = -1, 1 do
+			kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.04), CFrame.new(0, 0, 0.05 + i * 0.18), accent, Enum.Material.Neon)
+		end
+		kp("Pommel", "Metal", Vector3.new(0.24, 0.3, 0.1), CFrame.new(0, 0, 0.4), gunmetal, Enum.Material.Metal)
+		kp("Guard", "Metal", Vector3.new(0.14, 0.5, 0.08), CFrame.new(0, 0.04, -0.3), gunmetal, Enum.Material.Metal)
+		kp("Blade", "Blade", Vector3.new(0.05, 0.28, 0.78), CFrame.new(0, 0.04, -0.73), steel, Enum.Material.Metal)
+		kp("Tip", "Blade", Vector3.new(0.05, 0.28, 0.3), CFrame.new(0, 0.04, -1.27), steel, Enum.Material.Metal, "WedgePart")
+		kp("Spine", "Body", Vector3.new(0.07, 0.05, 0.8), CFrame.new(0, 0.18, -0.72), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
+		kp("Edge", "Accent", Vector3.new(0.06, 0.035, 0.98), CFrame.new(0, -0.1, -0.82), accent, Enum.Material.Neon)
+	end
 	m.PrimaryPart = anchor
+	if look then
+		ModelKit.ApplyLook(m, look)
+	end
 	return m
 end
 
@@ -1376,21 +1453,31 @@ function WeaponSkins.Split(skinId)
 	return string.match(skinId or "", "^([%w_]+)@([%w_]+)$")
 end
 
-function WeaponSkins.Price(lineId)
+WeaponSkins.KnifeMul = 1.6 -- 칼 스킨은 총 스킨보다 비쌈 (발로란트 근접 스킨처럼)
+
+-- wid를 주면 그 무기 기준 가격 (칼이면 1.6배)
+function WeaponSkins.Price(lineId, wid)
 	local l = WeaponSkins.LineById[lineId]
-	return l and WeaponSkins.TierById[l.Tier].Price or nil
+	if not l then
+		return nil
+	end
+	local base = WeaponSkins.TierById[l.Tier].Price
+	if wid == "Knife" then
+		return math.floor(base * WeaponSkins.KnifeMul / 100 + 0.5) * 100
+	end
+	return base
 end
 
 -- weaponIds: 상점에 나오는 총 목록
 function WeaponSkins.BundlePrice(lineId, weaponIds, ownedSet)
-	local each = WeaponSkins.Price(lineId) or 0
-	local n = 0
+	local total, n = 0, 0
 	for _, wid in ipairs(weaponIds) do
 		if not (ownedSet and ownedSet[WeaponSkins.SkinId(lineId, wid)]) then
 			n = n + 1
+			total = total + (WeaponSkins.Price(lineId, wid) or 0)
 		end
 	end
-	return math.floor(each * n * (1 - WeaponSkins.BundleDiscount) / 10 + 0.5) * 10, n
+	return math.floor(total * (1 - WeaponSkins.BundleDiscount) / 10 + 0.5) * 10, n
 end
 
 -- "K2=NeonPulse:2;Rifle=SteelWave:1" -> { K2 = { Line = "NeonPulse", V = 2 }, ... }
@@ -1554,6 +1641,19 @@ Weapons.Knife = {
 	BackMul = 1.5,                            -- 등 뒤에서 찌르면 1.5배
 	Range = 6.5, SpeedMul = 1.12,
 }
+
+-- 칼 외형 (무기 상점에서 코인으로 구매 · 성능은 모두 같고 모양만 다름)
+Weapons.KnifeModels = {
+	{ Id = "Tactical", Name = "택티컬 나이프", Price = 0, Desc = "기본 지급 · 고무 그립의 전투용 칼" },
+	{ Id = "Kunai", Name = "쿠나이", Price = 3000, Desc = "마름모 날과 끝 고리 · 날렵한 투척형" },
+	{ Id = "Butterfly", Name = "버터플라이 나이프", Price = 6000, Desc = "두 갈래 손잡이 · 길고 가는 날" },
+	{ Id = "Karambit", Name = "카람빗", Price = 8000, Desc = "손가락 고리와 갈고리처럼 휜 날" },
+	{ Id = "Tanto", Name = "탄토", Price = 10000, Desc = "금빛 츠바와 살짝 휜 긴 날 · 최고급" },
+}
+Weapons.KnifeModelById = {}
+for _, k in ipairs(Weapons.KnifeModels) do
+	Weapons.KnifeModelById[k.Id] = k
+end
 
 return Weapons
 ]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX29"><Properties><string name="Name">Server</string></Properties><Item class="ModuleScript" referent="RBX8"><Properties><string name="Name">AdminService</string><ProtectedString name="Source"><![CDATA[-- 클로즈 테스트 입장 제한 + 테스터용 관리자 패널(F2) 명령
@@ -2999,6 +3099,9 @@ function CrateService.Open(player)
 				table.insert(cands, w.Id)
 			end
 		end
+		if not p.WSkins[WeaponSkins.SkinId(item.Line, "Knife")] then
+			table.insert(cands, "Knife") -- 칼 스킨도 나옴
+		end
 		if #cands == 0 then
 			duplicate = true
 		else
@@ -3007,7 +3110,7 @@ function CrateService.Open(player)
 			if not p.WSkinEquip[weaponId] then
 				p.WSkinEquip[weaponId] = { Line = item.Line, V = 1 } -- 그 총에 스킨이 없으면 바로 장착
 			end
-			displayName = item.Name .. " · " .. Weapons.Get(weaponId).Name
+			displayName = item.Name .. " · " .. (weaponId == "Knife" and "칼" or Weapons.Get(weaponId).Name)
 		end
 	else
 		duplicate = p.Cosmetics[item.Id] == true
@@ -3104,6 +3207,8 @@ local function defaultProfile()
 		Cosmetics = {},          -- [아이템 Id] = true
 		WSkins = {},             -- 무기 스킨 ["라인@무기"] = true
 		WSkinEquip = {},         -- [무기 Id] = { Line = 라인 Id, V = 변형 번호 }
+		Knives = { Tactical = true }, -- 보유한 칼 외형
+		KnifeModel = "Tactical",      -- 장착한 칼 외형
 		EquippedSkin = nil,
 		EquippedPattern = nil,
 		EquippedEffect = nil,
@@ -3144,6 +3249,8 @@ function DataService.Publish(player)
 	player:SetAttribute("OwnedCosmetics", ownedString(p.Cosmetics or {}))
 	player:SetAttribute("OwnedWSkins", ownedString(p.WSkins or {}))
 	player:SetAttribute("WSkinEquip", WeaponSkins.EncodeEquip(p.WSkinEquip))
+	player:SetAttribute("OwnedKnives", ownedString(p.Knives or { Tactical = true }))
+	player:SetAttribute("KnifeModel", p.KnifeModel or "Tactical")
 	player:SetAttribute("CratePity", p.CratePity or 0)
 	player:SetAttribute("Level", p.Level or 1)
 	player:SetAttribute("XP", p.XP or 0)
@@ -3191,6 +3298,13 @@ function DataService.Load(player)
 		end
 		if type(p.WSkinEquip) ~= "table" then
 			p.WSkinEquip = {}
+		end
+		if type(p.Knives) ~= "table" then
+			p.Knives = {}
+		end
+		p.Knives.Tactical = true
+		if not Weapons.KnifeModelById[p.KnifeModel or ""] or not p.Knives[p.KnifeModel] then
+			p.KnifeModel = "Tactical"
 		end
 	end
 	p.LoadFailed = failed or nil
@@ -6187,7 +6301,7 @@ local function attachGun(e, model)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
 	-- 칼은 항상 몸에 지님: 칼을 들면 손에, 총을 들면 오른쪽 허벅지 칼집에
 	if e.Player then
-		local knife = ModelKit.Knife(color)
+		local knife = ModelKit.Knife(color, e.Player:GetAttribute("KnifeModel"), WeaponSkins.LookFor(e.Player, "Knife"))
 		knife.Name = "SF_Knife"
 		local thigh = model:FindFirstChild("RightUpperLeg") or model:FindFirstChild("Right Leg")
 		knife:SetAttribute("InHand", e.Melee == true and hand ~= nil)
@@ -6461,7 +6575,7 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and ((killer.Player and not killer.Melee and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
+		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.Melee and "Knife" or killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
 		Weapon = killer and (killer.Melee and Weapons.Knife.Name or Weapons.Get(killer.WeaponId).Name) or nil,
 		WeaponId = killer and (killer.Melee and "Knife" or killer.WeaponId) or nil,
 		KillerStreak = killer and killer.Streak or 0,
@@ -8664,7 +8778,16 @@ local function shopWeapons()
 			table.insert(list, w.Id)
 		end
 	end
+	table.insert(list, "Knife") -- 칼도 스킨 대상
 	return list
+end
+
+local function weaponName(wid)
+	if wid == "Knife" then
+		return "칼"
+	end
+	local w = Weapons.ById[wid or ""]
+	return w and w.Name or nil
 end
 
 -- 무기 스킨: 구매(낱개·컬렉션 묶음) / 장착(변형 선택) / 해제
@@ -8678,14 +8801,14 @@ local function weaponSkin(player, action, arg)
 	if action == "buyWSkin" then
 		local lineId, wid = WeaponSkins.Split(arg)
 		local line = WeaponSkins.LineById[lineId or ""]
-		local w = Weapons.ById[wid or ""]
+		local w = weaponName(wid)
 		if not line or not w then
 			return { ok = false, msg = "알 수 없는 스킨" }
 		end
 		if p.WSkins[arg] then
 			return { ok = false, msg = "이미 보유 중" }
 		end
-		local price = WeaponSkins.Price(lineId)
+		local price = WeaponSkins.Price(lineId, wid)
 		if p.Coins < price then
 			return { ok = false, msg = "코인이 부족해요 (" .. (price - p.Coins) .. " 부족)" }
 		end
@@ -8695,7 +8818,7 @@ local function weaponSkin(player, action, arg)
 		DataService.Publish(player)
 		DataService.Save(player)
 		Telemetry.Economy(player, false, price, p.Coins, "Shop", "WSkin_" .. arg)
-		return { ok = true, msg = string.format("%s %s 구매 완료! 바로 장착했어요", line.Name, w.Name) }
+		return { ok = true, msg = string.format("%s %s 구매 완료! 바로 장착했어요", line.Name, w) }
 	elseif action == "buyWBundle" then
 		local line = WeaponSkins.LineById[arg or ""]
 		if not line then
@@ -8733,6 +8856,35 @@ local function weaponSkin(player, action, arg)
 		p.WSkinEquip[wid] = { Line = lineId, V = v }
 		DataService.Publish(player)
 		return { ok = true, msg = string.format("%s 장착 (%s)", line.Name, line.Variants[v].Name) }
+	elseif action == "buyKnife" then
+		-- 칼 외형 구매 (코인)
+		local k = Weapons.KnifeModelById[arg or ""]
+		p.Knives = p.Knives or { Tactical = true }
+		if not k then
+			return { ok = false, msg = "알 수 없는 칼" }
+		end
+		if p.Knives[k.Id] then
+			return { ok = false, msg = "이미 보유 중" }
+		end
+		if p.Coins < k.Price then
+			return { ok = false, msg = "코인이 부족해요 (" .. (k.Price - p.Coins) .. " 부족)" }
+		end
+		p.Coins = p.Coins - k.Price
+		p.Knives[k.Id] = true
+		p.KnifeModel = k.Id
+		DataService.Publish(player)
+		DataService.Save(player)
+		Telemetry.Economy(player, false, k.Price, p.Coins, "Shop", "Knife_" .. k.Id)
+		return { ok = true, msg = k.Name .. " 구매 완료! 바로 장착했어요" }
+	elseif action == "equipKnife" then
+		local k = Weapons.KnifeModelById[arg or ""]
+		p.Knives = p.Knives or { Tactical = true }
+		if not k or not p.Knives[k.Id] then
+			return { ok = false, msg = "먼저 구매하세요" }
+		end
+		p.KnifeModel = k.Id
+		DataService.Publish(player)
+		return { ok = true, msg = k.Name .. " 장착" }
 	elseif action == "unequipWSkin" then
 		p.WSkinEquip[arg or ""] = nil
 		DataService.Publish(player)
@@ -8742,7 +8894,7 @@ local function weaponSkin(player, action, arg)
 end
 
 local function handle(player, action, weaponId)
-	if (action == "buy" or action == "buyCosmetic" or action == "buyWSkin" or action == "buyWBundle") and not DataService.IsSafe(player) then
+	if (action == "buy" or action == "buyCosmetic" or action == "buyWSkin" or action == "buyWBundle" or action == "buyKnife") and not DataService.IsSafe(player) then
 		return { ok = false, msg = "저장 데이터를 불러오지 못해 지금은 구매할 수 없어요. 다시 접속해 주세요" }
 	end
 	local ws = weaponSkin(player, action, weaponId)
@@ -11384,7 +11536,7 @@ function HUD.RefreshWeaponCard()
 	local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 	if player:GetAttribute("Melee") then
-		UI.ModelImage(weaponCard.Pic, ModelKit.Knife(player:GetAttribute("TeamColor") or Color3.new(1, 1, 1)), UDim2.fromScale(1, 1), math.rad(90))
+		UI.KnifeImage(weaponCard.Pic, player:GetAttribute("KnifeModel"), player:GetAttribute("TeamColor"), WeaponSkins.LookFor(player, "Knife"))
 	elseif player:GetAttribute("Golden") then
 		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
 	else
@@ -11392,7 +11544,7 @@ local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
 		UI.GunImage(weaponCard.Pic, wid, player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, wid))
 	end
 end
-for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor", "Melee" }) do
+for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor", "Melee", "KnifeModel" }) do
 	player:GetAttributeChangedSignal(a):Connect(function()
 		HUD.RefreshWeaponCard()
 	end)
@@ -11927,6 +12079,39 @@ end
 ------------------------------------------------------------------------
 -- 상점 페이지
 ------------------------------------------------------------------------
+local function shopWeaponIds()
+	local list = {}
+	for _, w in ipairs(Weapons.List) do
+		if ModelKit.HasStoreModel(w.Id) then
+			table.insert(list, w.Id)
+		end
+	end
+	table.insert(list, "Knife") -- 칼 스킨 (가격 1.6배)
+	return list
+end
+
+local function wName(wid)
+	return (wid == "Knife") and "칼" or Weapons.Get(wid).Name
+end
+
+-- 총이면 총 그림, 칼이면 장착한 칼 외형 그림
+local function wImage(parent, wid, look)
+	if wid == "Knife" then
+		return UI.KnifeImage(parent, player:GetAttribute("KnifeModel"), C.Cyan, look)
+	end
+	return UI.GunImage(parent, wid, C.Cyan, nil, nil, look)
+end
+
+-- 등급 가격 (칼이면 1.6배)
+local function tierPrice(tierId, wid)
+	for _, l in ipairs(WeaponSkins.Lines) do
+		if l.Tier == tierId then
+			return WeaponSkins.Price(l.Id, wid)
+		end
+	end
+	return WeaponSkins.TierById[tierId].Price
+end
+
 local function buildWeapons(page)
 	clear(page)
 	local coins = player:GetAttribute("Coins") or 0
@@ -11967,6 +12152,48 @@ local function buildWeapons(page)
 			buildWeapons(page)
 		end)
 		end
+	end
+
+	-- 근접 무기: 칼 외형 (성능은 모두 같음 · 경기 중 X 키로 총 ↔ 칼)
+	local head = make("Frame", { Size = UDim2.new(1, -10, 0, 44), BackgroundColor3 = Color3.fromRGB(255, 200, 70), LayoutOrder = 100 }, page)
+	corner(head, 10)
+	UI.gradient(head, Color3.fromRGB(255, 236, 160), Color3.fromRGB(255, 170, 40), 90)
+	label(head, { Text = "근접 무기 · 칼 외형  (X 키로 총 ↔ 칼 · 성능은 모두 같아요)", Font = Enum.Font.GothamBlack, TextSize = 20,
+		Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(40, 24, 0) })
+	local kgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 101 }, page)
+	make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 232), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, kgrid)
+	local curKnife = player:GetAttribute("KnifeModel") or "Tactical"
+	local knifeLook = WeaponSkins.LookFor(player, "Knife")
+	for i, k in ipairs(Weapons.KnifeModels) do
+		local mine = owned("OwnedKnives", k.Id) or k.Id == "Tactical"
+		local on = curKnife == k.Id
+		local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, kgrid)
+		corner(card, 12)
+		UI.stroke(card, on and C.Gold or Color3.fromRGB(255, 200, 70), 2, on and 0 or 0.6)
+		local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 120), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
+		corner(pic, 10)
+		UI.gradient(pic, Color3.fromRGB(255, 240, 200), Color3.fromRGB(150, 110, 60), 90)
+		UI.KnifeImage(pic, k.Id, C.Cyan, knifeLook)
+		label(card, { Text = k.Name, TextSize = 20, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 134), Size = UDim2.new(1, -24, 0, 24) })
+		label(card, { Text = k.Desc, TextSize = 14, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 160), Size = UDim2.new(1, -24, 0, 18),
+			TextTruncate = Enum.TextTruncate.AtEnd })
+		local text, color
+		if on then
+			text, color = "장착 중", C.Dim
+		elseif mine then
+			text, color = "장착", C.Green
+		else
+			text, color = k.Price .. " 코인", (coins >= k.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+		end
+		local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -46), TextSize = 18 })
+		b.MouseButton1Click:Connect(function()
+			if on then
+				return
+			end
+			shopCall(mine and "equipKnife" or "buyKnife", k.Id)
+			task.wait(0.25)
+			buildWeapons(page)
+		end)
 	end
 end
 
@@ -12101,7 +12328,7 @@ local function buildCollection(page)
 		for i, sid in ipairs(wsOwned) do
 			local lineId, wid = WeaponSkins.Split(sid)
 			local line = WeaponSkins.LineById[lineId or ""]
-			if line and Weapons.ById[wid] then
+			if line and (Weapons.ById[wid] or wid == "Knife") then
 				local on = eq[wid] and eq[wid].Line == lineId
 				local tier = WeaponSkins.TierById[line.Tier]
 				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
@@ -12110,8 +12337,8 @@ local function buildCollection(page)
 				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, cardF)
 				corner(pic, 10)
 				UI.gradient(pic, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
-				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
-				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
+				wImage(pic, wid, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
+				label(cardF, { Text = line.Name .. " · " .. wName(wid), TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
 					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
 				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
 				b.MouseButton1Click:Connect(function()
@@ -12252,16 +12479,6 @@ end
 local wsWeapon = nil       -- 지금 보고 있는 총
 local wsPreview = {}       -- [라인 Id] = 미리보기 변형 번호
 
-local function shopWeaponIds()
-	local list = {}
-	for _, w in ipairs(Weapons.List) do
-		if ModelKit.HasStoreModel(w.Id) then
-			table.insert(list, w.Id)
-		end
-	end
-	return list
-end
-
 local function ownedSet()
 	local set = {}
 	for x in string.gmatch(player:GetAttribute("OwnedWSkins") or "", "[^,]+") do
@@ -12279,7 +12496,8 @@ local function buildWeaponSkins(page)
 	if not wsWeapon or not table.find(ids, wsWeapon) then
 		wsWeapon = table.find(ids, player:GetAttribute("Weapon")) and player:GetAttribute("Weapon") or ids[1]
 	end
-	local w = Weapons.Get(wsWeapon)
+	local w = (wsWeapon == "Knife") and { Name = "칼 (" .. ((Weapons.KnifeModelById[player:GetAttribute("KnifeModel") or ""] or {}).Name or "택티컬 나이프") .. ")" }
+		or Weapons.Get(wsWeapon)
 	local order = 0
 	local function nextOrder()
 		order = order + 1
@@ -12292,9 +12510,9 @@ local function buildWeaponSkins(page)
 	local chips = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
 	make("UIGridLayout", { CellSize = UDim2.new(1 / 6, -6, 0, 36), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chips)
 	for i, wid in ipairs(ids) do
-		local ww = Weapons.Get(wid)
 		local sel = wid == wsWeapon
-		local b = button(chips, ww.Name, sel and C.Pink or C.Panel2, { TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
+		local b = button(chips, (wid == "Knife") and "★ 칼" or Weapons.Get(wid).Name, sel and C.Pink or ((wid == "Knife") and Color3.fromRGB(150, 110, 40) or C.Panel2),
+			{ TextSize = 15, LayoutOrder = i, TextTruncate = Enum.TextTruncate.AtEnd })
 		b.MouseButton1Click:Connect(function()
 			wsWeapon = wid
 			buildWeaponSkins(page)
@@ -12310,7 +12528,7 @@ local function buildWeaponSkins(page)
 	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, top)
 	corner(pic, 12)
 	UI.gradient(pic, Color3.fromRGB(150, 140, 200), Color3.fromRGB(70, 64, 110), 90)
-	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
+	wImage(pic, wsWeapon, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
 	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(324, 14), Size = UDim2.new(1, -510, 0, 30) })
 	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
 		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(324, 50), Size = UDim2.new(1, -510, 0, 24) })
@@ -12329,7 +12547,7 @@ local function buildWeaponSkins(page)
 	for _, tier in ipairs(WeaponSkins.Tiers) do
 		local head = make("Frame", { Size = UDim2.new(1, -10, 0, 38), BackgroundColor3 = tier.Color, LayoutOrder = nextOrder() }, page)
 		corner(head, 10)
-		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
+		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tierPrice(tier.Id, wsWeapon)), Font = Enum.Font.GothamBlack, TextSize = 20,
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
 		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 270), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
@@ -12345,7 +12563,7 @@ local function buildWeaponSkins(page)
 				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
 				corner(cp, 10)
 				UI.gradient(cp, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
-				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
+				wImage(cp, wsWeapon, WeaponSkins.Look(line.Id, v))
 				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 156), Size = UDim2.new(1, -24, 0, 22),
 					TextTruncate = Enum.TextTruncate.AtEnd })
 				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 179), Size = UDim2.new(1, -24, 0, 18),
@@ -12375,7 +12593,8 @@ local function buildWeaponSkins(page)
 				elseif mine then
 					text, color = "장착", C.Green
 				else
-					text, color = tier.Price .. " 코인", (coins >= tier.Price) and C.Pink or Color3.fromRGB(90, 60, 80)
+					local price = WeaponSkins.Price(line.Id, wsWeapon)
+					text, color = price .. " 코인", (coins >= price) and C.Pink or Color3.fromRGB(90, 60, 80)
 				end
 				local b = button(card, text, color, { Size = UDim2.fromOffset(150, 40), Position = UDim2.new(1, -158, 1, -48), TextSize = 18 })
 				b.MouseButton1Click:Connect(function()
@@ -13973,9 +14192,8 @@ function UI.ModelImage(parent, model, size, rotY)
 	return viewportModel(parent, model, size, rotY)
 end
 
-function UI.GunImage(parent, weaponId, accent, skin, size, look)
-	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	-- 총 미리보기: 칸 크기에 꽉 차게(가로·세로 비율에 맞춰 카메라 거리 계산), 밝은 조명
+-- 옆에서 본 무기를 칸 크기에 꽉 차게 (가로·세로 비율에 맞춰 카메라 거리 계산) + 밝은 조명
+local function weaponViewport(parent, model, size)
 	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
 	vp.LightColor = Color3.fromRGB(255, 252, 245)
 	vp.Ambient = Color3.fromRGB(230, 230, 240)
@@ -13989,7 +14207,6 @@ function UI.GunImage(parent, weaponId, accent, skin, size, look)
 		local aspect = abs.X / abs.Y
 		local vt = math.tan(math.rad(cam.FieldOfView / 2))
 		local ht = vt * aspect
-		-- 옆에서 보므로 화면 가로 = 총 길이(가장 긴 변), 세로 = 높이
 		local long = math.max(sz.X, sz.Z)
 		local dist = math.max((long / 2) / ht, (sz.Y / 2) / vt) * 1.12 + math.min(sz.X, sz.Z) / 2
 		cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Y * 0.08, dist), cf.Position)
@@ -13997,6 +14214,16 @@ function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	fit()
 	vp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	return vp
+end
+
+function UI.GunImage(parent, weaponId, accent, skin, size, look)
+	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	return weaponViewport(parent, model, size)
+end
+
+-- 칼 미리보기 (외형 Id + 스킨)
+function UI.KnifeImage(parent, knifeModel, accent, look, size)
+	return weaponViewport(parent, ModelKit.Knife(accent or C.Cyan, knifeModel, look), size)
 end
 
 function UI.ItemImage(parent, item, size)
@@ -14183,7 +14410,7 @@ local function buildViewmodel()
 	local w = weapon()
 	local m, muzzle
 	if melee then
-		m = ModelKit.Knife(teamColor())
+		m = ModelKit.Knife(teamColor(), player:GetAttribute("KnifeModel"), WeaponSkins.LookFor(player, "Knife"))
 	else
 		local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
 		local look = WeaponSkins.LookFor(player, w.Id)
@@ -14920,6 +15147,11 @@ function WC.Init(remoteFolder, hud, effects)
 	end)
 		player:GetAttributeChangedSignal("WSkinEquip"):Connect(function()
 		if enabled then
+			buildViewmodel()
+		end
+	end)
+	player:GetAttributeChangedSignal("KnifeModel"):Connect(function()
+		if enabled and melee then
 			buildViewmodel()
 		end
 	end)
