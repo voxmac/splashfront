@@ -1497,6 +1497,7 @@ local function onMelee(player, action, a, b)
 		return
 	end
 	if action ~= "swing" or not e.Melee then
+		warn("[MELEEDBG] not melee", action, e.Melee)
 		return
 	end
 	local heavy = b == true
@@ -1514,12 +1515,15 @@ local function onMelee(player, action, a, b)
 	local root = e.Model:FindFirstChild("HumanoidRootPart")
 	local vroot = victim and victim.Model and victim.Model:FindFirstChild("HumanoidRootPart")
 	if not victim or not victim.Alive or not root or not vroot or not Combatants.IsEnemy(e, victim) then
+		warn("[MELEEDBG] reject target", victim ~= nil, victim and victim.Alive, root ~= nil, vroot ~= nil, victim and Combatants.IsEnemy(e, victim))
 		return
 	end
 	local diff = vroot.Position - root.Position
 	if diff.Magnitude > K.Range + 3 then
+		warn("[MELEEDBG] too far", diff.Magnitude)
 		return -- 지연을 감안해도 너무 멂
 	end
+	warn("[MELEEDBG] hit", victim.Name, diff.Magnitude)
 	local dmg = heavy and K.HeavyDamage or K.Damage
 	-- 등 뒤 공격: 상대가 바라보는 방향과 같은 쪽에서 찌르면 더 큰 피해
 	local flat = Vector3.new(diff.X, 0, diff.Z)
