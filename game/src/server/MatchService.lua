@@ -23,6 +23,7 @@ local MatchService = {}
 local remotes, arena, lobby
 local maps = {}
 local nextMapIndex = 1
+local forcedNextMap = false -- 관리자가 다음 맵을 지정했을 때만 그 맵 (아니면 방장 선택, 선택 없으면 랜덤)
 local queueMap = {}    -- queueId -> 방장이 고른 맵 Id ("random" 포함)
 local joinAt = {}      -- player -> 대기열 참가 시각 (발판 이탈 검사 유예)
 local S = {
@@ -216,7 +217,7 @@ local function broadcast()
 			queueMap[q.Id] = nil
 		end
 		local choice = queueMap[q.Id]
-		local mapName = "순환 (" .. (maps[nextMapIndex] and maps[nextMapIndex].Name or "") .. ")"
+		local mapName = "랜덤"
 		if choice == "random" then
 			mapName = "랜덤"
 		elseif choice then
@@ -888,7 +889,12 @@ local function mapIndexFor(q)
 			return i, false
 		end
 	end
-	return nextMapIndex, true
+	-- 방장이 고르지 않으면 랜덤 (관리자가 다음 맵을 지정했으면 그 맵)
+	if forcedNextMap then
+		forcedNextMap = false
+		return nextMapIndex, false
+	end
+	return math.random(1, #maps), false
 end
 
 local function startMatch(q)
@@ -1577,10 +1583,12 @@ function MatchService.SetNextMap(query)
 	for i, m in ipairs(maps) do
 		if tostring(query) == tostring(i) or m.Id == query or m.Name == query then
 			nextMapIndex = i
+			forcedNextMap = true
 			return m.Name
 		end
 	end
 	nextMapIndex = nextMapIndex % #maps + 1
+	forcedNextMap = true
 	return maps[nextMapIndex].Name
 end
 

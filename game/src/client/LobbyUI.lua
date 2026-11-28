@@ -1023,13 +1023,13 @@ local function rebuildMatch()
 			label(matchBody, { Text = "방장 · 맵을 고르세요", TextSize = 17, TextColor3 = C.Gold, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = nextOrder() })
 			local row = make("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = nextOrder() }, matchBody)
 			make("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, row)
-			local opts = { { nil, "순환" }, { "random", "랜덤" } }
+			local opts = { { "random", "랜덤" } } -- 고르지 않으면 랜덤
 			for _, m in ipairs(s.Maps) do
 				table.insert(opts, { m.Id, m.Name })
 			end
 			local w = 1 / #opts
 			for _, o in ipairs(opts) do
-				local sel = (qi.MapId == o[1])
+				local sel = (qi.MapId == o[1]) or (o[1] == "random" and qi.MapId == nil)
 				local mb = button(row, o[2], sel and C.Cyan or C.Panel2, { Size = UDim2.new(w, -6, 1, 0), TextSize = 15, TextWrapped = true })
 				mb.MouseButton1Click:Connect(function()
 					remotes.Queue:FireServer("map", o[1])
