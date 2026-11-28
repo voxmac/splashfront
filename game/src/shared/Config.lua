@@ -110,6 +110,7 @@ Config.Modes = {
 	Solo = { Id = "Solo", Name = "솔로 페인트 로얄", Desc = "8인 개인전, 면적 1위" },
 	DM = { Id = "DM", Name = "솔로 데스매치", Desc = "8인 개인전 · 페인트 없이 처치 1위" },
 }
+Config.DMKillSpecial = 0.2 -- 데스매치: 처치 1번에 채워지는 크로마 봄 게이지 비율
 Config.DMKillTarget = 25 -- 데스매치: 먼저 이 처치 수에 닿으면 바로 종료
 Config.Queues = {
 	{ Id = "2v2", Mode = "Turf", TeamSize = 2, Ranked = true },

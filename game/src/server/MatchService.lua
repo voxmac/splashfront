@@ -583,6 +583,11 @@ onDied = function(e, model)
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if killer and killer ~= e then
 		killer.Kills = killer.Kills + 1
+		if S.Variant == "DM" then
+			-- 데스매치: 처치 1번 = 크로마 봄 게이지 20%
+			killer.Special = math.min(Config.SpecialCells, killer.Special + Config.SpecialCells * (Config.DMKillSpecial or 0.2))
+			Combatants.Sync(killer)
+		end
 		killer.Streak = (killer.Streak or 0) + 1
 		local t = os.clock()
 		if t - (killer.LastKillAt or -99) <= Config.MultiKillWindow then
