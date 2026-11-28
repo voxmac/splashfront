@@ -1032,18 +1032,18 @@ function ModelKit.Knife(accent, model, look)
 	elseif model == "Butterfly" then
 		-- 버터플라이: 길고 각진(탄토 끝) 날 + 두 개의 긴 채널 손잡이(네온 인레이) + 래치 + 피벗 핀
 		for _, x in ipairs({ -0.075, 0.075 }) do
-			kp("Handle", "Body", Vector3.new(0.055, 0.2, 0.86), CFrame.new(x, 0, 0.12), dark, Enum.Material.Metal)
+			kp("Handle", "Body", Vector3.new(0.055, 0.24, 0.86), CFrame.new(x, 0, 0.12), dark, Enum.Material.Metal)
 			kp("Inlay", "Accent", Vector3.new(0.06, 0.05, 0.62), CFrame.new(x, 0.02, 0.16), accent, Enum.Material.Neon)
 			kp("Cap", "Metal", Vector3.new(0.06, 0.22, 0.06), CFrame.new(x, 0, 0.56), gunmetal, Enum.Material.Metal)
 			kp("Pin", "Metal", Vector3.new(0.07, 0.07, 0.07), CFrame.new(x, 0.06, -0.24), edgeLight, Enum.Material.Foil)
 		end
 		kp("Latch", "Accent", Vector3.new(0.2, 0.045, 0.1), CFrame.new(0, -0.1, 0.55), accent, Enum.Material.Neon)
 		kp("Tang", "Metal", Vector3.new(0.12, 0.2, 0.14), CFrame.new(0, 0.01, -0.3), gunmetal, Enum.Material.Metal)
-		kp("Blade", "Blade", Vector3.new(0.045, 0.21, 0.92), CFrame.new(0, 0.02, -0.82), steel, Enum.Material.Metal)
-		kp("Fuller", "Metal", Vector3.new(0.05, 0.035, 0.7), CFrame.new(0, 0.06, -0.78), fullerC, Enum.Material.Metal)
-		kp("Tip", "Blade", Vector3.new(0.045, 0.21, 0.26), CFrame.new(0, 0.02, -1.41) * CFrame.Angles(math.rad(180), 0, 0), steel, Enum.Material.Metal, "WedgePart")
-		kp("Bevel", "Metal", Vector3.new(0.035, 0.05, 1.12), CFrame.new(0, -0.08, -0.92), edgeLight, Enum.Material.Foil)
-		kp("Edge", "Accent", Vector3.new(0.05, 0.02, 1.15), CFrame.new(0, -0.105, -0.92), accent, Enum.Material.Neon)
+		kp("Blade", "Blade", Vector3.new(0.045, 0.27, 0.92), CFrame.new(0, 0.02, -0.82), steel, Enum.Material.Metal)
+		kp("Fuller", "Metal", Vector3.new(0.05, 0.04, 0.7), CFrame.new(0, 0.08, -0.78), fullerC, Enum.Material.Metal)
+		kp("Tip", "Blade", Vector3.new(0.045, 0.27, 0.3), CFrame.new(0, 0.02, -1.43), steel, Enum.Material.Metal, "WedgePart")
+		kp("Bevel", "Metal", Vector3.new(0.035, 0.06, 1.0), CFrame.new(0, -0.08, -0.86), edgeLight, Enum.Material.Foil)
+		kp("Edge", "Accent", Vector3.new(0.05, 0.022, 1.04), CFrame.new(0, -0.12, -0.86), accent, Enum.Material.Neon)
 	elseif model == "Karambit" then
 		-- 카람빗: 아래로 매끈하게 휘는 갈고리 날(14조각, 끝으로 갈수록 가늘어짐) + 휜 손잡이 + 네온 테 손가락 고리
 		kp("Grip", "Body", Vector3.new(0.16, 0.25, 0.52), CFrame.new(0, 0.02, 0.04) * CFrame.Angles(math.rad(-14), 0, 0), dark, Enum.Material.Fabric)
