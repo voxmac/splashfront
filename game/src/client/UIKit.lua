@@ -204,10 +204,27 @@ end
 
 function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	-- 총 미리보기: 크게(카메라를 가까이), 밝게(전용 조명 2개)
+	-- 총 미리보기: 칸 크기에 꽉 차게(가로·세로 비율에 맞춰 카메라 거리 계산), 밝은 조명
 	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
 	vp.LightColor = Color3.fromRGB(255, 252, 245)
 	vp.Ambient = Color3.fromRGB(230, 230, 240)
+	local cam = vp.CurrentCamera
+	local cf, sz = model:GetBoundingBox()
+	local function fit()
+		local abs = vp.AbsoluteSize
+		if abs.X < 4 or abs.Y < 4 then
+			return
+		end
+		local aspect = abs.X / abs.Y
+		local vt = math.tan(math.rad(cam.FieldOfView / 2))
+		local ht = vt * aspect
+		-- 옆에서 보므로 화면 가로 = 총 길이(가장 긴 변), 세로 = 높이
+		local long = math.max(sz.X, sz.Z)
+		local dist = math.max((long / 2) / ht, (sz.Y / 2) / vt) * 1.12 + math.min(sz.X, sz.Z) / 2
+		cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Y * 0.08, dist), cf.Position)
+	end
+	fit()
+	vp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	return vp
 end
 

@@ -12107,7 +12107,7 @@ local function buildCollection(page)
 				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
 				corner(cardF, 12)
 				UI.stroke(cardF, tier.Color, 2, on and 0 or 0.5)
-				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, cardF)
 				corner(pic, 10)
 				UI.gradient(pic, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
@@ -12307,7 +12307,7 @@ local function buildWeaponSkins(page)
 	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 150), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
 	corner(top, 14)
 	UI.gradient(top, Color3.fromRGB(70, 50, 120), Color3.fromRGB(30, 28, 48), 0)
-	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
+	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, top)
 	corner(pic, 12)
 	UI.gradient(pic, Color3.fromRGB(150, 140, 200), Color3.fromRGB(70, 64, 110), 90)
 	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
@@ -12342,7 +12342,7 @@ local function buildWeaponSkins(page)
 				local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = line.Order }, grid)
 				corner(card, 12)
 				UI.stroke(card, tier.Color, 2, (mine or isOn) and 0 or 0.5)
-				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
+				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = Color3.new(1, 1, 1) }, card)
 				corner(cp, 10)
 				UI.gradient(cp, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
@@ -13975,10 +13975,27 @@ end
 
 function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	-- 총 미리보기: 크게(카메라를 가까이), 밝게(전용 조명 2개)
+	-- 총 미리보기: 칸 크기에 꽉 차게(가로·세로 비율에 맞춰 카메라 거리 계산), 밝은 조명
 	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
 	vp.LightColor = Color3.fromRGB(255, 252, 245)
 	vp.Ambient = Color3.fromRGB(230, 230, 240)
+	local cam = vp.CurrentCamera
+	local cf, sz = model:GetBoundingBox()
+	local function fit()
+		local abs = vp.AbsoluteSize
+		if abs.X < 4 or abs.Y < 4 then
+			return
+		end
+		local aspect = abs.X / abs.Y
+		local vt = math.tan(math.rad(cam.FieldOfView / 2))
+		local ht = vt * aspect
+		-- 옆에서 보므로 화면 가로 = 총 길이(가장 긴 변), 세로 = 높이
+		local long = math.max(sz.X, sz.Z)
+		local dist = math.max((long / 2) / ht, (sz.Y / 2) / vt) * 1.12 + math.min(sz.X, sz.Z) / 2
+		cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Y * 0.08, dist), cf.Position)
+	end
+	fit()
+	vp:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
 	return vp
 end
 
