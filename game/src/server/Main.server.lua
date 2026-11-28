@@ -24,7 +24,7 @@ local QuestService = require(Services.QuestService)
 -- 원격 이벤트
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem" }) do
+for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem", "Melee" }) do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
@@ -34,7 +34,7 @@ do
 	local pose = Instance.new("UnreliableRemoteEvent")
 	pose.Name = "Pose"
 	pose.Parent = remotes
-	local STANCES = { Normal = true, Run = true, Walk = true, Crouch = true }
+	local STANCES = { Normal = true, Run = true, Walk = true, Crouch = true, Slide = true }
 	pose.OnServerEvent:Connect(function(pl, pitch, stance)
 		if type(pitch) == "number" and pitch == pitch then
 			local p = math.clamp(math.floor(pitch + 0.5), -70, 70)

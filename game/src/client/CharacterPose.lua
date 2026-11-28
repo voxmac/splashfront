@@ -13,10 +13,18 @@ local kicks = setmetatable({}, { __mode = "k" })  -- model -> 반동 각도(도)
 local cache = setmetatable({}, { __mode = "k" })  -- model -> 관절
 local smooth = setmetatable({}, { __mode = "k" }) -- model -> { Pitch, Run, Crouch, Walk }
 local localStance = "Normal"
+local slashes = setmetatable({}, { __mode = "k" }) -- model -> { T = 1→0, Heavy }
 
 function Pose.Kick(model, recoil)
 	if model then
 		kicks[model] = math.min(28, (kicks[model] or 0) + 7 + (recoil or 1) * 2.5)
+	end
+end
+
+-- 칼 휘두르기 (다른 사람에게도 보이는 3인칭 동작)
+function Pose.Slash(model, heavy)
+	if model then
+		slashes[model] = { T = 1, Heavy = heavy == true, Side = -((slashes[model] and slashes[model].Side) or -1) }
 	end
 end
 
@@ -52,8 +60,13 @@ local function jointsOf(model)
 	return j
 end
 
+local function knifeInHand(model)
+	local k = model and model:FindFirstChild("SF_Knife")
+	return k ~= nil and k:GetAttribute("InHand") == true
+end
+
 local function armed(model)
-	if not model or not model:FindFirstChild("SF_Gun") then
+	if not model or not (model:FindFirstChild("SF_Gun") or knifeInHand(model)) then
 		return false
 	end
 	local hum = model:FindFirstChildOfClass("Humanoid")
@@ -71,7 +84,7 @@ local function pose(model, pitchDeg, stance, dt)
 	end
 	local sm = smooth[model]
 	if not sm then
-		sm = { Pitch = pitchDeg, Run = 0, Crouch = 0, Walk = 0, T = 0 }
+		sm = { Pitch = pitchDeg, Run = 0, Crouch = 0, Walk = 0, Slide = 0, T = 0 }
 		smooth[model] = sm
 	end
 	local k = 1 - math.exp(-12 * dt)
@@ -79,6 +92,7 @@ local function pose(model, pitchDeg, stance, dt)
 	sm.Run = sm.Run + (((stance == "Run") and 1 or 0) - sm.Run) * k
 	sm.Crouch = sm.Crouch + (((stance == "Crouch") and 1 or 0) - sm.Crouch) * k
 	sm.Walk = sm.Walk + (((stance == "Walk") and 1 or 0) - sm.Walk) * k
+	sm.Slide = sm.Slide + (((stance == "Slide") and 1 or 0) - sm.Slide) * (1 - math.exp(-18 * dt))
 	local kick = kicks[model] or 0
 	if kick > 0.05 then
 		kicks[model] = kick * math.exp(-14 * dt)
@@ -103,24 +117,77 @@ local function pose(model, pitchDeg, stance, dt)
 		j.Neck.Transform = CFrame.Angles(rad(p * 0.35 + run * 10 + crouch * 6), 0, 0)
 	end
 
+	-- 칼을 든 경우: 오른팔은 칼을 앞쪽 아래로 쥐고, 휘두르면 크게 가로지름
+	if knifeInHand(model) then
+		local sl = slashes[model]
+		local s, sweep = 0, 0
+		if sl then
+			sl.T = sl.T - dt / (sl.Heavy and 0.42 or 0.3)
+			if sl.T <= 0 then
+				slashes[model] = nil
+			else
+				local prog = 1 - sl.T
+				s = math.sin(prog * math.pi)
+				sweep = (prog - 0.5) * 2 * sl.Side
+			end
+		end
+		local heavy = sl and sl.Heavy
+		local raise = 45 + p * 0.3 - run * 25 + (heavy and 50 * s or 35 * s)
+		j.RS.Transform = CFrame.Angles(0, rad(heavy and 0 or -55 * sweep), 0) * CFrame.Angles(rad(raise), 0, 0)
+		if j.RE then
+			j.RE.Transform = CFrame.Angles(rad(heavy and 10 * (1 - s) or 25), 0, 0)
+		end
+		if j.LS then
+			j.LS.Transform = CFrame.Angles(0, rad(-20), 0) * CFrame.Angles(rad(35 - run * 20), 0, 0)
+		end
+		if j.LE then
+			j.LE.Transform = CFrame.Angles(rad(40), 0, 0)
+		end
+	end
+
 	-- 팔: 조준 자세 ↔ 달리기 들기 자세
 	local armPitch = 90 + p * 0.35 + kick
 	local runDown = run * 48
-	j.RS.Transform = CFrame.Angles(0, rad(8 + run * 22), 0) * CFrame.Angles(rad(armPitch - runDown), 0, 0)
-	if j.RE then
-		j.RE.Transform = CFrame.Angles(rad(run * 25), 0, 0)
+	if not knifeInHand(model) then
+		j.RS.Transform = CFrame.Angles(0, rad(8 + run * 22), 0) * CFrame.Angles(rad(armPitch - runDown), 0, 0)
+		if j.RE then
+			j.RE.Transform = CFrame.Angles(rad(run * 25), 0, 0)
+		end
+		if j.LS then
+			j.LS.Transform = CFrame.Angles(0, rad(-42 + run * 10), 0) * CFrame.Angles(rad(armPitch - 6 - runDown), 0, 0)
+		end
+		if j.LE then
+			j.LE.Transform = CFrame.Angles(rad(18 + run * 20), 0, 0)
+		end
 	end
 	if j.RW then
 		j.RW.Transform = CFrame.new()
 	end
-	if j.LS then
-		j.LS.Transform = CFrame.Angles(0, rad(-42 + run * 10), 0) * CFrame.Angles(rad(armPitch - 6 - runDown), 0, 0)
-	end
-	if j.LE then
-		j.LE.Transform = CFrame.Angles(rad(18 + run * 20), 0, 0)
-	end
 	if j.LW then
 		j.LW.Transform = CFrame.new()
+	end
+
+	-- 슬라이드: 상체를 뒤로 젖히고, 오른다리는 앞으로 쭉 · 왼다리는 접어서 미끄러짐
+	local slide = sm.Slide
+	if slide > 0.02 then
+		if j.Waist then
+			j.Waist.Transform = j.Waist.Transform:Lerp(CFrame.Angles(rad(28), 0, rad(-6)), slide)
+		end
+		if j.Neck then
+			j.Neck.Transform = j.Neck.Transform:Lerp(CFrame.Angles(rad(-18), 0, 0), slide)
+		end
+		if j.RH and j.RK then
+			j.RH.Transform = j.RH.Transform:Lerp(CFrame.Angles(rad(75), 0, 0), slide)
+			j.RK.Transform = j.RK.Transform:Lerp(CFrame.Angles(rad(-8), 0, 0), slide)
+		end
+		if j.LH and j.LK then
+			j.LH.Transform = j.LH.Transform:Lerp(CFrame.Angles(rad(30), 0, rad(-12)), slide)
+			j.LK.Transform = j.LK.Transform:Lerp(CFrame.Angles(rad(-110), 0, 0), slide)
+		end
+		if j.LA then
+			j.LA.Transform = j.LA.Transform:Lerp(CFrame.Angles(rad(30), 0, 0), slide)
+		end
+		return
 	end
 
 	-- 앉기: 무릎을 굽힘 (움직이면 좌우 번갈아 종종걸음). 기본 걷기 다리 동작 위에 섞음

@@ -108,7 +108,7 @@ local MISSIONS = {
 		end,
 	},
 	{
-		Id = "Hunt", Name = "스플래시 헌트", Duration = 25, Bonus = 3,
+		Id = "Hunt", Name = "스플래쉬 헌트", Duration = 25, Bonus = 3,
 		Desc = "먼저 3킬을 달성하라!",
 		Begin = function(ctx)
 			ctx.Kills = {}

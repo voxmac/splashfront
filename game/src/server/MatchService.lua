@@ -325,14 +325,31 @@ end
 -- 손에 든 총: 팔을 앞으로 든 자세(클라이언트 CharacterPose)에서 총구가 정면을 향하도록
 -- 손의 -Y(손끝 방향)를 총의 앞(-Z)으로 맞춤
 local GUN_GRIP = CFrame.new(0, -0.35, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
+local KNIFE_GRIP = CFrame.new(0, -0.3, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
 local function attachGun(e, model)
-	local old = model:FindFirstChild("SF_Gun")
-	if old then
-		old:Destroy()
+	for _, n in ipairs({ "SF_Gun", "SF_Knife" }) do
+		local old = model:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
 	end
 	local color = MatchService.ColorOf(e.OwnerId)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
-	if hand then
+	-- 칼은 항상 몸에 지님: 칼을 들면 손에, 총을 들면 오른쪽 허벅지 칼집에
+	if e.Player then
+		local knife = ModelKit.Knife(color)
+		knife.Name = "SF_Knife"
+		local thigh = model:FindFirstChild("RightUpperLeg") or model:FindFirstChild("Right Leg")
+		knife:SetAttribute("InHand", e.Melee == true and hand ~= nil)
+		if e.Melee and hand then
+			ModelKit.WeldTo(knife, hand, KNIFE_GRIP)
+		elseif thigh then
+			ModelKit.WeldTo(knife, thigh, CFrame.new(thigh.Size.X / 2 + 0.06, 0.1, 0) * CFrame.Angles(math.rad(-90), 0, 0))
+		else
+			knife:Destroy()
+		end
+	end
+	if hand and not e.Melee then
 		local skin = e.Player and Cosmetics.ById[e.Player:GetAttribute("Skin") or ""] or nil
 		local look = e.Player and WeaponSkins.LookFor(e.Player, e.WeaponId) or nil
 		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
@@ -489,6 +506,11 @@ local function activate(e, model)
 		end
 	end)
 	teamVest(model, MatchService.ColorOf(e.OwnerId))
+	-- 부활하면 항상 총을 든 상태로 시작
+	e.Melee = false
+	if e.Player then
+		e.Player:SetAttribute("Melee", false)
+	end
 	local okGear, gearErr = pcall(attachGear, e, model)
 	if not okGear then
 		warn("[SplashFront] 장비 부착 실패:", gearErr)
@@ -589,11 +611,11 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
-		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
-		WeaponId = killer and killer.WeaponId or nil,
+		Effect = killer and ((killer.Player and not killer.Melee and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
+		Weapon = killer and (killer.Melee and Weapons.Knife.Name or Weapons.Get(killer.WeaponId).Name) or nil,
+		WeaponId = killer and (killer.Melee and "Knife" or killer.WeaponId) or nil,
 		KillerStreak = killer and killer.Streak or 0,
-		WeaponClass = killer and Weapons.Get(killer.WeaponId).Class or nil,
+		WeaponClass = killer and (killer.Melee and Weapons.Knife.Class or Weapons.Get(killer.WeaponId).Class) or nil,
 		Pos = root and root.Position or nil,
 		KillerPlayer = killer and killer.Player or nil,
 		VictimPlayer = e.Player,
@@ -613,9 +635,129 @@ end
 ------------------------------------------------------------------------
 -- 깃발 (플래그 러시)
 ------------------------------------------------------------------------
+-- 깃발 위치를 매 경기 무작위로: 칠할 수 있는 바닥 칸 중에서 서로 최대한 멀리 떨어지게 고름
+-- (양 팀 스폰과 너무 가까운 곳 제외, 두 팀에서의 거리가 비슷하도록 여러 번 뽑아 가장 좋은 배치 선택)
+local function pickFlagPositions(count)
+	local cells = arena.Cells and arena.Cells:GetChildren() or {}
+	local spawnsA = arena.Spawns and arena.Spawns[1] or {}
+	local spawnsB = arena.Spawns and arena.Spawns[2] or {}
+	if #cells < 20 or #spawnsA == 0 or #spawnsB == 0 then
+		return nil
+	end
+	local function center(list)
+		local sum = Vector3.zero
+		for _, cf in ipairs(list) do
+			sum = sum + cf.Position
+		end
+		return sum / #list
+	end
+	local baseA, baseB = center(spawnsA), center(spawnsB)
+	local function flat(v)
+		return Vector3.new(v.X, 0, v.Z)
+	end
+	local span = (flat(baseA) - flat(baseB)).Magnitude
+	-- 높이: 대부분의 칸이 있는 높이 근처만 (외딴 지붕 등 못 가는 곳 제외)
+	local ys = {}
+	for _, c in ipairs(cells) do
+		table.insert(ys, c.Position.Y)
+	end
+	table.sort(ys)
+	local midY = ys[math.floor(#ys / 2) + 1]
+	local keep = math.max(18, span * 0.12) -- 스폰과 이 거리 이상 떨어진 곳만
+	local cands = {}
+	for _, c in ipairs(cells) do
+		local pos = c.Position
+		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep then
+			table.insert(cands, c)
+		end
+	end
+	if #cands < count * 4 then
+		return nil
+	end
+	-- 깃대(12칸)가 천장·지붕에 걸리지 않는 열린 곳만
+	local skyParams = RaycastParams.new()
+	skyParams.FilterType = Enum.RaycastFilterType.Exclude
+	skyParams.FilterDescendantsInstances = { arena.Cells, workspace:FindFirstChild("FX") }
+	local skyCache = {}
+	local function openSky(c)
+		local v = skyCache[c]
+		if v == nil then
+			v = workspace:Raycast(c.Position + Vector3.new(0, 1, 0), Vector3.new(0, 16, 0), skyParams) == nil
+			skyCache[c] = v
+		end
+		return v
+	end
+	local rng = Random.new()
+	local best, bestScore = nil, -math.huge
+	for _ = 1, 24 do
+		local first = cands[rng:NextInteger(1, #cands)]
+		for _ = 1, 20 do
+			if openSky(first) then
+				break
+			end
+			first = cands[rng:NextInteger(1, #cands)]
+		end
+		local chosen = { first }
+		while #chosen < count do
+			-- 지금까지 고른 깃발들과의 최소 거리가 큰 후보들 중 상위에서 무작위
+			local scored = {}
+			for i = 1, math.min(#cands, 400) do
+				local c = cands[rng:NextInteger(1, #cands)]
+				local md = openSky(c) and math.huge or -1
+				if md > 0 then
+					for _, o in ipairs(chosen) do
+						md = math.min(md, (flat(c.Position) - flat(o.Position)).Magnitude)
+					end
+				end
+				scored[i] = { c, md }
+			end
+			table.sort(scored, function(a, b)
+				return a[2] > b[2]
+			end)
+			table.insert(chosen, scored[rng:NextInteger(1, math.max(1, math.floor(#scored * 0.08)))][1])
+		end
+		local minPair, da, db = math.huge, 0, 0
+		for i, c in ipairs(chosen) do
+			da = da + (flat(c.Position) - flat(baseA)).Magnitude
+			db = db + (flat(c.Position) - flat(baseB)).Magnitude
+			for j = i + 1, #chosen do
+				minPair = math.min(minPair, (flat(c.Position) - flat(chosen[j].Position)).Magnitude)
+			end
+		end
+		local score = minPair - math.abs(da - db) * 0.6
+		if score > bestScore then
+			best, bestScore = chosen, score
+		end
+	end
+	if not best then
+		return nil
+	end
+	-- 이름은 A(팀1 쪽) → C(가운데) → B(팀2 쪽) 순으로
+	local axis = flat(baseB - baseA).Unit
+	table.sort(best, function(a, b)
+		return (a.Position - baseA):Dot(axis) < (b.Position - baseA):Dot(axis)
+	end)
+	local out = {}
+	for i, c in ipairs(best) do
+		out[i] = c.Position + Vector3.new(0, c.Size.Y / 2, 0)
+	end
+	return out
+end
+
 local function buildFlags()
 	local fx = workspace:FindFirstChild("FX")
+	local picked = pickFlagPositions(#arena.FlagPoints)
+	local names = {}
 	for _, def in ipairs(arena.FlagPoints) do
+		table.insert(names, def.Name)
+	end
+	-- 원래 정의 순서(A, C, B)를 축 순서(팀1 → 팀2)에 맞게: A, C, B
+	local axisNames = { "A", "C", "B" }
+	for i, def0 in ipairs(arena.FlagPoints) do
+		local def = def0
+		if picked and picked[i] then
+			def = { Name = (#arena.FlagPoints == 3) and axisNames[i] or names[i], Position = picked[i] }
+		end
 		local model = Instance.new("Model")
 		model.Name = "Flag_" .. def.Name
 		local base = Instance.new("Part")
@@ -1336,6 +1478,58 @@ local function canSwitch(e)
 	return (os.clock() - (e.SpawnedAt or 0)) <= Config.WeaponSwitchGrace or nearOwnSpawn(e)
 end
 
+-- 칼: "equip"(true/false) = 총 ↔ 칼 전환, "swing"(대상 모델, 강공격 여부) = 근접 공격
+-- 서버가 거리·방향·쿨타임을 직접 검사해서 인정
+local function onMelee(player, action, a, b)
+	local e = Combatants.FromPlayer(player)
+	if not e or not e.Alive or not e.Model then
+		return
+	end
+	local K = Weapons.Knife
+	if action == "equip" then
+		local on = a == true
+		if e.Melee == on then
+			return
+		end
+		e.Melee = on
+		player:SetAttribute("Melee", on)
+		pcall(attachGun, e, e.Model)
+		return
+	end
+	if action ~= "swing" or not e.Melee then
+		return
+	end
+	local heavy = b == true
+	local now = os.clock()
+	local interval = heavy and K.HeavyInterval or K.Interval
+	if now - (e.LastMelee or 0) < interval * 0.8 then
+		return
+	end
+	e.LastMelee = now
+	remotes.FX:FireAllClients("Slash", { Model = e.Model, Heavy = heavy, Color = MatchService.ColorOf(e.OwnerId), Shooter = player })
+	if typeof(a) ~= "Instance" then
+		return -- 허공 베기
+	end
+	local victim = Combatants.FromModel(a)
+	local root = e.Model:FindFirstChild("HumanoidRootPart")
+	local vroot = victim and victim.Model and victim.Model:FindFirstChild("HumanoidRootPart")
+	if not victim or not victim.Alive or not root or not vroot or not Combatants.IsEnemy(e, victim) then
+		return
+	end
+	local diff = vroot.Position - root.Position
+	if diff.Magnitude > K.Range + 3 then
+		return -- 지연을 감안해도 너무 멂
+	end
+	local dmg = heavy and K.HeavyDamage or K.Damage
+	-- 등 뒤 공격: 상대가 바라보는 방향과 같은 쪽에서 찌르면 더 큰 피해
+	local flat = Vector3.new(diff.X, 0, diff.Z)
+	if flat.Magnitude > 0.1 and vroot.CFrame.LookVector:Dot(flat.Unit) > 0.5 then
+		dmg = dmg * K.BackMul
+	end
+	CombatService.Damage(e, victim, dmg, false, vroot.Position)
+	PaintService.PaintBelow(vroot.Position, 3, e.OwnerId, e)
+end
+
 local function switchWeapon(player, weaponId)
 	local e = Combatants.FromPlayer(player)
 	local w = Weapons.ById[weaponId]
@@ -1353,6 +1547,8 @@ local function switchWeapon(player, weaponId)
 	end
 	e.WeaponId = w.Id
 	e.Ink = Config.InkMax
+	e.Melee = false
+	player:SetAttribute("Melee", false)
 	p.Equipped = w.Id
 	DataService.Publish(player)
 	player:SetAttribute("Weapon", w.Id)
@@ -1429,6 +1625,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 		end
 	end)
 	remotes.SwitchWeapon.OnServerEvent:Connect(switchWeapon)
+	remotes.Melee.OnServerEvent:Connect(onMelee)
 	for _, ent in ipairs(lobby.QueuePadList) do
 		local id, side = ent.Queue, ent.Side
 		ent.Pad.Touched:Connect(function(hit)
@@ -1572,7 +1769,7 @@ function MatchService.Run()
 					if not S.FinalSplash and left <= Config.FinalSplashTime then
 						S.FinalSplash = true
 						PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
-						announce("파이널 스플래시! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
+						announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
 						remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
 					end
 					if S.Mode == "Flag" then

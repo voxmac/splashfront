@@ -378,6 +378,51 @@ function ModelKit.ApplyLook(model, look)
 	end
 end
 
+-- 택티컬 나이프: 손잡이(고무 그립) + 금속 가드 + 블레이드(끝이 뾰족) + 팀 색 네온 날 라인
+-- 손잡이 가운데가 원점(Anchor), 날은 모델의 앞(-Z)
+function ModelKit.Knife(accent)
+	local m = Instance.new("Model")
+	m.Name = "Knife"
+	local function kp(name, kind, size, cf, color, mat, cls)
+		local p = Instance.new(cls or "Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Material = mat
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Massless = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p:SetAttribute("Kind", kind)
+		p.Parent = m
+		return p
+	end
+	local anchor = kp("Anchor", "Anchor", Vector3.new(0.1, 0.1, 0.1), CFrame.new(), Color3.new(), Enum.Material.SmoothPlastic)
+	anchor.Transparency = 1
+	-- 손잡이 (홈 파인 그립 3마디)
+	kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.62), CFrame.new(0, 0, 0.05), Color3.fromRGB(30, 30, 36), Enum.Material.Fabric)
+	for i = -1, 1 do
+		kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.04), CFrame.new(0, 0, 0.05 + i * 0.18), accent, Enum.Material.Neon)
+	end
+	kp("Pommel", "Metal", Vector3.new(0.24, 0.3, 0.1), CFrame.new(0, 0, 0.4), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
+	-- 가드
+	kp("Guard", "Metal", Vector3.new(0.14, 0.5, 0.08), CFrame.new(0, 0.04, -0.3), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
+	-- 블레이드: 몸통 + 뾰족한 끝(쐐기) + 등날
+	local steel = Color3.fromRGB(205, 212, 225)
+	kp("Blade", "Metal", Vector3.new(0.05, 0.28, 0.78), CFrame.new(0, 0.04, -0.73), steel, Enum.Material.Metal)
+	kp("Tip", "Metal", Vector3.new(0.05, 0.28, 0.3), CFrame.new(0, 0.04, -1.27), steel, Enum.Material.Metal, "WedgePart")
+	kp("Spine", "Body", Vector3.new(0.07, 0.05, 0.8), CFrame.new(0, 0.18, -0.72), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
+	-- 날 끝선 (팀 색으로 빛남)
+	kp("Edge", "Accent", Vector3.new(0.06, 0.035, 0.98), CFrame.new(0, -0.1, -0.82), accent, Enum.Material.Neon)
+	m.PrimaryPart = anchor
+	return m
+end
+
 -- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택), look: 무기별 스킨(WeaponSkins.Look, 있으면 우선)
 function ModelKit.Gun(weaponId, accent, skin, skinMaterial, look)
 	local w = Weapons.Get(weaponId)

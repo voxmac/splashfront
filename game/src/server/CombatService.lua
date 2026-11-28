@@ -278,10 +278,12 @@ function CombatService.Fire(e, origin, directions, claims)
 						if isHead then
 							e.Headshots = (e.Headshots or 0) + 1
 						end
-						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or 1))
+						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or (w.BodyMul or 1)))
 						CombatService.Damage(e, victim, dmg, isHead, endPos)
 						PaintService.PaintBelow(endPos, 2.5, e.OwnerId, e)
 					end
+				elseif w.PaintRange and (endPos - origin).Magnitude > w.PaintRange then
+					-- 페인트 사거리 밖: 칠하지 않음 (저격총)
 				elseif result.Normal.Y > 0.5 then
 					PaintService.PaintAt(endPos, w.PaintRadius, e.OwnerId, e)
 				else
@@ -294,7 +296,9 @@ function CombatService.Fire(e, origin, directions, claims)
 				end
 			else
 				endPos = origin + dir * range
-				PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
+				if not w.PaintRange or range <= w.PaintRange then
+					PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
+				end
 			end
 			if w.PathPaint then
 				local dist = math.min((endPos - origin).Magnitude, w.PathMax or 240)
@@ -322,8 +326,8 @@ function CombatService.OnPlayerFire(player, weaponId, origin, directions, claims
 	if not e or typeof(origin) ~= "Vector3" or type(directions) ~= "table" then
 		return
 	end
-	if weaponId ~= e.WeaponId then
-		return
+	if weaponId ~= e.WeaponId or e.Melee then
+		return -- 칼을 든 동안에는 총을 쏠 수 없음
 	end
 	CombatService.Fire(e, origin, directions, claims)
 end

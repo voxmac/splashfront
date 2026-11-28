@@ -115,6 +115,31 @@ def hit_real_head():
     ding = mix((0, bell(98, 0.35, 0.4)), (0, bell(105, 0.3, 0.2)))
     return mix((0, hit_real() * 0.9), (0.004, ding))
 
+# ---------------------------------------------------------------- knife / slide
+def knife_swing():
+    # 칼 휘두르는 바람 소리: 위로 올라갔다 내려오는 대역 잡음
+    d = 0.26
+    x = noise(d)
+    env = np.sin(np.linspace(0, np.pi, int(SR * d))) ** 1.5
+    whoosh = mix((0, bp(x, 900, 3200) * env * 0.8), (0, bp(x, 2800, 7000) * env * 0.35))
+    return attack(whoosh, 3)
+def knife_hit():
+    # 칼 명중: 짧은 금속성 '칭' + 둔탁한 타격
+    ring = np.sin(2 * np.pi * 3100 * t_(0.18)) * edecay(0.18, 30) * 0.35 + np.sin(2 * np.pi * 4650 * t_(0.18)) * edecay(0.18, 40) * 0.2
+    return mix((0, knife_swing() * 0.5), (0.05, hit_real() * 0.9), (0.05, ring))
+def knife_draw():
+    # 칼 뽑기: 금속이 칼집을 스치는 소리
+    d = 0.32
+    scrape = bp(noise(d), 3500, 9000) * np.linspace(0.2, 1, int(SR * d)) * edecay(d, 6) * 0.6
+    ring = np.sin(2 * np.pi * 2600 * t_(0.25)) * edecay(0.25, 18) * 0.25
+    return mix((0, scrape), (0.28, ring))
+def slide():
+    # 슬라이드: 바닥을 쓸고 지나가는 마찰음
+    d = 0.6
+    x = lp(noise(d), 2200) * 0.7 + bp(noise(d), 300, 900) * 0.4
+    env = np.minimum(1, t_(d) * 25) * edecay(d, 3.5)
+    return x * env
+
 
 # ---------------------------------------------------------------- hits and kills
 def splat(size=1.0):
@@ -229,6 +254,8 @@ SOUNDS = {
     # 실총 (K 시리즈) — 기존 소리 순서·난수가 바뀌지 않게 맨 뒤에 추가
     "fire_k2": fire_k2, "fire_k2c1": fire_k2c1, "fire_k3": fire_k3, "fire_k14": fire_k14, "fire_k5": fire_k5,
     "hit_real": hit_real, "hit_real_head": hit_real_head,
+    # 칼·슬라이드 — 역시 맨 뒤에 추가
+    "knife_swing": knife_swing, "knife_hit": knife_hit, "knife_draw": knife_draw, "slide": slide,
 }
 
 if __name__ == "__main__":

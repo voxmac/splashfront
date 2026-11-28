@@ -183,15 +183,16 @@ end
 ------------------------------------------------------------------------
 -- 아이템 이미지: 총은 3D 미리보기(ViewportFrame), 패턴은 재질 견본, 이펙트는 아이콘
 ------------------------------------------------------------------------
-local function viewportModel(parent, model, size, rotY)
+-- zoom: 카메라 거리 배율 (작을수록 크게 보임)
+local function viewportModel(parent, model, size, rotY, zoom)
 	local vp = make("ViewportFrame", { Size = size or UDim2.fromScale(1, 1), BackgroundTransparency = 1, LightColor = Color3.new(1, 1, 1),
-		Ambient = Color3.fromRGB(160, 160, 180), LightDirection = Vector3.new(-1, -1, -0.5) }, parent)
+		Ambient = Color3.fromRGB(210, 210, 225), LightDirection = Vector3.new(-1, -1, -0.5) }, parent)
 	local world = make("WorldModel", {}, vp)
 	model:PivotTo(CFrame.Angles(0, rotY or math.rad(90), 0))
 	model.Parent = world
 	local cf, sz = model:GetBoundingBox()
 	local cam = make("Camera", { FieldOfView = 30 }, vp)
-	local dist = sz.Magnitude * 1.9
+	local dist = sz.Magnitude * (zoom or 1.9)
 	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Magnitude * 0.18, dist), cf.Position)
 	vp.CurrentCamera = cam
 	return vp
@@ -203,7 +204,11 @@ end
 
 function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	return viewportModel(parent, model, size, math.rad(90))
+	-- 총 미리보기: 크게(카메라를 가까이), 밝게(전용 조명 2개)
+	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
+	vp.LightColor = Color3.fromRGB(255, 252, 245)
+	vp.Ambient = Color3.fromRGB(230, 230, 240)
+	return vp
 end
 
 function UI.ItemImage(parent, item, size)

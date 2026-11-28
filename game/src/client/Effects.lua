@@ -1,4 +1,4 @@
--- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+-- 시각/청각 효과: 트레이서, 착탄 스플래쉬, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -427,6 +427,17 @@ end
 
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
+	if kind == "Slash" then
+		-- 다른 사람의 칼 휘두르기: 팔 동작 + 바람 소리
+		if d.Shooter ~= player and d.Model then
+			CharacterPose.Slash(d.Model, d.Heavy)
+			local root = d.Model:FindFirstChild("HumanoidRootPart")
+			if root then
+				SoundBank.Play("knife_swing", root.Position, 0.6)
+			end
+		end
+		return
+	end
 	if kind == "Tracer" then
 		if d.Shooter == player then
 			return -- 내 사격은 즉시 로컬로 그렸음

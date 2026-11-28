@@ -277,7 +277,7 @@ Config.Monetization = {
 -- 음원은 Kaggle(ACE-Step 1.5)로 만들어 Open Cloud로 업로드 → AssetIds.Music 에 자동 기록 (MusicPlayer가 재생)
 Config.Music = {
 	Volume = 0.35,
-	FinalSplashSpeed = 1.12, -- 파이널 스플래시 구간 재생 속도
+	FinalSplashSpeed = 1.12, -- 파이널 스플래쉬 구간 재생 속도
 }
 
 -- 효과음 (원하는 에셋 ID로 교체 가능)

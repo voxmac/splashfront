@@ -238,7 +238,7 @@ local function buildCollection(page)
 		label(page, { Text = "무기 스킨", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
 		order = order + 1
 		local sgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
 		order = order + 1
 		for i, sid in ipairs(wsOwned) do
 			local lineId, wid = WeaponSkins.Split(sid)
@@ -249,10 +249,11 @@ local function buildCollection(page)
 				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
 				corner(cardF, 12)
 				UI.stroke(cardF, tier.Color, 2, on and 0 or 0.5)
-				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 64), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
 				corner(pic, 10)
+				UI.gradient(pic, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
-				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 74),
+				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
 					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
 				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
 				b.MouseButton1Click:Connect(function()
@@ -445,17 +446,18 @@ local function buildWeaponSkins(page)
 	-- 지금 장착한 모습
 	local cur = equip[wsWeapon]
 	local curLine = cur and WeaponSkins.LineById[cur.Line]
-	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 120), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 150), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
 	corner(top, 14)
 	UI.gradient(top, Color3.fromRGB(70, 50, 120), Color3.fromRGB(30, 28, 48), 0)
-	local pic = make("Frame", { Size = UDim2.fromOffset(230, 104), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
+	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
 	corner(pic, 12)
+	UI.gradient(pic, Color3.fromRGB(150, 140, 200), Color3.fromRGB(70, 64, 110), 90)
 	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
-	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(254, 14), Size = UDim2.new(1, -440, 0, 30) })
+	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(324, 14), Size = UDim2.new(1, -510, 0, 30) })
 	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
-		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(254, 50), Size = UDim2.new(1, -440, 0, 24) })
+		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(324, 50), Size = UDim2.new(1, -510, 0, 24) })
 	label(top, { Text = "스탠다드 → 디럭스(투톤) → 프리미엄(발광·색상 변형) → 얼티밋(입자·전용 피니셔)", TextSize = 14, TextColor3 = C.Sub,
-		Position = UDim2.fromOffset(254, 80), Size = UDim2.new(1, -440, 0, 20), TextWrapped = true })
+		Position = UDim2.fromOffset(324, 80), Size = UDim2.new(1, -510, 0, 20), TextWrapped = true })
 	if curLine then
 		local rb = button(top, "기본으로", C.Dim, { Size = UDim2.fromOffset(150, 46), Position = UDim2.new(1, -166, 0.5, -23), TextSize = 18 })
 		rb.MouseButton1Click:Connect(function()
@@ -472,7 +474,7 @@ local function buildWeaponSkins(page)
 		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
-		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 236), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 270), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		for _, line in ipairs(WeaponSkins.Lines) do
 			if line.Tier == tier.Id then
 				local skinId = WeaponSkins.SkinId(line.Id, wsWeapon)
@@ -482,18 +484,18 @@ local function buildWeaponSkins(page)
 				local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = line.Order }, grid)
 				corner(card, 12)
 				UI.stroke(card, tier.Color, 2, (mine or isOn) and 0 or 0.5)
-				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 110), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
+				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
 				corner(cp, 10)
-				UI.gradient(cp, tier.Color:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(24, 22, 38), 90)
+				UI.gradient(cp, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
-				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 122), Size = UDim2.new(1, -24, 0, 22),
+				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 156), Size = UDim2.new(1, -24, 0, 22),
 					TextTruncate = Enum.TextTruncate.AtEnd })
-				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 145), Size = UDim2.new(1, -24, 0, 18),
+				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 179), Size = UDim2.new(1, -24, 0, 18),
 					TextTruncate = Enum.TextTruncate.AtEnd })
 				-- 색상 변형 점 (보유했으면 누르면 그 색으로 장착, 아니면 미리보기)
 				if #line.Variants > 1 then
 					for vi, vv in ipairs(line.Variants) do
-						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 168), Text = "",
+						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 202), Text = "",
 							BackgroundColor3 = vv.Accent or vv.Body, AutoButtonColor = true }, card)
 						corner(dot, 13)
 						UI.stroke(dot, (vi == v) and Color3.new(1, 1, 1) or Color3.fromRGB(20, 20, 30), 2)
@@ -506,7 +508,7 @@ local function buildWeaponSkins(page)
 							buildWeaponSkins(page)
 						end)
 					end
-					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 170),
+					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 204),
 						Size = UDim2.fromOffset(110, 22) })
 				end
 				local text, color

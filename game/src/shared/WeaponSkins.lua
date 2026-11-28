@@ -23,18 +23,18 @@ end
 -- Body/BodyMat: 몸체, Metal/MetalMat: 금속 부품, Accent: 발광 라인(없으면 팀 색), Particle: 입자 색, Finisher: 처치 연출
 WeaponSkins.Lines = {
 	{ Id = "SteelWave", Name = "스틸 웨이브", Tier = "Standard", Desc = "빛을 머금은 헤어라인 스틸",
-		Variants = { { Name = "기본", Body = c(178, 184, 196), BodyMat = "Metal", Metal = c(70, 74, 86), MetalMat = "Metal" } } },
+		Variants = { { Name = "기본", Body = c(178, 184, 196), BodyMat = "Metal", Metal = c(110, 116, 130), MetalMat = "Metal" } } },
 	{ Id = "DesertRanger", Name = "데저트 레인저", Tier = "Standard", Desc = "모래바람을 견디는 전술 도장",
 		Variants = { { Name = "기본", Body = c(196, 168, 120), BodyMat = "Fabric", Metal = c(84, 82, 60), MetalMat = "Metal" } } },
 	{ Id = "BlackOnyx", Name = "블랙 오닉스", Tier = "Deluxe", Desc = "무광 블랙에 금빛 부품",
-		Variants = { { Name = "기본", Body = c(24, 24, 28), BodyMat = "SmoothPlastic", Metal = c(230, 180, 70), MetalMat = "Foil" } } },
+		Variants = { { Name = "기본", Body = c(52, 52, 62), BodyMat = "SmoothPlastic", Metal = c(240, 190, 80), MetalMat = "Foil" } } },
 	{ Id = "SakuraBloom", Name = "사쿠라 블룸", Tier = "Deluxe", Desc = "벚꽃 대리석과 진주빛 금속",
 		Variants = { { Name = "기본", Body = c(255, 176, 205), BodyMat = "Marble", Metal = c(240, 236, 245), MetalMat = "Metal" } } },
 	{ Id = "NeonPulse", Name = "네온 펄스", Tier = "Premium", Desc = "어둠 속에서 맥박처럼 빛나는 네온 라인",
 		Variants = {
-			{ Name = "마젠타", Body = c(20, 18, 34), BodyMat = "Glass", Metal = c(44, 40, 66), MetalMat = "Metal", Accent = c(255, 40, 200) },
-			{ Name = "시안", Body = c(14, 24, 36), BodyMat = "Glass", Metal = c(36, 50, 70), MetalMat = "Metal", Accent = c(40, 230, 255) },
-			{ Name = "라임", Body = c(18, 28, 18), BodyMat = "Glass", Metal = c(40, 60, 40), MetalMat = "Metal", Accent = c(170, 255, 50) },
+			{ Name = "마젠타", Body = c(62, 52, 100), BodyMat = "SmoothPlastic", Metal = c(96, 90, 130), MetalMat = "Metal", Accent = c(255, 40, 200) },
+			{ Name = "시안", Body = c(40, 70, 110), BodyMat = "SmoothPlastic", Metal = c(86, 110, 140), MetalMat = "Metal", Accent = c(40, 230, 255) },
+			{ Name = "라임", Body = c(50, 84, 50), BodyMat = "SmoothPlastic", Metal = c(96, 124, 96), MetalMat = "Metal", Accent = c(170, 255, 50) },
 		} },
 	{ Id = "FrostCrystal", Name = "프로스트 크리스탈", Tier = "Premium", Desc = "얼음 결정으로 깎아 만든 총",
 		Variants = {
@@ -45,16 +45,16 @@ WeaponSkins.Lines = {
 	{ Id = "InfernoCore", Name = "인페르노 코어", Tier = "Ultimate", Desc = "갈라진 용암 사이로 불씨가 흩날림 · 처치 시 화염 기둥",
 		Finisher = "Inferno",
 		Variants = {
-			{ Name = "화염", Body = c(255, 90, 20), BodyMat = "CrackedLava", Metal = c(40, 30, 30), MetalMat = "Metal", Accent = c(255, 140, 30), Particle = c(255, 150, 40) },
-			{ Name = "청염", Body = c(40, 140, 255), BodyMat = "CrackedLava", Metal = c(26, 30, 46), MetalMat = "Metal", Accent = c(80, 190, 255), Particle = c(90, 200, 255) },
-			{ Name = "흑염", Body = c(150, 40, 255), BodyMat = "CrackedLava", Metal = c(20, 16, 26), MetalMat = "Metal", Accent = c(190, 90, 255), Particle = c(200, 120, 255) },
+			{ Name = "화염", Body = c(255, 90, 20), BodyMat = "CrackedLava", Metal = c(96, 76, 70), MetalMat = "Metal", Accent = c(255, 140, 30), Particle = c(255, 150, 40) },
+			{ Name = "청염", Body = c(40, 140, 255), BodyMat = "CrackedLava", Metal = c(70, 80, 110), MetalMat = "Metal", Accent = c(80, 190, 255), Particle = c(90, 200, 255) },
+			{ Name = "흑염", Body = c(150, 40, 255), BodyMat = "CrackedLava", Metal = c(80, 66, 100), MetalMat = "Metal", Accent = c(190, 90, 255), Particle = c(200, 120, 255) },
 		} },
 	{ Id = "ChromaGalaxy", Name = "크로마 갤럭시", Tier = "Ultimate", Desc = "별빛이 흐르는 우주 도장 · 처치 시 은하 폭발",
 		Finisher = "Galaxy",
 		Variants = {
-			{ Name = "갤럭시", Body = c(60, 30, 140), BodyMat = "Glass", Metal = c(30, 24, 60), MetalMat = "Metal", Accent = c(150, 110, 255), Particle = c(230, 220, 255) },
-			{ Name = "오로라", Body = c(20, 110, 120), BodyMat = "Glass", Metal = c(18, 40, 50), MetalMat = "Metal", Accent = c(60, 255, 200), Particle = c(180, 255, 230) },
-			{ Name = "선셋", Body = c(200, 70, 110), BodyMat = "Glass", Metal = c(60, 26, 40), MetalMat = "Metal", Accent = c(255, 170, 60), Particle = c(255, 220, 160) },
+			{ Name = "갤럭시", Body = c(110, 70, 220), BodyMat = "SmoothPlastic", Metal = c(80, 70, 130), MetalMat = "Metal", Accent = c(150, 110, 255), Particle = c(230, 220, 255) },
+			{ Name = "오로라", Body = c(40, 175, 185), BodyMat = "SmoothPlastic", Metal = c(60, 100, 110), MetalMat = "Metal", Accent = c(60, 255, 200), Particle = c(180, 255, 230) },
+			{ Name = "선셋", Body = c(230, 100, 140), BodyMat = "SmoothPlastic", Metal = c(120, 60, 80), MetalMat = "Metal", Accent = c(255, 170, 60), Particle = c(255, 220, 160) },
 		} },
 }
 

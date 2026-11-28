@@ -38,10 +38,10 @@ Weapons.List = {
 	},
 	{
 		Id = "Sniper", Name = "롱샷 차저", Class = "저격총", Price = 3000,
-		Damage = 85, HeadMul = 1.8, FireInterval = 1.2, Range = 240,
-		InkCost = 14, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
-		HipSpread = 1.2, Pellets = 1, Splash = 0, Recoil = 5, Auto = false, PathPaint = true,
-		PathStep = 10, PathRadius = 2, PathMax = 120, -- CBT 1차: 탄도 칠하기 축소(간격 7→10, 반경 2.5→2, 최대 120)
+		Damage = 85, HeadMul = 1.8, BodyMul = 0.5, FireInterval = 1.2, Range = 240, -- 헤드샷이 아니면 피해 50%
+		InkCost = 14, PaintRadius = 4, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
+		HipSpread = 1.2, Pellets = 1, Splash = 0, Recoil = 7, KickUp = 3.2, Auto = false, PathPaint = true, -- KickUp: 쏠 때마다 조준이 위로 튐(복귀 안 됨)
+		PathStep = 10, PathRadius = 1.6, PathMax = 50, PaintRange = 110, -- 탄도 칠하기 50까지, 110보다 먼 착탄은 칠하지 않음
 		Scope = true, ScopeFov = 16, ZoomFov = 16, Sight = "Scope", -- 0.5: 확대 강화
 		Color = Color3.fromRGB(30, 30, 36), Size = Vector3.new(0.35, 0.6, 3.6),
 	},
@@ -79,10 +79,10 @@ Weapons.List = {
 	},
 	{
 		Id = "K14", Name = "K14 저격소총", Class = "저격총", Price = 5000, StoreModel = "K14", ModelLength = 4.3,
-		Damage = 100, HeadMul = 1.6, FireInterval = 1.5, Range = 260,
-		InkCost = 16, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
-		HipSpread = 1.4, Pellets = 1, Splash = 0, Recoil = 5.5, Auto = false, PathPaint = true,
-		PathStep = 10, PathRadius = 2, PathMax = 120,
+		Damage = 100, HeadMul = 1.6, BodyMul = 0.5, FireInterval = 1.5, Range = 260, -- 헤드샷이 아니면 피해 50%
+		InkCost = 16, PaintRadius = 4, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
+		HipSpread = 1.4, Pellets = 1, Splash = 0, Recoil = 7.5, KickUp = 3.6, Auto = false, PathPaint = true,
+		PathStep = 10, PathRadius = 1.6, PathMax = 50, PaintRange = 110,
 		Scope = true, ScopeFov = 12, ZoomFov = 12, Sight = "Scope",
 		Color = Color3.fromRGB(60, 64, 52), Size = Vector3.new(0.35, 0.6, 4.3),
 	},
@@ -105,5 +105,15 @@ Weapons.Default = "Pistol"
 function Weapons.Get(id)
 	return Weapons.ById[id] or Weapons.ById[Weapons.Default]
 end
+
+-- 칼: 모든 플레이어가 경기 중 항상 갖고 있는 보조 무기 (X 키로 총 ↔ 칼). 상점·무기 목록에는 없음
+-- 좌클릭 = 베기, 우클릭 = 강하게 찌르기. 칼을 들면 조금 더 빨리 달림
+Weapons.Knife = {
+	Id = "Knife", Name = "택티컬 나이프", Class = "칼", Melee = true,
+	Damage = 50, Interval = 0.45,             -- 베기
+	HeavyDamage = 80, HeavyInterval = 1.0,    -- 찌르기
+	BackMul = 1.5,                            -- 등 뒤에서 찌르면 1.5배
+	Range = 6.5, SpeedMul = 1.12,
+}
 
 return Weapons

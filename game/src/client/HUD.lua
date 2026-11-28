@@ -485,7 +485,7 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 	specialLbl.Text = sp >= 1 and "준비 완료!" or string.format("크로마 봄 %d%%", math.floor(sp * 100))
 	specialLbl.TextColor3 = sp >= 1 and Color3.fromRGB(255, 225, 80) or Color3.new(1, 1, 1)
 	local w = Weapons.Get(weaponId)
-	weaponLbl.Text = player:GetAttribute("Golden") and "황금총" or w.Class
+	weaponLbl.Text = player:GetAttribute("Melee") and "칼 [X]" or (player:GetAttribute("Golden") and "황금총" or w.Class)
 	-- 경험치
 	local lv, xp, need = player:GetAttribute("Level") or 1, player:GetAttribute("XP") or 0, player:GetAttribute("XPNeed") or 100
 	levelLbl.Text = "레벨 " .. lv
@@ -647,7 +647,7 @@ function HUD.DeathCard(d)
 	corner(c, 16)
 	make("UIStroke", { Thickness = 3, Color = d.KillerColor or Color3.fromRGB(255, 80, 110) }, c)
 	UI.Icon(c, "skull", "", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(16, 7) })
-	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래시 당했다!", Font = Enum.Font.FredokaOne,
+	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래쉬 당했다!", Font = Enum.Font.FredokaOne,
 		TextColor3 = Color3.fromRGB(255, 120, 150), TextXAlignment = Enum.TextXAlignment.Left })
 	local who = make("Frame", { Size = UDim2.fromOffset(170, 36), Position = UDim2.fromOffset(16, 46), BackgroundColor3 = d.KillerColor or Color3.fromRGB(90, 90, 110) }, c)
 	corner(who, 10)
@@ -879,14 +879,16 @@ function HUD.RefreshWeaponCard()
 	end
 	local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
-	if player:GetAttribute("Golden") then
+	if player:GetAttribute("Melee") then
+		UI.ModelImage(weaponCard.Pic, ModelKit.Knife(player:GetAttribute("TeamColor") or Color3.new(1, 1, 1)), UDim2.fromScale(1, 1), math.rad(90))
+	elseif player:GetAttribute("Golden") then
 		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
 	else
 		local wid = player:GetAttribute("Weapon") or "Pistol"
 		UI.GunImage(weaponCard.Pic, wid, player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, wid))
 	end
 end
-for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor" }) do
+for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor", "Melee" }) do
 	player:GetAttributeChangedSignal(a):Connect(function()
 		HUD.RefreshWeaponCard()
 	end)

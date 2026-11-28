@@ -43,7 +43,11 @@
   "fire_k14",
   "fire_k5",
   "hit_real",
-  "hit_real_head"
+  "hit_real_head",
+  "knife_swing",
+  "knife_hit",
+  "knife_draw",
+  "slide"
  ],
  "seconds": {
   "fire_pistol": 0.4,
@@ -89,7 +93,11 @@
   "fire_k14": 1.78,
   "fire_k5": 0.73,
   "hit_real": 0.09,
-  "hit_real_head": 0.35
+  "hit_real_head": 0.35,
+  "knife_swing": 0.26,
+  "knife_hit": 0.26,
+  "knife_draw": 0.53,
+  "slide": 0.6
  },
  "note": "synthesised by tools/make_sfx.py, no samples"
 }

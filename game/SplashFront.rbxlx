@@ -371,7 +371,7 @@ Config.Monetization = {
 -- 음원은 Kaggle(ACE-Step 1.5)로 만들어 Open Cloud로 업로드 → AssetIds.Music 에 자동 기록 (MusicPlayer가 재생)
 Config.Music = {
 	Volume = 0.35,
-	FinalSplashSpeed = 1.12, -- 파이널 스플래시 구간 재생 속도
+	FinalSplashSpeed = 1.12, -- 파이널 스플래쉬 구간 재생 속도
 }
 
 -- 효과음 (원하는 에셋 ID로 교체 가능)
@@ -939,6 +939,51 @@ function ModelKit.ApplyLook(model, look)
 	end
 end
 
+-- 택티컬 나이프: 손잡이(고무 그립) + 금속 가드 + 블레이드(끝이 뾰족) + 팀 색 네온 날 라인
+-- 손잡이 가운데가 원점(Anchor), 날은 모델의 앞(-Z)
+function ModelKit.Knife(accent)
+	local m = Instance.new("Model")
+	m.Name = "Knife"
+	local function kp(name, kind, size, cf, color, mat, cls)
+		local p = Instance.new(cls or "Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = cf
+		p.Color = color
+		p.Material = mat
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Massless = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p:SetAttribute("Kind", kind)
+		p.Parent = m
+		return p
+	end
+	local anchor = kp("Anchor", "Anchor", Vector3.new(0.1, 0.1, 0.1), CFrame.new(), Color3.new(), Enum.Material.SmoothPlastic)
+	anchor.Transparency = 1
+	-- 손잡이 (홈 파인 그립 3마디)
+	kp("Grip", "Body", Vector3.new(0.2, 0.26, 0.62), CFrame.new(0, 0, 0.05), Color3.fromRGB(30, 30, 36), Enum.Material.Fabric)
+	for i = -1, 1 do
+		kp("GripRing", "Accent", Vector3.new(0.21, 0.27, 0.04), CFrame.new(0, 0, 0.05 + i * 0.18), accent, Enum.Material.Neon)
+	end
+	kp("Pommel", "Metal", Vector3.new(0.24, 0.3, 0.1), CFrame.new(0, 0, 0.4), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
+	-- 가드
+	kp("Guard", "Metal", Vector3.new(0.14, 0.5, 0.08), CFrame.new(0, 0.04, -0.3), Color3.fromRGB(150, 155, 168), Enum.Material.Metal)
+	-- 블레이드: 몸통 + 뾰족한 끝(쐐기) + 등날
+	local steel = Color3.fromRGB(205, 212, 225)
+	kp("Blade", "Metal", Vector3.new(0.05, 0.28, 0.78), CFrame.new(0, 0.04, -0.73), steel, Enum.Material.Metal)
+	kp("Tip", "Metal", Vector3.new(0.05, 0.28, 0.3), CFrame.new(0, 0.04, -1.27), steel, Enum.Material.Metal, "WedgePart")
+	kp("Spine", "Body", Vector3.new(0.07, 0.05, 0.8), CFrame.new(0, 0.18, -0.72), Color3.fromRGB(40, 42, 50), Enum.Material.Metal)
+	-- 날 끝선 (팀 색으로 빛남)
+	kp("Edge", "Accent", Vector3.new(0.06, 0.035, 0.98), CFrame.new(0, -0.1, -0.82), accent, Enum.Material.Neon)
+	m.PrimaryPart = anchor
+	return m
+end
+
 -- weaponId: "Pistol" …, accent: 팀 색, skin: Cosmetics 아이템(선택), look: 무기별 스킨(WeaponSkins.Look, 있으면 우선)
 function ModelKit.Gun(weaponId, accent, skin, skinMaterial, look)
 	local w = Weapons.Get(weaponId)
@@ -1274,18 +1319,18 @@ end
 -- Body/BodyMat: 몸체, Metal/MetalMat: 금속 부품, Accent: 발광 라인(없으면 팀 색), Particle: 입자 색, Finisher: 처치 연출
 WeaponSkins.Lines = {
 	{ Id = "SteelWave", Name = "스틸 웨이브", Tier = "Standard", Desc = "빛을 머금은 헤어라인 스틸",
-		Variants = { { Name = "기본", Body = c(178, 184, 196), BodyMat = "Metal", Metal = c(70, 74, 86), MetalMat = "Metal" } } },
+		Variants = { { Name = "기본", Body = c(178, 184, 196), BodyMat = "Metal", Metal = c(110, 116, 130), MetalMat = "Metal" } } },
 	{ Id = "DesertRanger", Name = "데저트 레인저", Tier = "Standard", Desc = "모래바람을 견디는 전술 도장",
 		Variants = { { Name = "기본", Body = c(196, 168, 120), BodyMat = "Fabric", Metal = c(84, 82, 60), MetalMat = "Metal" } } },
 	{ Id = "BlackOnyx", Name = "블랙 오닉스", Tier = "Deluxe", Desc = "무광 블랙에 금빛 부품",
-		Variants = { { Name = "기본", Body = c(24, 24, 28), BodyMat = "SmoothPlastic", Metal = c(230, 180, 70), MetalMat = "Foil" } } },
+		Variants = { { Name = "기본", Body = c(52, 52, 62), BodyMat = "SmoothPlastic", Metal = c(240, 190, 80), MetalMat = "Foil" } } },
 	{ Id = "SakuraBloom", Name = "사쿠라 블룸", Tier = "Deluxe", Desc = "벚꽃 대리석과 진주빛 금속",
 		Variants = { { Name = "기본", Body = c(255, 176, 205), BodyMat = "Marble", Metal = c(240, 236, 245), MetalMat = "Metal" } } },
 	{ Id = "NeonPulse", Name = "네온 펄스", Tier = "Premium", Desc = "어둠 속에서 맥박처럼 빛나는 네온 라인",
 		Variants = {
-			{ Name = "마젠타", Body = c(20, 18, 34), BodyMat = "Glass", Metal = c(44, 40, 66), MetalMat = "Metal", Accent = c(255, 40, 200) },
-			{ Name = "시안", Body = c(14, 24, 36), BodyMat = "Glass", Metal = c(36, 50, 70), MetalMat = "Metal", Accent = c(40, 230, 255) },
-			{ Name = "라임", Body = c(18, 28, 18), BodyMat = "Glass", Metal = c(40, 60, 40), MetalMat = "Metal", Accent = c(170, 255, 50) },
+			{ Name = "마젠타", Body = c(62, 52, 100), BodyMat = "SmoothPlastic", Metal = c(96, 90, 130), MetalMat = "Metal", Accent = c(255, 40, 200) },
+			{ Name = "시안", Body = c(40, 70, 110), BodyMat = "SmoothPlastic", Metal = c(86, 110, 140), MetalMat = "Metal", Accent = c(40, 230, 255) },
+			{ Name = "라임", Body = c(50, 84, 50), BodyMat = "SmoothPlastic", Metal = c(96, 124, 96), MetalMat = "Metal", Accent = c(170, 255, 50) },
 		} },
 	{ Id = "FrostCrystal", Name = "프로스트 크리스탈", Tier = "Premium", Desc = "얼음 결정으로 깎아 만든 총",
 		Variants = {
@@ -1296,16 +1341,16 @@ WeaponSkins.Lines = {
 	{ Id = "InfernoCore", Name = "인페르노 코어", Tier = "Ultimate", Desc = "갈라진 용암 사이로 불씨가 흩날림 · 처치 시 화염 기둥",
 		Finisher = "Inferno",
 		Variants = {
-			{ Name = "화염", Body = c(255, 90, 20), BodyMat = "CrackedLava", Metal = c(40, 30, 30), MetalMat = "Metal", Accent = c(255, 140, 30), Particle = c(255, 150, 40) },
-			{ Name = "청염", Body = c(40, 140, 255), BodyMat = "CrackedLava", Metal = c(26, 30, 46), MetalMat = "Metal", Accent = c(80, 190, 255), Particle = c(90, 200, 255) },
-			{ Name = "흑염", Body = c(150, 40, 255), BodyMat = "CrackedLava", Metal = c(20, 16, 26), MetalMat = "Metal", Accent = c(190, 90, 255), Particle = c(200, 120, 255) },
+			{ Name = "화염", Body = c(255, 90, 20), BodyMat = "CrackedLava", Metal = c(96, 76, 70), MetalMat = "Metal", Accent = c(255, 140, 30), Particle = c(255, 150, 40) },
+			{ Name = "청염", Body = c(40, 140, 255), BodyMat = "CrackedLava", Metal = c(70, 80, 110), MetalMat = "Metal", Accent = c(80, 190, 255), Particle = c(90, 200, 255) },
+			{ Name = "흑염", Body = c(150, 40, 255), BodyMat = "CrackedLava", Metal = c(80, 66, 100), MetalMat = "Metal", Accent = c(190, 90, 255), Particle = c(200, 120, 255) },
 		} },
 	{ Id = "ChromaGalaxy", Name = "크로마 갤럭시", Tier = "Ultimate", Desc = "별빛이 흐르는 우주 도장 · 처치 시 은하 폭발",
 		Finisher = "Galaxy",
 		Variants = {
-			{ Name = "갤럭시", Body = c(60, 30, 140), BodyMat = "Glass", Metal = c(30, 24, 60), MetalMat = "Metal", Accent = c(150, 110, 255), Particle = c(230, 220, 255) },
-			{ Name = "오로라", Body = c(20, 110, 120), BodyMat = "Glass", Metal = c(18, 40, 50), MetalMat = "Metal", Accent = c(60, 255, 200), Particle = c(180, 255, 230) },
-			{ Name = "선셋", Body = c(200, 70, 110), BodyMat = "Glass", Metal = c(60, 26, 40), MetalMat = "Metal", Accent = c(255, 170, 60), Particle = c(255, 220, 160) },
+			{ Name = "갤럭시", Body = c(110, 70, 220), BodyMat = "SmoothPlastic", Metal = c(80, 70, 130), MetalMat = "Metal", Accent = c(150, 110, 255), Particle = c(230, 220, 255) },
+			{ Name = "오로라", Body = c(40, 175, 185), BodyMat = "SmoothPlastic", Metal = c(60, 100, 110), MetalMat = "Metal", Accent = c(60, 255, 200), Particle = c(180, 255, 230) },
+			{ Name = "선셋", Body = c(230, 100, 140), BodyMat = "SmoothPlastic", Metal = c(120, 60, 80), MetalMat = "Metal", Accent = c(255, 170, 60), Particle = c(255, 220, 160) },
 		} },
 }
 
@@ -1428,10 +1473,10 @@ Weapons.List = {
 	},
 	{
 		Id = "Sniper", Name = "롱샷 차저", Class = "저격총", Price = 3000,
-		Damage = 85, HeadMul = 1.8, FireInterval = 1.2, Range = 240,
-		InkCost = 14, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
-		HipSpread = 1.2, Pellets = 1, Splash = 0, Recoil = 5, Auto = false, PathPaint = true,
-		PathStep = 10, PathRadius = 2, PathMax = 120, -- CBT 1차: 탄도 칠하기 축소(간격 7→10, 반경 2.5→2, 최대 120)
+		Damage = 85, HeadMul = 1.8, BodyMul = 0.5, FireInterval = 1.2, Range = 240, -- 헤드샷이 아니면 피해 50%
+		InkCost = 14, PaintRadius = 4, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
+		HipSpread = 1.2, Pellets = 1, Splash = 0, Recoil = 7, KickUp = 3.2, Auto = false, PathPaint = true, -- KickUp: 쏠 때마다 조준이 위로 튐(복귀 안 됨)
+		PathStep = 10, PathRadius = 1.6, PathMax = 50, PaintRange = 110, -- 탄도 칠하기 50까지, 110보다 먼 착탄은 칠하지 않음
 		Scope = true, ScopeFov = 16, ZoomFov = 16, Sight = "Scope", -- 0.5: 확대 강화
 		Color = Color3.fromRGB(30, 30, 36), Size = Vector3.new(0.35, 0.6, 3.6),
 	},
@@ -1469,10 +1514,10 @@ Weapons.List = {
 	},
 	{
 		Id = "K14", Name = "K14 저격소총", Class = "저격총", Price = 5000, StoreModel = "K14", ModelLength = 4.3,
-		Damage = 100, HeadMul = 1.6, FireInterval = 1.5, Range = 260,
-		InkCost = 16, PaintRadius = 5, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
-		HipSpread = 1.4, Pellets = 1, Splash = 0, Recoil = 5.5, Auto = false, PathPaint = true,
-		PathStep = 10, PathRadius = 2, PathMax = 120,
+		Damage = 100, HeadMul = 1.6, BodyMul = 0.5, FireInterval = 1.5, Range = 260, -- 헤드샷이 아니면 피해 50%
+		InkCost = 16, PaintRadius = 4, Spread = 0, SpreadGrow = 0, SpreadMax = 0,
+		HipSpread = 1.4, Pellets = 1, Splash = 0, Recoil = 7.5, KickUp = 3.6, Auto = false, PathPaint = true,
+		PathStep = 10, PathRadius = 1.6, PathMax = 50, PaintRange = 110,
 		Scope = true, ScopeFov = 12, ZoomFov = 12, Sight = "Scope",
 		Color = Color3.fromRGB(60, 64, 52), Size = Vector3.new(0.35, 0.6, 4.3),
 	},
@@ -1495,6 +1540,16 @@ Weapons.Default = "Pistol"
 function Weapons.Get(id)
 	return Weapons.ById[id] or Weapons.ById[Weapons.Default]
 end
+
+-- 칼: 모든 플레이어가 경기 중 항상 갖고 있는 보조 무기 (X 키로 총 ↔ 칼). 상점·무기 목록에는 없음
+-- 좌클릭 = 베기, 우클릭 = 강하게 찌르기. 칼을 들면 조금 더 빨리 달림
+Weapons.Knife = {
+	Id = "Knife", Name = "택티컬 나이프", Class = "칼", Melee = true,
+	Damage = 50, Interval = 0.45,             -- 베기
+	HeavyDamage = 80, HeavyInterval = 1.0,    -- 찌르기
+	BackMul = 1.5,                            -- 등 뒤에서 찌르면 1.5배
+	Range = 6.5, SpeedMul = 1.12,
+}
 
 return Weapons
 ]]></ProtectedString></Properties></Item></Item></Item><Item class="ReplicatedFirst" referent="RBX10"><Properties><string name="Name">ReplicatedFirst</string></Properties><Item class="LocalScript" referent="RBX9"><Properties><string name="Name">Loading</string><bool name="Disabled">false</bool><ProtectedString name="Source"><![CDATA[-- 접속 연출 (ReplicatedFirst): 기본 로딩 화면 대신 SF 로딩 화면을 띄우고, 캐릭터가 로비에 생기면
@@ -2863,10 +2918,12 @@ function CombatService.Fire(e, origin, directions, claims)
 						if isHead then
 							e.Headshots = (e.Headshots or 0) + 1
 						end
-						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or 1))
+						local dmg = golden and 9999 or (w.Damage * (isHead and w.HeadMul or (w.BodyMul or 1)))
 						CombatService.Damage(e, victim, dmg, isHead, endPos)
 						PaintService.PaintBelow(endPos, 2.5, e.OwnerId, e)
 					end
+				elseif w.PaintRange and (endPos - origin).Magnitude > w.PaintRange then
+					-- 페인트 사거리 밖: 칠하지 않음 (저격총)
 				elseif result.Normal.Y > 0.5 then
 					PaintService.PaintAt(endPos, w.PaintRadius, e.OwnerId, e)
 				else
@@ -2879,7 +2936,9 @@ function CombatService.Fire(e, origin, directions, claims)
 				end
 			else
 				endPos = origin + dir * range
-				PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
+				if not w.PaintRange or range <= w.PaintRange then
+					PaintService.PaintBelow(endPos, w.PaintRadius * 0.7, e.OwnerId, e)
+				end
 			end
 			if w.PathPaint then
 				local dist = math.min((endPos - origin).Magnitude, w.PathMax or 240)
@@ -2907,8 +2966,8 @@ function CombatService.OnPlayerFire(player, weaponId, origin, directions, claims
 	if not e or typeof(origin) ~= "Vector3" or type(directions) ~= "table" then
 		return
 	end
-	if weaponId ~= e.WeaponId then
-		return
+	if weaponId ~= e.WeaponId or e.Melee then
+		return -- 칼을 든 동안에는 총을 쏠 수 없음
 	end
 	CombatService.Fire(e, origin, directions, claims)
 end
@@ -3997,7 +4056,7 @@ local QuestService = require(Services.QuestService)
 -- 원격 이벤트
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
-for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem" }) do
+for _, name in ipairs({ "Fire", "Special", "FX", "HitConfirm", "Damaged", "State", "Results", "Notify", "Queue", "CrateResult", "Telemetry", "SwitchWeapon", "UseItem", "Melee" }) do
 	local r = Instance.new("RemoteEvent")
 	r.Name = name
 	r.Parent = remotes
@@ -4007,7 +4066,7 @@ do
 	local pose = Instance.new("UnreliableRemoteEvent")
 	pose.Name = "Pose"
 	pose.Parent = remotes
-	local STANCES = { Normal = true, Run = true, Walk = true, Crouch = true }
+	local STANCES = { Normal = true, Run = true, Walk = true, Crouch = true, Slide = true }
 	pose.OnServerEvent:Connect(function(pl, pitch, stance)
 		if type(pitch) == "number" and pitch == pitch then
 			local p = math.clamp(math.floor(pitch + 0.5), -70, 70)
@@ -6360,14 +6419,31 @@ end
 -- 손에 든 총: 팔을 앞으로 든 자세(클라이언트 CharacterPose)에서 총구가 정면을 향하도록
 -- 손의 -Y(손끝 방향)를 총의 앞(-Z)으로 맞춤
 local GUN_GRIP = CFrame.new(0, -0.35, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
+local KNIFE_GRIP = CFrame.new(0, -0.3, -0.05) * CFrame.Angles(math.rad(-90), 0, 0)
 local function attachGun(e, model)
-	local old = model:FindFirstChild("SF_Gun")
-	if old then
-		old:Destroy()
+	for _, n in ipairs({ "SF_Gun", "SF_Knife" }) do
+		local old = model:FindFirstChild(n)
+		if old then
+			old:Destroy()
+		end
 	end
 	local color = MatchService.ColorOf(e.OwnerId)
 	local hand = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm")
-	if hand then
+	-- 칼은 항상 몸에 지님: 칼을 들면 손에, 총을 들면 오른쪽 허벅지 칼집에
+	if e.Player then
+		local knife = ModelKit.Knife(color)
+		knife.Name = "SF_Knife"
+		local thigh = model:FindFirstChild("RightUpperLeg") or model:FindFirstChild("Right Leg")
+		knife:SetAttribute("InHand", e.Melee == true and hand ~= nil)
+		if e.Melee and hand then
+			ModelKit.WeldTo(knife, hand, KNIFE_GRIP)
+		elseif thigh then
+			ModelKit.WeldTo(knife, thigh, CFrame.new(thigh.Size.X / 2 + 0.06, 0.1, 0) * CFrame.Angles(math.rad(-90), 0, 0))
+		else
+			knife:Destroy()
+		end
+	end
+	if hand and not e.Melee then
 		local skin = e.Player and Cosmetics.ById[e.Player:GetAttribute("Skin") or ""] or nil
 		local look = e.Player and WeaponSkins.LookFor(e.Player, e.WeaponId) or nil
 		local gun = ModelKit.Gun(e.WeaponId, color, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
@@ -6524,6 +6600,11 @@ local function activate(e, model)
 		end
 	end)
 	teamVest(model, MatchService.ColorOf(e.OwnerId))
+	-- 부활하면 항상 총을 든 상태로 시작
+	e.Melee = false
+	if e.Player then
+		e.Player:SetAttribute("Melee", false)
+	end
 	local okGear, gearErr = pcall(attachGear, e, model)
 	if not okGear then
 		warn("[SplashFront] 장비 부착 실패:", gearErr)
@@ -6624,11 +6705,11 @@ onDied = function(e, model)
 		Victim = e.Name,
 		VictimColor = MatchService.ColorOf(e.OwnerId),
 		Head = e.LastHeadshot,
-		Effect = killer and ((killer.Player and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
-		Weapon = killer and Weapons.Get(killer.WeaponId).Name or nil,
-		WeaponId = killer and killer.WeaponId or nil,
+		Effect = killer and ((killer.Player and not killer.Melee and (WeaponSkins.LookFor(killer.Player, killer.WeaponId) or {}).Finisher) or killer.KillEffect) or nil,
+		Weapon = killer and (killer.Melee and Weapons.Knife.Name or Weapons.Get(killer.WeaponId).Name) or nil,
+		WeaponId = killer and (killer.Melee and "Knife" or killer.WeaponId) or nil,
 		KillerStreak = killer and killer.Streak or 0,
-		WeaponClass = killer and Weapons.Get(killer.WeaponId).Class or nil,
+		WeaponClass = killer and (killer.Melee and Weapons.Knife.Class or Weapons.Get(killer.WeaponId).Class) or nil,
 		Pos = root and root.Position or nil,
 		KillerPlayer = killer and killer.Player or nil,
 		VictimPlayer = e.Player,
@@ -6648,9 +6729,129 @@ end
 ------------------------------------------------------------------------
 -- 깃발 (플래그 러시)
 ------------------------------------------------------------------------
+-- 깃발 위치를 매 경기 무작위로: 칠할 수 있는 바닥 칸 중에서 서로 최대한 멀리 떨어지게 고름
+-- (양 팀 스폰과 너무 가까운 곳 제외, 두 팀에서의 거리가 비슷하도록 여러 번 뽑아 가장 좋은 배치 선택)
+local function pickFlagPositions(count)
+	local cells = arena.Cells and arena.Cells:GetChildren() or {}
+	local spawnsA = arena.Spawns and arena.Spawns[1] or {}
+	local spawnsB = arena.Spawns and arena.Spawns[2] or {}
+	if #cells < 20 or #spawnsA == 0 or #spawnsB == 0 then
+		return nil
+	end
+	local function center(list)
+		local sum = Vector3.zero
+		for _, cf in ipairs(list) do
+			sum = sum + cf.Position
+		end
+		return sum / #list
+	end
+	local baseA, baseB = center(spawnsA), center(spawnsB)
+	local function flat(v)
+		return Vector3.new(v.X, 0, v.Z)
+	end
+	local span = (flat(baseA) - flat(baseB)).Magnitude
+	-- 높이: 대부분의 칸이 있는 높이 근처만 (외딴 지붕 등 못 가는 곳 제외)
+	local ys = {}
+	for _, c in ipairs(cells) do
+		table.insert(ys, c.Position.Y)
+	end
+	table.sort(ys)
+	local midY = ys[math.floor(#ys / 2) + 1]
+	local keep = math.max(18, span * 0.12) -- 스폰과 이 거리 이상 떨어진 곳만
+	local cands = {}
+	for _, c in ipairs(cells) do
+		local pos = c.Position
+		if math.abs(pos.Y - midY) <= 14 and (flat(pos) - flat(baseA)).Magnitude > keep and (flat(pos) - flat(baseB)).Magnitude > keep then
+			table.insert(cands, c)
+		end
+	end
+	if #cands < count * 4 then
+		return nil
+	end
+	-- 깃대(12칸)가 천장·지붕에 걸리지 않는 열린 곳만
+	local skyParams = RaycastParams.new()
+	skyParams.FilterType = Enum.RaycastFilterType.Exclude
+	skyParams.FilterDescendantsInstances = { arena.Cells, workspace:FindFirstChild("FX") }
+	local skyCache = {}
+	local function openSky(c)
+		local v = skyCache[c]
+		if v == nil then
+			v = workspace:Raycast(c.Position + Vector3.new(0, 1, 0), Vector3.new(0, 16, 0), skyParams) == nil
+			skyCache[c] = v
+		end
+		return v
+	end
+	local rng = Random.new()
+	local best, bestScore = nil, -math.huge
+	for _ = 1, 24 do
+		local first = cands[rng:NextInteger(1, #cands)]
+		for _ = 1, 20 do
+			if openSky(first) then
+				break
+			end
+			first = cands[rng:NextInteger(1, #cands)]
+		end
+		local chosen = { first }
+		while #chosen < count do
+			-- 지금까지 고른 깃발들과의 최소 거리가 큰 후보들 중 상위에서 무작위
+			local scored = {}
+			for i = 1, math.min(#cands, 400) do
+				local c = cands[rng:NextInteger(1, #cands)]
+				local md = openSky(c) and math.huge or -1
+				if md > 0 then
+					for _, o in ipairs(chosen) do
+						md = math.min(md, (flat(c.Position) - flat(o.Position)).Magnitude)
+					end
+				end
+				scored[i] = { c, md }
+			end
+			table.sort(scored, function(a, b)
+				return a[2] > b[2]
+			end)
+			table.insert(chosen, scored[rng:NextInteger(1, math.max(1, math.floor(#scored * 0.08)))][1])
+		end
+		local minPair, da, db = math.huge, 0, 0
+		for i, c in ipairs(chosen) do
+			da = da + (flat(c.Position) - flat(baseA)).Magnitude
+			db = db + (flat(c.Position) - flat(baseB)).Magnitude
+			for j = i + 1, #chosen do
+				minPair = math.min(minPair, (flat(c.Position) - flat(chosen[j].Position)).Magnitude)
+			end
+		end
+		local score = minPair - math.abs(da - db) * 0.6
+		if score > bestScore then
+			best, bestScore = chosen, score
+		end
+	end
+	if not best then
+		return nil
+	end
+	-- 이름은 A(팀1 쪽) → C(가운데) → B(팀2 쪽) 순으로
+	local axis = flat(baseB - baseA).Unit
+	table.sort(best, function(a, b)
+		return (a.Position - baseA):Dot(axis) < (b.Position - baseA):Dot(axis)
+	end)
+	local out = {}
+	for i, c in ipairs(best) do
+		out[i] = c.Position + Vector3.new(0, c.Size.Y / 2, 0)
+	end
+	return out
+end
+
 local function buildFlags()
 	local fx = workspace:FindFirstChild("FX")
+	local picked = pickFlagPositions(#arena.FlagPoints)
+	local names = {}
 	for _, def in ipairs(arena.FlagPoints) do
+		table.insert(names, def.Name)
+	end
+	-- 원래 정의 순서(A, C, B)를 축 순서(팀1 → 팀2)에 맞게: A, C, B
+	local axisNames = { "A", "C", "B" }
+	for i, def0 in ipairs(arena.FlagPoints) do
+		local def = def0
+		if picked and picked[i] then
+			def = { Name = (#arena.FlagPoints == 3) and axisNames[i] or names[i], Position = picked[i] }
+		end
 		local model = Instance.new("Model")
 		model.Name = "Flag_" .. def.Name
 		local base = Instance.new("Part")
@@ -7371,6 +7572,58 @@ local function canSwitch(e)
 	return (os.clock() - (e.SpawnedAt or 0)) <= Config.WeaponSwitchGrace or nearOwnSpawn(e)
 end
 
+-- 칼: "equip"(true/false) = 총 ↔ 칼 전환, "swing"(대상 모델, 강공격 여부) = 근접 공격
+-- 서버가 거리·방향·쿨타임을 직접 검사해서 인정
+local function onMelee(player, action, a, b)
+	local e = Combatants.FromPlayer(player)
+	if not e or not e.Alive or not e.Model then
+		return
+	end
+	local K = Weapons.Knife
+	if action == "equip" then
+		local on = a == true
+		if e.Melee == on then
+			return
+		end
+		e.Melee = on
+		player:SetAttribute("Melee", on)
+		pcall(attachGun, e, e.Model)
+		return
+	end
+	if action ~= "swing" or not e.Melee then
+		return
+	end
+	local heavy = b == true
+	local now = os.clock()
+	local interval = heavy and K.HeavyInterval or K.Interval
+	if now - (e.LastMelee or 0) < interval * 0.8 then
+		return
+	end
+	e.LastMelee = now
+	remotes.FX:FireAllClients("Slash", { Model = e.Model, Heavy = heavy, Color = MatchService.ColorOf(e.OwnerId), Shooter = player })
+	if typeof(a) ~= "Instance" then
+		return -- 허공 베기
+	end
+	local victim = Combatants.FromModel(a)
+	local root = e.Model:FindFirstChild("HumanoidRootPart")
+	local vroot = victim and victim.Model and victim.Model:FindFirstChild("HumanoidRootPart")
+	if not victim or not victim.Alive or not root or not vroot or not Combatants.IsEnemy(e, victim) then
+		return
+	end
+	local diff = vroot.Position - root.Position
+	if diff.Magnitude > K.Range + 3 then
+		return -- 지연을 감안해도 너무 멂
+	end
+	local dmg = heavy and K.HeavyDamage or K.Damage
+	-- 등 뒤 공격: 상대가 바라보는 방향과 같은 쪽에서 찌르면 더 큰 피해
+	local flat = Vector3.new(diff.X, 0, diff.Z)
+	if flat.Magnitude > 0.1 and vroot.CFrame.LookVector:Dot(flat.Unit) > 0.5 then
+		dmg = dmg * K.BackMul
+	end
+	CombatService.Damage(e, victim, dmg, false, vroot.Position)
+	PaintService.PaintBelow(vroot.Position, 3, e.OwnerId, e)
+end
+
 local function switchWeapon(player, weaponId)
 	local e = Combatants.FromPlayer(player)
 	local w = Weapons.ById[weaponId]
@@ -7388,6 +7641,8 @@ local function switchWeapon(player, weaponId)
 	end
 	e.WeaponId = w.Id
 	e.Ink = Config.InkMax
+	e.Melee = false
+	player:SetAttribute("Melee", false)
 	p.Equipped = w.Id
 	DataService.Publish(player)
 	player:SetAttribute("Weapon", w.Id)
@@ -7464,6 +7719,7 @@ function MatchService.Init(remoteFolder, mapList, lobbyInfo)
 		end
 	end)
 	remotes.SwitchWeapon.OnServerEvent:Connect(switchWeapon)
+	remotes.Melee.OnServerEvent:Connect(onMelee)
 	for _, ent in ipairs(lobby.QueuePadList) do
 		local id, side = ent.Queue, ent.Side
 		ent.Pad.Touched:Connect(function(hit)
@@ -7607,7 +7863,7 @@ function MatchService.Run()
 					if not S.FinalSplash and left <= Config.FinalSplashTime then
 						S.FinalSplash = true
 						PaintService.SetRadiusMultiplier(Config.FinalSplashMul)
-						announce("파이널 스플래시! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
+						announce("파이널 스플래쉬! 페인트 범위 1.5배", Color3.fromRGB(255, 220, 60))
 						remotes.FX:FireAllClients("Cue", { Name = "final_splash", Volume = 0.8 })
 					end
 					if S.Mode == "Flag" then
@@ -7794,7 +8050,7 @@ local MISSIONS = {
 		end,
 	},
 	{
-		Id = "Hunt", Name = "스플래시 헌트", Duration = 25, Bonus = 3,
+		Id = "Hunt", Name = "스플래쉬 헌트", Duration = 25, Bonus = 3,
 		Desc = "먼저 3킬을 달성하라!",
 		Begin = function(ctx)
 			ctx.Kills = {}
@@ -9510,10 +9766,18 @@ local kicks = setmetatable({}, { __mode = "k" })  -- model -> 반동 각도(도)
 local cache = setmetatable({}, { __mode = "k" })  -- model -> 관절
 local smooth = setmetatable({}, { __mode = "k" }) -- model -> { Pitch, Run, Crouch, Walk }
 local localStance = "Normal"
+local slashes = setmetatable({}, { __mode = "k" }) -- model -> { T = 1→0, Heavy }
 
 function Pose.Kick(model, recoil)
 	if model then
 		kicks[model] = math.min(28, (kicks[model] or 0) + 7 + (recoil or 1) * 2.5)
+	end
+end
+
+-- 칼 휘두르기 (다른 사람에게도 보이는 3인칭 동작)
+function Pose.Slash(model, heavy)
+	if model then
+		slashes[model] = { T = 1, Heavy = heavy == true, Side = -((slashes[model] and slashes[model].Side) or -1) }
 	end
 end
 
@@ -9549,8 +9813,13 @@ local function jointsOf(model)
 	return j
 end
 
+local function knifeInHand(model)
+	local k = model and model:FindFirstChild("SF_Knife")
+	return k ~= nil and k:GetAttribute("InHand") == true
+end
+
 local function armed(model)
-	if not model or not model:FindFirstChild("SF_Gun") then
+	if not model or not (model:FindFirstChild("SF_Gun") or knifeInHand(model)) then
 		return false
 	end
 	local hum = model:FindFirstChildOfClass("Humanoid")
@@ -9568,7 +9837,7 @@ local function pose(model, pitchDeg, stance, dt)
 	end
 	local sm = smooth[model]
 	if not sm then
-		sm = { Pitch = pitchDeg, Run = 0, Crouch = 0, Walk = 0, T = 0 }
+		sm = { Pitch = pitchDeg, Run = 0, Crouch = 0, Walk = 0, Slide = 0, T = 0 }
 		smooth[model] = sm
 	end
 	local k = 1 - math.exp(-12 * dt)
@@ -9576,6 +9845,7 @@ local function pose(model, pitchDeg, stance, dt)
 	sm.Run = sm.Run + (((stance == "Run") and 1 or 0) - sm.Run) * k
 	sm.Crouch = sm.Crouch + (((stance == "Crouch") and 1 or 0) - sm.Crouch) * k
 	sm.Walk = sm.Walk + (((stance == "Walk") and 1 or 0) - sm.Walk) * k
+	sm.Slide = sm.Slide + (((stance == "Slide") and 1 or 0) - sm.Slide) * (1 - math.exp(-18 * dt))
 	local kick = kicks[model] or 0
 	if kick > 0.05 then
 		kicks[model] = kick * math.exp(-14 * dt)
@@ -9600,24 +9870,77 @@ local function pose(model, pitchDeg, stance, dt)
 		j.Neck.Transform = CFrame.Angles(rad(p * 0.35 + run * 10 + crouch * 6), 0, 0)
 	end
 
+	-- 칼을 든 경우: 오른팔은 칼을 앞쪽 아래로 쥐고, 휘두르면 크게 가로지름
+	if knifeInHand(model) then
+		local sl = slashes[model]
+		local s, sweep = 0, 0
+		if sl then
+			sl.T = sl.T - dt / (sl.Heavy and 0.42 or 0.3)
+			if sl.T <= 0 then
+				slashes[model] = nil
+			else
+				local prog = 1 - sl.T
+				s = math.sin(prog * math.pi)
+				sweep = (prog - 0.5) * 2 * sl.Side
+			end
+		end
+		local heavy = sl and sl.Heavy
+		local raise = 45 + p * 0.3 - run * 25 + (heavy and 50 * s or 35 * s)
+		j.RS.Transform = CFrame.Angles(0, rad(heavy and 0 or -55 * sweep), 0) * CFrame.Angles(rad(raise), 0, 0)
+		if j.RE then
+			j.RE.Transform = CFrame.Angles(rad(heavy and 10 * (1 - s) or 25), 0, 0)
+		end
+		if j.LS then
+			j.LS.Transform = CFrame.Angles(0, rad(-20), 0) * CFrame.Angles(rad(35 - run * 20), 0, 0)
+		end
+		if j.LE then
+			j.LE.Transform = CFrame.Angles(rad(40), 0, 0)
+		end
+	end
+
 	-- 팔: 조준 자세 ↔ 달리기 들기 자세
 	local armPitch = 90 + p * 0.35 + kick
 	local runDown = run * 48
-	j.RS.Transform = CFrame.Angles(0, rad(8 + run * 22), 0) * CFrame.Angles(rad(armPitch - runDown), 0, 0)
-	if j.RE then
-		j.RE.Transform = CFrame.Angles(rad(run * 25), 0, 0)
+	if not knifeInHand(model) then
+		j.RS.Transform = CFrame.Angles(0, rad(8 + run * 22), 0) * CFrame.Angles(rad(armPitch - runDown), 0, 0)
+		if j.RE then
+			j.RE.Transform = CFrame.Angles(rad(run * 25), 0, 0)
+		end
+		if j.LS then
+			j.LS.Transform = CFrame.Angles(0, rad(-42 + run * 10), 0) * CFrame.Angles(rad(armPitch - 6 - runDown), 0, 0)
+		end
+		if j.LE then
+			j.LE.Transform = CFrame.Angles(rad(18 + run * 20), 0, 0)
+		end
 	end
 	if j.RW then
 		j.RW.Transform = CFrame.new()
 	end
-	if j.LS then
-		j.LS.Transform = CFrame.Angles(0, rad(-42 + run * 10), 0) * CFrame.Angles(rad(armPitch - 6 - runDown), 0, 0)
-	end
-	if j.LE then
-		j.LE.Transform = CFrame.Angles(rad(18 + run * 20), 0, 0)
-	end
 	if j.LW then
 		j.LW.Transform = CFrame.new()
+	end
+
+	-- 슬라이드: 상체를 뒤로 젖히고, 오른다리는 앞으로 쭉 · 왼다리는 접어서 미끄러짐
+	local slide = sm.Slide
+	if slide > 0.02 then
+		if j.Waist then
+			j.Waist.Transform = j.Waist.Transform:Lerp(CFrame.Angles(rad(28), 0, rad(-6)), slide)
+		end
+		if j.Neck then
+			j.Neck.Transform = j.Neck.Transform:Lerp(CFrame.Angles(rad(-18), 0, 0), slide)
+		end
+		if j.RH and j.RK then
+			j.RH.Transform = j.RH.Transform:Lerp(CFrame.Angles(rad(75), 0, 0), slide)
+			j.RK.Transform = j.RK.Transform:Lerp(CFrame.Angles(rad(-8), 0, 0), slide)
+		end
+		if j.LH and j.LK then
+			j.LH.Transform = j.LH.Transform:Lerp(CFrame.Angles(rad(30), 0, rad(-12)), slide)
+			j.LK.Transform = j.LK.Transform:Lerp(CFrame.Angles(rad(-110), 0, 0), slide)
+		end
+		if j.LA then
+			j.LA.Transform = j.LA.Transform:Lerp(CFrame.Angles(rad(30), 0, 0), slide)
+		end
+		return
 	end
 
 	-- 앉기: 무릎을 굽힘 (움직이면 좌우 번갈아 종종걸음). 기본 걷기 다리 동작 위에 섞음
@@ -9928,7 +10251,7 @@ game:GetService("UserInputService").InputBegan:Connect(function(input)
 end)
 
 print("[SplashFront] 클라이언트 준비 · B: 상점, F4: 피드백, F2: 관리자, 경기 중 좌클릭 발사 / 우클릭 조준 / Q 스페셜 / C 앉기 / V 1·3인칭 / 스폰에서 1~6·T 무기 교체")
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래시, 크로마 봄, 처치 이펙트, 데미지 숫자
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX36"><Properties><string name="Name">Effects</string><ProtectedString name="Source"><![CDATA[-- 시각/청각 효과: 트레이서, 착탄 스플래쉬, 크로마 봄, 처치 이펙트, 데미지 숫자
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -10357,6 +10680,17 @@ end
 
 -- 서버 FX 이벤트 처리
 function Effects.OnFX(kind, d)
+	if kind == "Slash" then
+		-- 다른 사람의 칼 휘두르기: 팔 동작 + 바람 소리
+		if d.Shooter ~= player and d.Model then
+			CharacterPose.Slash(d.Model, d.Heavy)
+			local root = d.Model:FindFirstChild("HumanoidRootPart")
+			if root then
+				SoundBank.Play("knife_swing", root.Position, 0.6)
+			end
+		end
+		return
+	end
 	if kind == "Tracer" then
 		if d.Shooter == player then
 			return -- 내 사격은 즉시 로컬로 그렸음
@@ -10899,7 +11233,7 @@ function HUD.Update(spreadPx, weaponId, sight, zoomText)
 	specialLbl.Text = sp >= 1 and "준비 완료!" or string.format("크로마 봄 %d%%", math.floor(sp * 100))
 	specialLbl.TextColor3 = sp >= 1 and Color3.fromRGB(255, 225, 80) or Color3.new(1, 1, 1)
 	local w = Weapons.Get(weaponId)
-	weaponLbl.Text = player:GetAttribute("Golden") and "황금총" or w.Class
+	weaponLbl.Text = player:GetAttribute("Melee") and "칼 [X]" or (player:GetAttribute("Golden") and "황금총" or w.Class)
 	-- 경험치
 	local lv, xp, need = player:GetAttribute("Level") or 1, player:GetAttribute("XP") or 0, player:GetAttribute("XPNeed") or 100
 	levelLbl.Text = "레벨 " .. lv
@@ -11061,7 +11395,7 @@ function HUD.DeathCard(d)
 	corner(c, 16)
 	make("UIStroke", { Thickness = 3, Color = d.KillerColor or Color3.fromRGB(255, 80, 110) }, c)
 	UI.Icon(c, "skull", "", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(16, 7) })
-	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래시 당했다!", Font = Enum.Font.FredokaOne,
+	text(c, { Size = UDim2.new(1, -60, 0, 26), Position = UDim2.fromOffset(50, 8), Text = "스플래쉬 당했다!", Font = Enum.Font.FredokaOne,
 		TextColor3 = Color3.fromRGB(255, 120, 150), TextXAlignment = Enum.TextXAlignment.Left })
 	local who = make("Frame", { Size = UDim2.fromOffset(170, 36), Position = UDim2.fromOffset(16, 46), BackgroundColor3 = d.KillerColor or Color3.fromRGB(90, 90, 110) }, c)
 	corner(who, 10)
@@ -11293,14 +11627,16 @@ function HUD.RefreshWeaponCard()
 	end
 	local WeaponSkins = require(ReplicatedStorage.Shared.WeaponSkins)
 local Cosmetics = require(ReplicatedStorage.Shared.Cosmetics)
-	if player:GetAttribute("Golden") then
+	if player:GetAttribute("Melee") then
+		UI.ModelImage(weaponCard.Pic, ModelKit.Knife(player:GetAttribute("TeamColor") or Color3.new(1, 1, 1)), UDim2.fromScale(1, 1), math.rad(90))
+	elseif player:GetAttribute("Golden") then
 		UI.ModelImage(weaponCard.Pic, ModelKit.Item("Golden"), UDim2.fromScale(1, 1))
 	else
 		local wid = player:GetAttribute("Weapon") or "Pistol"
 		UI.GunImage(weaponCard.Pic, wid, player:GetAttribute("TeamColor"), Cosmetics.ById[player:GetAttribute("Skin") or ""], nil, WeaponSkins.LookFor(player, wid))
 	end
 end
-for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor" }) do
+for _, a in ipairs({ "Weapon", "Skin", "WSkinEquip", "Golden", "TeamColor", "Melee" }) do
 	player:GetAttributeChangedSignal(a):Connect(function()
 		HUD.RefreshWeaponCard()
 	end)
@@ -12004,7 +12340,7 @@ local function buildCollection(page)
 		label(page, { Text = "무기 스킨", TextSize = 24, Font = Enum.Font.GothamBlack, Size = UDim2.new(1, -10, 0, 34), LayoutOrder = order })
 		order = order + 1
 		local sgrid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = order }, page)
-		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 150), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.25, -10, 0, 176), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, sgrid)
 		order = order + 1
 		for i, sid in ipairs(wsOwned) do
 			local lineId, wid = WeaponSkins.Split(sid)
@@ -12015,10 +12351,11 @@ local function buildCollection(page)
 				local cardF = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = i }, sgrid)
 				corner(cardF, 12)
 				UI.stroke(cardF, tier.Color, 2, on and 0 or 0.5)
-				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 64), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
+				local pic = make("Frame", { Size = UDim2.new(1, -16, 0, 90), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, cardF)
 				corner(pic, 10)
+				UI.gradient(pic, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(pic, wid, C.Cyan, nil, nil, WeaponSkins.Look(lineId, on and eq[wid].V or 1))
-				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 74),
+				label(cardF, { Text = line.Name .. " · " .. Weapons.Get(wid).Name, TextSize = 14, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(10, 100),
 					Size = UDim2.new(1, -20, 0, 20), TextTruncate = Enum.TextTruncate.AtEnd })
 				local b = button(cardF, on and "해제" or "장착", on and C.Dim or C.Green, { Size = UDim2.new(1, -16, 0, 36), Position = UDim2.new(0, 8, 1, -42), TextSize = 17 })
 				b.MouseButton1Click:Connect(function()
@@ -12211,17 +12548,18 @@ local function buildWeaponSkins(page)
 	-- 지금 장착한 모습
 	local cur = equip[wsWeapon]
 	local curLine = cur and WeaponSkins.LineById[cur.Line]
-	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 120), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
+	local top = make("Frame", { Size = UDim2.new(1, -10, 0, 150), BackgroundColor3 = C.Panel, LayoutOrder = nextOrder() }, page)
 	corner(top, 14)
 	UI.gradient(top, Color3.fromRGB(70, 50, 120), Color3.fromRGB(30, 28, 48), 0)
-	local pic = make("Frame", { Size = UDim2.fromOffset(230, 104), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
+	local pic = make("Frame", { Size = UDim2.fromOffset(300, 134), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, top)
 	corner(pic, 12)
+	UI.gradient(pic, Color3.fromRGB(150, 140, 200), Color3.fromRGB(70, 64, 110), 90)
 	UI.GunImage(pic, wsWeapon, C.Cyan, nil, nil, cur and WeaponSkins.Look(cur.Line, cur.V) or nil)
-	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(254, 14), Size = UDim2.new(1, -440, 0, 30) })
+	label(top, { Text = w.Name, TextSize = 26, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(324, 14), Size = UDim2.new(1, -510, 0, 30) })
 	label(top, { Text = curLine and string.format("장착: %s · %s", curLine.Name, curLine.Variants[cur.V] and curLine.Variants[cur.V].Name or "") or "장착: 기본 외형",
-		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(254, 50), Size = UDim2.new(1, -440, 0, 24) })
+		TextSize = 18, TextColor3 = curLine and WeaponSkins.TierById[curLine.Tier].Color or C.Sub, Position = UDim2.fromOffset(324, 50), Size = UDim2.new(1, -510, 0, 24) })
 	label(top, { Text = "스탠다드 → 디럭스(투톤) → 프리미엄(발광·색상 변형) → 얼티밋(입자·전용 피니셔)", TextSize = 14, TextColor3 = C.Sub,
-		Position = UDim2.fromOffset(254, 80), Size = UDim2.new(1, -440, 0, 20), TextWrapped = true })
+		Position = UDim2.fromOffset(324, 80), Size = UDim2.new(1, -510, 0, 20), TextWrapped = true })
 	if curLine then
 		local rb = button(top, "기본으로", C.Dim, { Size = UDim2.fromOffset(150, 46), Position = UDim2.new(1, -166, 0.5, -23), TextSize = 18 })
 		rb.MouseButton1Click:Connect(function()
@@ -12238,7 +12576,7 @@ local function buildWeaponSkins(page)
 		label(head, { Text = string.format("%s  ·  %d 코인", tier.Name, tier.Price), Font = Enum.Font.GothamBlack, TextSize = 20,
 			Position = UDim2.fromOffset(14, 0), Size = UDim2.new(1, -28, 1, 0), TextColor3 = Color3.fromRGB(15, 15, 20) })
 		local grid = make("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nextOrder() }, page)
-		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 236), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
+		make("UIGridLayout", { CellSize = UDim2.new(0.5, -10, 0, 270), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 		for _, line in ipairs(WeaponSkins.Lines) do
 			if line.Tier == tier.Id then
 				local skinId = WeaponSkins.SkinId(line.Id, wsWeapon)
@@ -12248,18 +12586,18 @@ local function buildWeaponSkins(page)
 				local card = make("Frame", { BackgroundColor3 = C.Panel, LayoutOrder = line.Order }, grid)
 				corner(card, 12)
 				UI.stroke(card, tier.Color, 2, (mine or isOn) and 0 or 0.5)
-				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 110), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
+				local cp = make("Frame", { Size = UDim2.new(1, -16, 0, 144), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = C.Panel2 }, card)
 				corner(cp, 10)
-				UI.gradient(cp, tier.Color:Lerp(Color3.new(0, 0, 0), 0.55), Color3.fromRGB(24, 22, 38), 90)
+				UI.gradient(cp, tier.Color:Lerp(Color3.new(1, 1, 1), 0.35), tier.Color:Lerp(Color3.fromRGB(40, 36, 70), 0.45), 90)
 				UI.GunImage(cp, wsWeapon, C.Cyan, nil, nil, WeaponSkins.Look(line.Id, v))
-				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 122), Size = UDim2.new(1, -24, 0, 22),
+				label(card, { Text = line.Name, TextSize = 19, Font = Enum.Font.GothamBlack, Position = UDim2.fromOffset(12, 156), Size = UDim2.new(1, -24, 0, 22),
 					TextTruncate = Enum.TextTruncate.AtEnd })
-				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 145), Size = UDim2.new(1, -24, 0, 18),
+				label(card, { Text = line.Desc, TextSize = 13, TextColor3 = C.Sub, Position = UDim2.fromOffset(12, 179), Size = UDim2.new(1, -24, 0, 18),
 					TextTruncate = Enum.TextTruncate.AtEnd })
 				-- 색상 변형 점 (보유했으면 누르면 그 색으로 장착, 아니면 미리보기)
 				if #line.Variants > 1 then
 					for vi, vv in ipairs(line.Variants) do
-						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 168), Text = "",
+						local dot = make("TextButton", { Size = UDim2.fromOffset(26, 26), Position = UDim2.fromOffset(12 + (vi - 1) * 34, 202), Text = "",
 							BackgroundColor3 = vv.Accent or vv.Body, AutoButtonColor = true }, card)
 						corner(dot, 13)
 						UI.stroke(dot, (vi == v) and Color3.new(1, 1, 1) or Color3.fromRGB(20, 20, 30), 2)
@@ -12272,7 +12610,7 @@ local function buildWeaponSkins(page)
 							buildWeaponSkins(page)
 						end)
 					end
-					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 170),
+					label(card, { Text = line.Variants[v].Name, TextSize = 14, TextColor3 = Color3.new(1, 1, 1), Position = UDim2.fromOffset(18 + #line.Variants * 34, 204),
 						Size = UDim2.fromOffset(110, 22) })
 				end
 				local text, color
@@ -13275,7 +13613,7 @@ end
 
 return MapInteract
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX41"><Properties><string name="Name">MusicPlayer</string><ProtectedString name="Source"><![CDATA[-- 맵별 배경음악: 로비 → lobby, 크로마 스퀘어 → chroma, 스카이 루프탑 → sky, 결과 → victory/defeat 징글
--- 파이널 스플래시(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
+-- 파이널 스플래쉬(마지막 30초)에는 템포를 올림. 음원 ID는 AssetIds.Music (업로드 전이면 무음)
 local Players = game:GetService("Players")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
@@ -13635,7 +13973,8 @@ end
 -- name: atlas 이름(fire_rifle, hit_head …), position: 3D 위치(없으면 2D), volume 0~1, pitch 배속
 -- 아틀라스에 아직 없는 소리는 비슷한 소리로 대신 (새 효과음 업로드 전·새 총 추가 직후에도 무음이 되지 않게)
 local ALIAS = { fire_k2 = "fire_rifle", fire_k2c1 = "fire_rifle", fire_k3 = "fire_smg", fire_k14 = "fire_sniper", fire_k5 = "fire_pistol",
-	hit_real = "hit", hit_real_head = "hit_head" }
+	hit_real = "hit", hit_real_head = "hit_head",
+	knife_swing = "special_throw", knife_hit = "hit_real", knife_draw = "zipline_start", slide = "jump_pad" }
 
 function SoundBank.Play(name, position, volume, pitch, looped)
 	if not AssetIds.SfxRegions[name] then
@@ -13859,15 +14198,16 @@ end
 ------------------------------------------------------------------------
 -- 아이템 이미지: 총은 3D 미리보기(ViewportFrame), 패턴은 재질 견본, 이펙트는 아이콘
 ------------------------------------------------------------------------
-local function viewportModel(parent, model, size, rotY)
+-- zoom: 카메라 거리 배율 (작을수록 크게 보임)
+local function viewportModel(parent, model, size, rotY, zoom)
 	local vp = make("ViewportFrame", { Size = size or UDim2.fromScale(1, 1), BackgroundTransparency = 1, LightColor = Color3.new(1, 1, 1),
-		Ambient = Color3.fromRGB(160, 160, 180), LightDirection = Vector3.new(-1, -1, -0.5) }, parent)
+		Ambient = Color3.fromRGB(210, 210, 225), LightDirection = Vector3.new(-1, -1, -0.5) }, parent)
 	local world = make("WorldModel", {}, vp)
 	model:PivotTo(CFrame.Angles(0, rotY or math.rad(90), 0))
 	model.Parent = world
 	local cf, sz = model:GetBoundingBox()
 	local cam = make("Camera", { FieldOfView = 30 }, vp)
-	local dist = sz.Magnitude * 1.9
+	local dist = sz.Magnitude * (zoom or 1.9)
 	cam.CFrame = CFrame.lookAt(cf.Position + Vector3.new(0, sz.Magnitude * 0.18, dist), cf.Position)
 	vp.CurrentCamera = cam
 	return vp
@@ -13879,7 +14219,11 @@ end
 
 function UI.GunImage(parent, weaponId, accent, skin, size, look)
 	local model = ModelKit.Gun(weaponId, accent or C.Cyan, skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
-	return viewportModel(parent, model, size, math.rad(90))
+	-- 총 미리보기: 크게(카메라를 가까이), 밝게(전용 조명 2개)
+	local vp = viewportModel(parent, model, size, math.rad(90), 1.45)
+	vp.LightColor = Color3.fromRGB(255, 252, 245)
+	vp.Ambient = Color3.fromRGB(230, 230, 240)
+	return vp
 end
 
 function UI.ItemImage(parent, item, size)
@@ -13988,6 +14332,11 @@ local localInk = Config.InkMax
 local viewmodel = nil
 local kick = 0           -- 화면 반동(도)
 local vmKick = 0         -- 뷰모델 반동
+local melee = false       -- 칼을 든 상태 (X 키)
+local sliding, slideT, slideDir, slideSpeed, lastSlide = false, 0, nil, 0, 0 -- 슬라이드 (달리다가 C)
+local SLIDE_TIME = 0.75
+local slashT, slashHeavy, lastSlash, slashSide = 0, false, 0, 1 -- 칼 휘두르기 연출
+local punchPitch, punchYaw = 0, 0 -- 저격총 반동: 조준이 실제로 위로 튀는 양(복귀 안 됨), 몇 프레임에 나눠 적용
 local baseHip = nil
 local speedTimer = 0
 local cellsFolder = nil
@@ -14059,9 +14408,14 @@ local function buildViewmodel()
 		viewmodel:Destroy()
 	end
 	local w = weapon()
-	local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
-	local look = WeaponSkins.LookFor(player, w.Id)
-	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	local m, muzzle
+	if melee then
+		m = ModelKit.Knife(teamColor())
+	else
+		local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
+		local look = WeaponSkins.LookFor(player, w.Id)
+		m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	end
 	m.Name = "Viewmodel"
 	m:PivotTo(CFrame.new())
 	local _, size = m:GetBoundingBox()
@@ -14074,7 +14428,7 @@ local function buildViewmodel()
 	hl.OutlineTransparency = 0
 	hl.DepthMode = Enum.HighlightDepthMode.Occluded
 	hl.Parent = m
-	if player:GetAttribute("Golden") then
+	if player:GetAttribute("Golden") and not melee then
 		ModelKit.SetGolden(m, true)
 	end
 	viewmodel = m
@@ -14124,8 +14478,26 @@ local function placeViewmodel(dt)
 		* CFrame.Angles(math.rad(-18) * vm.Run, math.rad(38) * vm.Run, math.rad(12) * vm.Run)
 	vm.Land = vm.Land * math.exp(-10 * dt)
 	vmKick = vmKick * math.exp(-14 * dt)
+	vm.Slide = (vm.Slide or 0) + ((sliding and 1 or 0) - (vm.Slide or 0)) * (1 - math.exp(-14 * dt))
+	runPose = runPose * CFrame.new(-0.1 * vm.Slide, -0.15 * vm.Slide, 0) * CFrame.Angles(0, 0, math.rad(-14 * vm.Slide)) -- 슬라이드: 총을 기울임
 	local base = hipOffset:Lerp(adsOffset, vm.Aim)
 	local cf = cam.CFrame * base * runPose * sway * bob * CFrame.new(0, 0, vmKick * 0.12) * CFrame.Angles(math.rad(vmKick * 3), 0, 0)
+	if melee then
+		-- 칼: 오른쪽 아래에서 날을 앞으로. 베기 = 오른쪽→왼쪽 대각선 휘두름, 찌르기 = 앞으로 쭉
+		slashT = math.max(0, slashT - dt / (slashHeavy and 0.42 or 0.3))
+		local p = 1 - slashT
+		local s = (slashT > 0) and math.sin(p * math.pi) or 0
+		local swing
+		if slashHeavy then
+			swing = CFrame.new(-0.35 * s, 0.15 * s, -0.9 * s) * CFrame.Angles(math.rad(10 * s), math.rad(25 * s), 0)
+		else
+			local sweep = (p - 0.5) * 2 * slashSide -- -1 → 1
+			swing = (slashT > 0) and (CFrame.new(-0.55 * sweep, 0.25 * s, -0.35 * s) * CFrame.Angles(math.rad(-25 * s), math.rad(-60 * sweep), math.rad(-50 * s)))
+				or CFrame.new()
+		end
+		local knifeBase = CFrame.new(0.75, -0.8, -1.15) * CFrame.Angles(math.rad(8), math.rad(-12), math.rad(-15))
+		cf = cam.CFrame * knifeBase * runPose * sway * bob * swing
+	end
 	viewmodel:PivotTo(cf)
 end
 
@@ -14186,7 +14558,12 @@ local function currentSpread(w)
 	return s
 end
 
+local slash -- 아래에서 정의 (칼 공격)
 local function fire()
+	if melee then
+		slash(false)
+		return
+	end
 	local w = weapon()
 	local now = os.clock()
 	if now - lastFire < w.FireInterval then
@@ -14267,9 +14644,81 @@ local function fire()
 	kick = math.min(kick + w.Recoil * 0.35, 4)
 	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
 	CharacterPose.Kick(player.Character, w.Recoil)
+	if w.KickUp then
+		punchPitch = punchPitch + w.KickUp * (aiming and 1 or 0.75)
+		punchYaw = punchYaw + (math.random() - 0.5) * w.KickUp * 0.5
+	end
 	spreadExtra = math.min(w.SpreadMax, spreadExtra + w.SpreadGrow)
 	Effects.Shake(w.Recoil * 0.02)
 end
+
+------------------------------------------------------------------------
+-- 칼 (X 키로 총 ↔ 칼)
+------------------------------------------------------------------------
+slash = function(heavy)
+	local K = Weapons.Knife
+	local now = os.clock()
+	if now - lastSlash < (heavy and K.HeavyInterval or K.Interval) then
+		return
+	end
+	local hum = humanoid()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or hum.Health <= 0 or not root then
+		return
+	end
+	lastSlash = now
+	slashT, slashHeavy, slashSide = 1, heavy, -slashSide
+	CharacterPose.Slash(player.Character, heavy) -- 3인칭에서도 팔이 휘둘러짐
+	local cam = camera()
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { char, cam }
+	-- 1인칭: 눈에서, 3인칭: 캐릭터 가슴에서 바라보는 방향으로 짧게 훑음
+	local origin = tpActive() and (root.Position + Vector3.new(0, 1.2, 0)) or cam.CFrame.Position
+	local dir = cam.CFrame.LookVector
+	local hit = workspace:Spherecast(origin, 1.4, dir * (K.Range + 0.5), params)
+	local target = nil
+	if hit then
+		local m = hit.Instance:FindFirstAncestorOfClass("Model")
+		while m and not m:FindFirstChildOfClass("Humanoid") do
+			m = m.Parent and m.Parent:FindFirstAncestorOfClass("Model")
+		end
+		target = m
+	end
+	remotes.Melee:FireServer("swing", target, heavy)
+	SoundBank.Play(target and "knife_hit" or "knife_swing", nil, heavy and 0.8 or 0.65, 0.95 + math.random() * 0.1)
+	if target and hit then
+		Effects.Splash(hit.Position, teamColor(), heavy and 2 or 1.2)
+	end
+end
+
+local function setMelee(on)
+	if melee == on then
+		return
+	end
+	melee = on
+	firing = false
+	if aiming then
+		aiming = false
+		TweenService:Create(camera(), TweenInfo.new(0.12), { FieldOfView = 70 }):Play()
+		UserInputService.MouseDeltaSensitivity = 1
+	end
+	slashT = 0
+	if remotes then
+		remotes.Melee:FireServer("equip", on)
+	end
+	if enabled then
+		buildViewmodel()
+		SoundBank.Play(on and "knife_draw" or "ui_buy", nil, 0.6)
+		HUD.Banner(on and "칼 [X] · 좌클릭 베기 · 우클릭 찌르기 · 등 뒤 공격 1.5배 · 이동 속도 ↑" or "총으로 전환 [X]",
+			on and Color3.fromRGB(255, 230, 140) or Color3.fromRGB(200, 220, 255))
+	end
+	if WC.UpdateSpeed then
+		WC.UpdateSpeed() -- (아래에서 정의)
+	end
+end
+WC.SetMelee = setMelee
 
 local function special()
 	if (player:GetAttribute("Special") or 0) < 1 then
@@ -14318,6 +14767,9 @@ end
 -- 바닥 색 → 이동 속도
 ------------------------------------------------------------------------
 local function updateSpeed()
+	if sliding then
+		return -- 슬라이드 중에는 슬라이드가 속도를 직접 정함
+	end
 	local hum = humanoid()
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	if not hum or not root then
@@ -14357,6 +14809,9 @@ local function updateSpeed()
 	if aiming then
 		speed = speed * 0.75
 	end
+	if melee then
+		speed = speed * Weapons.Knife.SpeedMul -- 칼을 들면 조금 더 빠름
+	end
 	hum.WalkSpeed = speed
 	if HUD and HUD.SetMove then
 		HUD.SetMove(mode)
@@ -14364,6 +14819,74 @@ local function updateSpeed()
 	currentStance = (mode == "앉기" and "Crouch") or (mode == "달리기" and "Run") or (mode == "걷기" and "Walk") or "Normal"
 	CharacterPose.SetLocalStance(currentStance)
 end
+WC.UpdateSpeed = updateSpeed
+
+------------------------------------------------------------------------
+-- 슬라이드: 달리는 중(Shift + 이동) C → 앞으로 미끄러지며 몸을 낮춤 (0.75초), 끝나면 앉은 자세
+------------------------------------------------------------------------
+local function endSlide()
+	if not sliding then
+		return
+	end
+	sliding = false
+	lastSlide = os.clock()
+	-- Shift를 계속 누르고 있으면 바로 일어나 달리고, 아니면 앉은 자세로 끝남
+	local holdRun = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+	setCrouch(not holdRun)
+	updateSpeed()
+end
+
+function WC.TrySlide()
+	local hum = humanoid()
+	local root = hum and hum.RootPart
+	if not hum or not root or hum.Health <= 0 or aiming then
+		return false
+	end
+	local now = os.clock()
+	if now - lastSlide < 1.0 or hum.FloorMaterial == Enum.Material.Air then
+		return false
+	end
+	local v = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+	if currentStance ~= "Run" or v.Magnitude < Config.WalkSpeed * 0.9 or hum.MoveDirection.Magnitude < 0.1 then
+		return false
+	end
+	sliding = true
+	slideT = 0
+	slideDir = (hum.MoveDirection.Magnitude > 0.1) and Vector3.new(hum.MoveDirection.X, 0, hum.MoveDirection.Z).Unit or v.Unit
+	slideSpeed = math.max(v.Magnitude, hum.WalkSpeed) * 1.45
+	if baseHip == nil then
+		baseHip = hum.HipHeight
+	end
+	hum.HipHeight = math.max(0.3, baseHip - 1.3)
+	currentStance = "Slide"
+	CharacterPose.SetLocalStance("Slide")
+	running = false
+	SoundBank.Play("slide", nil, 0.6)
+	if HUD and HUD.SetMove then
+		HUD.SetMove("슬라이드")
+	end
+	return true
+end
+
+-- 기본 이동(입력) 다음 순서에서 슬라이드 방향·속도로 덮어씀
+RunService:BindToRenderStep("SF_Slide", Enum.RenderPriority.Input.Value + 1, function(dt)
+	if not sliding then
+		return
+	end
+	local hum = humanoid()
+	if not hum or hum.Health <= 0 or not enabled then
+		sliding = false
+		lastSlide = os.clock()
+		return
+	end
+	slideT = slideT + dt
+	local f = math.clamp(1 - slideT / SLIDE_TIME, 0, 1)
+	hum.WalkSpeed = math.max(Config.WalkSpeed * 0.6, slideSpeed * (0.35 + 0.65 * f))
+	hum:Move(slideDir, false)
+	if slideT >= SLIDE_TIME or hum.Jump or hum:GetState() == Enum.HumanoidStateType.Jumping then
+		endSlide()
+	end
+end)
 
 ------------------------------------------------------------------------
 -- 켜기 / 끄기
@@ -14462,6 +14985,7 @@ end
 local function disable()
 	enabled = false
 	firing = false
+	sliding = false
 	unbindAll()
 	setAim(false)
 	setCrouch(false)
@@ -14493,10 +15017,25 @@ local function onAction(name, inputState)
 			firedThisPress = false
 		end
 	elseif name == "SF_Aim" then
-		setAim(began)
+		if melee then
+			if began then
+				slash(true) -- 칼: 우클릭 = 강하게 찌르기
+			end
+		else
+			setAim(began)
+		end
+	elseif name == "SF_Knife" and began then
+		setMelee(not melee)
 	elseif name == "SF_Special" and began then
 		special()
 	elseif name == "SF_Crouch" and began then
+		-- 달리는 중에 C → 슬라이드, 아니면 앉기 전환
+		if not crouched and not sliding and WC.TrySlide() then
+			return Enum.ContextActionResult.Sink
+		end
+		if sliding then
+			return Enum.ContextActionResult.Sink
+		end
 		setCrouch(not crouched)
 		if crouched then
 			running = false
@@ -14528,6 +15067,9 @@ bindAll = function()
 	ContextActionService:SetTitle("SF_Run", "달리기")
 	ContextActionService:SetPosition("SF_Run", UDim2.new(1, -170, 1, -220))
 	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
+	ContextActionService:BindAction("SF_Knife", onAction, true, Enum.KeyCode.X, Enum.KeyCode.DPadLeft)
+	ContextActionService:SetTitle("SF_Knife", "칼")
+	ContextActionService:SetPosition("SF_Knife", UDim2.new(1, -170, 1, -300))
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
 	ContextActionService:SetTitle("SF_Special", "스페셜")
@@ -14542,7 +15084,7 @@ end
 
 unbindAll = function()
 	running = false
-	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk" }) do
+	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk", "SF_Knife" }) do
 		ContextActionService:UnbindAction(n)
 	end
 end
@@ -14608,8 +15150,21 @@ function WC.Init(remoteFolder, hud, effects)
 			buildViewmodel()
 		end
 	end)
+	-- 서버가 칼 상태를 바꾸면(부활·무기 교체 시 총으로) 맞춤
+	player:GetAttributeChangedSignal("Melee"):Connect(function()
+		local on = player:GetAttribute("Melee") == true
+		if on ~= melee then
+			melee = on
+			slashT = 0
+			if enabled then
+				buildViewmodel()
+			end
+			updateSpeed()
+		end
+	end)
 	-- 무기가 바뀌면(스폰 지점 교체) 1인칭 총 모형·잉크 갱신
 	player:GetAttributeChangedSignal("Weapon"):Connect(function()
+		melee = false
 		if enabled then
 			setAim(false)
 			spreadExtra = 0
@@ -14665,6 +15220,9 @@ function WC.Init(remoteFolder, hud, effects)
 		baseHip = nil
 		crouched = false
 		aiming = false
+		melee = false
+		slashT = 0
+		sliding = false
 		if enabled then
 			task.defer(function()
 				buildViewmodel()
@@ -14732,8 +15290,16 @@ function WC.Init(remoteFolder, hud, effects)
 			return
 		end
 		kick = kick * math.exp(-14 * dt) -- 빠르게 원위치 (조준점 복귀)
+		-- 저격총 반동: 조준 방향 자체를 위로 올림 (돌아오지 않으므로 다시 겨눠야 함)
+		local punch = CFrame.new()
+		if math.abs(punchPitch) > 0.01 or math.abs(punchYaw) > 0.01 then
+			local f = math.min(1, dt * 22)
+			punch = CFrame.Angles(math.rad(punchPitch * f), math.rad(punchYaw * f), 0)
+			punchPitch = punchPitch * (1 - f)
+			punchYaw = punchYaw * (1 - f)
+		end
 		local offset = CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
-		cam.CFrame = cam.CFrame * lastOffset:Inverse() * offset
+		cam.CFrame = cam.CFrame * lastOffset:Inverse() * punch * offset
 		lastOffset = offset
 	end)
 

@@ -32,6 +32,11 @@ local localInk = Config.InkMax
 local viewmodel = nil
 local kick = 0           -- 화면 반동(도)
 local vmKick = 0         -- 뷰모델 반동
+local melee = false       -- 칼을 든 상태 (X 키)
+local sliding, slideT, slideDir, slideSpeed, lastSlide = false, 0, nil, 0, 0 -- 슬라이드 (달리다가 C)
+local SLIDE_TIME = 0.75
+local slashT, slashHeavy, lastSlash, slashSide = 0, false, 0, 1 -- 칼 휘두르기 연출
+local punchPitch, punchYaw = 0, 0 -- 저격총 반동: 조준이 실제로 위로 튀는 양(복귀 안 됨), 몇 프레임에 나눠 적용
 local baseHip = nil
 local speedTimer = 0
 local cellsFolder = nil
@@ -103,9 +108,14 @@ local function buildViewmodel()
 		viewmodel:Destroy()
 	end
 	local w = weapon()
-	local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
-	local look = WeaponSkins.LookFor(player, w.Id)
-	local m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	local m, muzzle
+	if melee then
+		m = ModelKit.Knife(teamColor())
+	else
+		local skin = Cosmetics.ById[player:GetAttribute("Skin") or ""]
+		local look = WeaponSkins.LookFor(player, w.Id)
+		m, muzzle = ModelKit.Gun(w.Id, teamColor(), skin, skin and Cosmetics.MaterialOf(skin.Material) or nil, look)
+	end
 	m.Name = "Viewmodel"
 	m:PivotTo(CFrame.new())
 	local _, size = m:GetBoundingBox()
@@ -118,7 +128,7 @@ local function buildViewmodel()
 	hl.OutlineTransparency = 0
 	hl.DepthMode = Enum.HighlightDepthMode.Occluded
 	hl.Parent = m
-	if player:GetAttribute("Golden") then
+	if player:GetAttribute("Golden") and not melee then
 		ModelKit.SetGolden(m, true)
 	end
 	viewmodel = m
@@ -168,8 +178,26 @@ local function placeViewmodel(dt)
 		* CFrame.Angles(math.rad(-18) * vm.Run, math.rad(38) * vm.Run, math.rad(12) * vm.Run)
 	vm.Land = vm.Land * math.exp(-10 * dt)
 	vmKick = vmKick * math.exp(-14 * dt)
+	vm.Slide = (vm.Slide or 0) + ((sliding and 1 or 0) - (vm.Slide or 0)) * (1 - math.exp(-14 * dt))
+	runPose = runPose * CFrame.new(-0.1 * vm.Slide, -0.15 * vm.Slide, 0) * CFrame.Angles(0, 0, math.rad(-14 * vm.Slide)) -- 슬라이드: 총을 기울임
 	local base = hipOffset:Lerp(adsOffset, vm.Aim)
 	local cf = cam.CFrame * base * runPose * sway * bob * CFrame.new(0, 0, vmKick * 0.12) * CFrame.Angles(math.rad(vmKick * 3), 0, 0)
+	if melee then
+		-- 칼: 오른쪽 아래에서 날을 앞으로. 베기 = 오른쪽→왼쪽 대각선 휘두름, 찌르기 = 앞으로 쭉
+		slashT = math.max(0, slashT - dt / (slashHeavy and 0.42 or 0.3))
+		local p = 1 - slashT
+		local s = (slashT > 0) and math.sin(p * math.pi) or 0
+		local swing
+		if slashHeavy then
+			swing = CFrame.new(-0.35 * s, 0.15 * s, -0.9 * s) * CFrame.Angles(math.rad(10 * s), math.rad(25 * s), 0)
+		else
+			local sweep = (p - 0.5) * 2 * slashSide -- -1 → 1
+			swing = (slashT > 0) and (CFrame.new(-0.55 * sweep, 0.25 * s, -0.35 * s) * CFrame.Angles(math.rad(-25 * s), math.rad(-60 * sweep), math.rad(-50 * s)))
+				or CFrame.new()
+		end
+		local knifeBase = CFrame.new(0.75, -0.8, -1.15) * CFrame.Angles(math.rad(8), math.rad(-12), math.rad(-15))
+		cf = cam.CFrame * knifeBase * runPose * sway * bob * swing
+	end
 	viewmodel:PivotTo(cf)
 end
 
@@ -230,7 +258,12 @@ local function currentSpread(w)
 	return s
 end
 
+local slash -- 아래에서 정의 (칼 공격)
 local function fire()
+	if melee then
+		slash(false)
+		return
+	end
 	local w = weapon()
 	local now = os.clock()
 	if now - lastFire < w.FireInterval then
@@ -311,9 +344,81 @@ local function fire()
 	kick = math.min(kick + w.Recoil * 0.35, 4)
 	vmKick = vmKick + math.min(1.5, w.Recoil * 0.4)
 	CharacterPose.Kick(player.Character, w.Recoil)
+	if w.KickUp then
+		punchPitch = punchPitch + w.KickUp * (aiming and 1 or 0.75)
+		punchYaw = punchYaw + (math.random() - 0.5) * w.KickUp * 0.5
+	end
 	spreadExtra = math.min(w.SpreadMax, spreadExtra + w.SpreadGrow)
 	Effects.Shake(w.Recoil * 0.02)
 end
+
+------------------------------------------------------------------------
+-- 칼 (X 키로 총 ↔ 칼)
+------------------------------------------------------------------------
+slash = function(heavy)
+	local K = Weapons.Knife
+	local now = os.clock()
+	if now - lastSlash < (heavy and K.HeavyInterval or K.Interval) then
+		return
+	end
+	local hum = humanoid()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or hum.Health <= 0 or not root then
+		return
+	end
+	lastSlash = now
+	slashT, slashHeavy, slashSide = 1, heavy, -slashSide
+	CharacterPose.Slash(player.Character, heavy) -- 3인칭에서도 팔이 휘둘러짐
+	local cam = camera()
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { char, cam }
+	-- 1인칭: 눈에서, 3인칭: 캐릭터 가슴에서 바라보는 방향으로 짧게 훑음
+	local origin = tpActive() and (root.Position + Vector3.new(0, 1.2, 0)) or cam.CFrame.Position
+	local dir = cam.CFrame.LookVector
+	local hit = workspace:Spherecast(origin, 1.4, dir * (K.Range + 0.5), params)
+	local target = nil
+	if hit then
+		local m = hit.Instance:FindFirstAncestorOfClass("Model")
+		while m and not m:FindFirstChildOfClass("Humanoid") do
+			m = m.Parent and m.Parent:FindFirstAncestorOfClass("Model")
+		end
+		target = m
+	end
+	remotes.Melee:FireServer("swing", target, heavy)
+	SoundBank.Play(target and "knife_hit" or "knife_swing", nil, heavy and 0.8 or 0.65, 0.95 + math.random() * 0.1)
+	if target and hit then
+		Effects.Splash(hit.Position, teamColor(), heavy and 2 or 1.2)
+	end
+end
+
+local function setMelee(on)
+	if melee == on then
+		return
+	end
+	melee = on
+	firing = false
+	if aiming then
+		aiming = false
+		TweenService:Create(camera(), TweenInfo.new(0.12), { FieldOfView = 70 }):Play()
+		UserInputService.MouseDeltaSensitivity = 1
+	end
+	slashT = 0
+	if remotes then
+		remotes.Melee:FireServer("equip", on)
+	end
+	if enabled then
+		buildViewmodel()
+		SoundBank.Play(on and "knife_draw" or "ui_buy", nil, 0.6)
+		HUD.Banner(on and "칼 [X] · 좌클릭 베기 · 우클릭 찌르기 · 등 뒤 공격 1.5배 · 이동 속도 ↑" or "총으로 전환 [X]",
+			on and Color3.fromRGB(255, 230, 140) or Color3.fromRGB(200, 220, 255))
+	end
+	if WC.UpdateSpeed then
+		WC.UpdateSpeed() -- (아래에서 정의)
+	end
+end
+WC.SetMelee = setMelee
 
 local function special()
 	if (player:GetAttribute("Special") or 0) < 1 then
@@ -362,6 +467,9 @@ end
 -- 바닥 색 → 이동 속도
 ------------------------------------------------------------------------
 local function updateSpeed()
+	if sliding then
+		return -- 슬라이드 중에는 슬라이드가 속도를 직접 정함
+	end
 	local hum = humanoid()
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	if not hum or not root then
@@ -401,6 +509,9 @@ local function updateSpeed()
 	if aiming then
 		speed = speed * 0.75
 	end
+	if melee then
+		speed = speed * Weapons.Knife.SpeedMul -- 칼을 들면 조금 더 빠름
+	end
 	hum.WalkSpeed = speed
 	if HUD and HUD.SetMove then
 		HUD.SetMove(mode)
@@ -408,6 +519,74 @@ local function updateSpeed()
 	currentStance = (mode == "앉기" and "Crouch") or (mode == "달리기" and "Run") or (mode == "걷기" and "Walk") or "Normal"
 	CharacterPose.SetLocalStance(currentStance)
 end
+WC.UpdateSpeed = updateSpeed
+
+------------------------------------------------------------------------
+-- 슬라이드: 달리는 중(Shift + 이동) C → 앞으로 미끄러지며 몸을 낮춤 (0.75초), 끝나면 앉은 자세
+------------------------------------------------------------------------
+local function endSlide()
+	if not sliding then
+		return
+	end
+	sliding = false
+	lastSlide = os.clock()
+	-- Shift를 계속 누르고 있으면 바로 일어나 달리고, 아니면 앉은 자세로 끝남
+	local holdRun = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+	setCrouch(not holdRun)
+	updateSpeed()
+end
+
+function WC.TrySlide()
+	local hum = humanoid()
+	local root = hum and hum.RootPart
+	if not hum or not root or hum.Health <= 0 or aiming then
+		return false
+	end
+	local now = os.clock()
+	if now - lastSlide < 1.0 or hum.FloorMaterial == Enum.Material.Air then
+		return false
+	end
+	local v = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+	if currentStance ~= "Run" or v.Magnitude < Config.WalkSpeed * 0.9 or hum.MoveDirection.Magnitude < 0.1 then
+		return false
+	end
+	sliding = true
+	slideT = 0
+	slideDir = (hum.MoveDirection.Magnitude > 0.1) and Vector3.new(hum.MoveDirection.X, 0, hum.MoveDirection.Z).Unit or v.Unit
+	slideSpeed = math.max(v.Magnitude, hum.WalkSpeed) * 1.45
+	if baseHip == nil then
+		baseHip = hum.HipHeight
+	end
+	hum.HipHeight = math.max(0.3, baseHip - 1.3)
+	currentStance = "Slide"
+	CharacterPose.SetLocalStance("Slide")
+	running = false
+	SoundBank.Play("slide", nil, 0.6)
+	if HUD and HUD.SetMove then
+		HUD.SetMove("슬라이드")
+	end
+	return true
+end
+
+-- 기본 이동(입력) 다음 순서에서 슬라이드 방향·속도로 덮어씀
+RunService:BindToRenderStep("SF_Slide", Enum.RenderPriority.Input.Value + 1, function(dt)
+	if not sliding then
+		return
+	end
+	local hum = humanoid()
+	if not hum or hum.Health <= 0 or not enabled then
+		sliding = false
+		lastSlide = os.clock()
+		return
+	end
+	slideT = slideT + dt
+	local f = math.clamp(1 - slideT / SLIDE_TIME, 0, 1)
+	hum.WalkSpeed = math.max(Config.WalkSpeed * 0.6, slideSpeed * (0.35 + 0.65 * f))
+	hum:Move(slideDir, false)
+	if slideT >= SLIDE_TIME or hum.Jump or hum:GetState() == Enum.HumanoidStateType.Jumping then
+		endSlide()
+	end
+end)
 
 ------------------------------------------------------------------------
 -- 켜기 / 끄기
@@ -506,6 +685,7 @@ end
 local function disable()
 	enabled = false
 	firing = false
+	sliding = false
 	unbindAll()
 	setAim(false)
 	setCrouch(false)
@@ -537,10 +717,25 @@ local function onAction(name, inputState)
 			firedThisPress = false
 		end
 	elseif name == "SF_Aim" then
-		setAim(began)
+		if melee then
+			if began then
+				slash(true) -- 칼: 우클릭 = 강하게 찌르기
+			end
+		else
+			setAim(began)
+		end
+	elseif name == "SF_Knife" and began then
+		setMelee(not melee)
 	elseif name == "SF_Special" and began then
 		special()
 	elseif name == "SF_Crouch" and began then
+		-- 달리는 중에 C → 슬라이드, 아니면 앉기 전환
+		if not crouched and not sliding and WC.TrySlide() then
+			return Enum.ContextActionResult.Sink
+		end
+		if sliding then
+			return Enum.ContextActionResult.Sink
+		end
 		setCrouch(not crouched)
 		if crouched then
 			running = false
@@ -572,6 +767,9 @@ bindAll = function()
 	ContextActionService:SetTitle("SF_Run", "달리기")
 	ContextActionService:SetPosition("SF_Run", UDim2.new(1, -170, 1, -220))
 	ContextActionService:BindAction("SF_View", onAction, true, Enum.KeyCode.V, Enum.KeyCode.DPadUp)
+	ContextActionService:BindAction("SF_Knife", onAction, true, Enum.KeyCode.X, Enum.KeyCode.DPadLeft)
+	ContextActionService:SetTitle("SF_Knife", "칼")
+	ContextActionService:SetPosition("SF_Knife", UDim2.new(1, -170, 1, -300))
 	ContextActionService:SetTitle("SF_Fire", "발사")
 	ContextActionService:SetTitle("SF_Aim", "조준")
 	ContextActionService:SetTitle("SF_Special", "스페셜")
@@ -586,7 +784,7 @@ end
 
 unbindAll = function()
 	running = false
-	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk" }) do
+	for _, n in ipairs({ "SF_Fire", "SF_Aim", "SF_Special", "SF_Crouch", "SF_View", "SF_Run", "SF_Walk", "SF_Knife" }) do
 		ContextActionService:UnbindAction(n)
 	end
 end
@@ -652,8 +850,21 @@ function WC.Init(remoteFolder, hud, effects)
 			buildViewmodel()
 		end
 	end)
+	-- 서버가 칼 상태를 바꾸면(부활·무기 교체 시 총으로) 맞춤
+	player:GetAttributeChangedSignal("Melee"):Connect(function()
+		local on = player:GetAttribute("Melee") == true
+		if on ~= melee then
+			melee = on
+			slashT = 0
+			if enabled then
+				buildViewmodel()
+			end
+			updateSpeed()
+		end
+	end)
 	-- 무기가 바뀌면(스폰 지점 교체) 1인칭 총 모형·잉크 갱신
 	player:GetAttributeChangedSignal("Weapon"):Connect(function()
+		melee = false
 		if enabled then
 			setAim(false)
 			spreadExtra = 0
@@ -709,6 +920,9 @@ function WC.Init(remoteFolder, hud, effects)
 		baseHip = nil
 		crouched = false
 		aiming = false
+		melee = false
+		slashT = 0
+		sliding = false
 		if enabled then
 			task.defer(function()
 				buildViewmodel()
@@ -776,8 +990,16 @@ function WC.Init(remoteFolder, hud, effects)
 			return
 		end
 		kick = kick * math.exp(-14 * dt) -- 빠르게 원위치 (조준점 복귀)
+		-- 저격총 반동: 조준 방향 자체를 위로 올림 (돌아오지 않으므로 다시 겨눠야 함)
+		local punch = CFrame.new()
+		if math.abs(punchPitch) > 0.01 or math.abs(punchYaw) > 0.01 then
+			local f = math.min(1, dt * 22)
+			punch = CFrame.Angles(math.rad(punchPitch * f), math.rad(punchYaw * f), 0)
+			punchPitch = punchPitch * (1 - f)
+			punchYaw = punchYaw * (1 - f)
+		end
 		local offset = CFrame.Angles(math.rad(kick), 0, 0) * Effects.ShakeOffset(dt)
-		cam.CFrame = cam.CFrame * lastOffset:Inverse() * offset
+		cam.CFrame = cam.CFrame * lastOffset:Inverse() * punch * offset
 		lastOffset = offset
 	end)
 

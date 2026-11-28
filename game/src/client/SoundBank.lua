@@ -43,7 +43,8 @@ end
 -- name: atlas 이름(fire_rifle, hit_head …), position: 3D 위치(없으면 2D), volume 0~1, pitch 배속
 -- 아틀라스에 아직 없는 소리는 비슷한 소리로 대신 (새 효과음 업로드 전·새 총 추가 직후에도 무음이 되지 않게)
 local ALIAS = { fire_k2 = "fire_rifle", fire_k2c1 = "fire_rifle", fire_k3 = "fire_smg", fire_k14 = "fire_sniper", fire_k5 = "fire_pistol",
-	hit_real = "hit", hit_real_head = "hit_head" }
+	hit_real = "hit", hit_real_head = "hit_head",
+	knife_swing = "special_throw", knife_hit = "hit_real", knife_draw = "zipline_start", slide = "jump_pad" }
 
 function SoundBank.Play(name, position, volume, pitch, looped)
 	if not AssetIds.SfxRegions[name] then
